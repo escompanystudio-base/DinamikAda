@@ -12,4 +12,9 @@ $output = if ([IO.Path]::IsPathRooted($OutputDirectory)) { [IO.Path]::GetFullPat
 $buildOutput = (Join-Path $repoRoot "artifacts\build").TrimEnd('\', '/') + "/"
 & dotnet publish $project -c Release -p:Platform=x64 -p:UseSharedCompilation=false "-p:OutDir=$buildOutput" -m:1 --self-contained false -o $output
 if ($LASTEXITCODE -ne 0) { throw "DinamikAda derlenemedi (ExitCode=$LASTEXITCODE)." }
-Write-Output "Uygulama hazir: $(Join-Path $output 'DinamikAda.App.exe')"
+$exePath = Join-Path $output 'DinamikAda.App.exe'
+if (Test-Path -LiteralPath $exePath) {
+    # Ensure published exe timestamp advances even when Deterministic=true skips apphost overwrite
+    [IO.File]::SetLastWriteTimeUtc($exePath, [DateTime]::UtcNow)
+}
+Write-Output "Uygulama hazir: $exePath"
