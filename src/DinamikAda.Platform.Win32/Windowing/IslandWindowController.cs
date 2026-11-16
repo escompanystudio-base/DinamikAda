@@ -12,8 +12,8 @@ namespace DinamikAda.Platform.Win32.Windowing;
 /// </summary>
 public sealed class IslandWindowController : IWindowStyleHost, IDisposable
 {
-    public const double CompactTierWidthDip = 560.0;
-    public const double CompactTierHeightDip = 80.0;
+    public const double CompactTierWidthDip = 620.0;
+    public const double CompactTierHeightDip = 88.0;
     public const double ExpandedTierWidthDip = 720.0;
     public const double ExpandedTierHeightDip = 424.0;
 

@@ -402,10 +402,16 @@ public partial class SettingsWindow : Window
         LblMicMuteHotkey.Text = Strings.Pick(lang, "Mikrofon Susturma Kısayolu", "Mic Mute Hotkey");
         LblColorPickerHotkey.Text = Strings.Pick(lang, "Renk Seçici Kısayolu", "Color Picker Hotkey");
 
-        ChkHardwareRendering.Content = Strings.Pick(
-            lang,
-            "Donanım GPU İşleme (yeniden başlatma gerekir)",
-            "Hardware GPU Rendering (restart required)");
+        bool amdMpoGuardActive = NativeMethods.HasAmdDisplayAdapter() && _orch.Config.AmdSafeSoftwareCompositing;
+        ChkHardwareRendering.Content = amdMpoGuardActive
+            ? Strings.Pick(
+                lang,
+                "Donanım GPU İşleme (AMD Radeon MPO koruması: Güvenli SoftwareOnly)",
+                "Hardware GPU Rendering (AMD Radeon MPO guard: Safe SoftwareOnly)")
+            : Strings.Pick(
+                lang,
+                "Donanım GPU İşleme (yeniden başlatma gerekir)",
+                "Hardware GPU Rendering (restart required)");
         ChkSpectrumVisualizer.Content = Strings.SpectrumVisualizerLabel(lang);
         ChkAutoDodge.Content = Strings.Pick(
             lang,

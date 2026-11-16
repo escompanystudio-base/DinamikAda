@@ -51,6 +51,12 @@ public sealed class AppConfig
     public int MaxClipboardItems { get; set; } = 25;
     public string CommandHotkey { get; set; } = "Ctrl+Shift+Space";
     public bool UseHardwareRendering { get; set; } = true;
+    /// <summary>
+    /// On AMD Radeon GPUs (VEN_1002), D3D9Ex WPF AllowsTransparency layered windows can trigger
+    /// Windows 11 Multi-Plane Overlay (MPO) black scanout artifacts over Chromium/DXGI apps.
+    /// Defaults to true so ProcessRenderMode uses SoftwareOnly cleanly when an AMD adapter is active.
+    /// </summary>
+    public bool AmdSafeSoftwareCompositing { get; set; } = true;
     public int TargetFpsCap { get; set; } = 0;
     public bool LaunchAtStartup { get; set; } = false;
     public bool EnableSpectrumVisualizer { get; set; } = true;

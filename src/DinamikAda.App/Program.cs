@@ -59,9 +59,12 @@ public static class Program
             initialConfig.Sanitize();
         }
 
-        RenderOptions.ProcessRenderMode = !forceSoftwareRender && initialConfig.UseHardwareRendering
-            ? RenderMode.Default
-            : RenderMode.SoftwareOnly;
+        bool useSoftwareRender = forceSoftwareRender
+            || !initialConfig.UseHardwareRendering
+            || (initialConfig.AmdSafeSoftwareCompositing && DinamikAda.Platform.Win32.Interop.NativeMethods.HasAmdDisplayAdapter());
+        RenderOptions.ProcessRenderMode = useSoftwareRender
+            ? RenderMode.SoftwareOnly
+            : RenderMode.Default;
 
         Mutex? singleMutex = null;
         if (!smokeTest && renderAuditDir is null)

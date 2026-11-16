@@ -1164,27 +1164,6 @@ public partial class IslandWindow : Window
             _orch.Coordinator.SetIslandMonitorHandle(_activeMonitor.Handle);
         }
 
-        if (!_isRenderAuditMode)
-        {
-            var fixedPlacement = MonitorLayoutCalculator.ComputeHostWindowBounds(
-                _activeMonitor,
-                ExpandedTierW,
-                ExpandedTierH,
-                _orch.Config.HorizontalDetent,
-                _orch.Config.CustomHorizontalRatio,
-                _orch.Config.DockPlacement,
-                _orch.Config.CustomFreeTopDip);
-
-            _pendingCompactTierCollapse = false;
-            if (!_isExpandedTierActive || _tierHostWidth != ExpandedTierW || _tierHostHeight != ExpandedTierH)
-            {
-                _isExpandedTierActive = true;
-                SetTierCanvasSize(ExpandedTierW, ExpandedTierH);
-            }
-            _controller.EnsureExpandedHwnd(fixedPlacement.LeftPx, fixedPlacement.TopPx, fixedPlacement.WidthPx, fixedPlacement.HeightPx);
-            return;
-        }
-
         bool needExpanded = RequiresExpandedTier(snap.State);
         var placement = MonitorLayoutCalculator.ComputeHostWindowBounds(
             _activeMonitor,
@@ -1198,12 +1177,22 @@ public partial class IslandWindow : Window
         if (needExpanded)
         {
             _pendingCompactTierCollapse = false;
-            if (!_isExpandedTierActive)
+            if (!_isExpandedTierActive || _tierHostWidth != ExpandedTierW || _tierHostHeight != ExpandedTierH)
             {
                 _isExpandedTierActive = true;
                 SetTierCanvasSize(ExpandedTierW, ExpandedTierH);
+                ApplyMotionFrameToVisuals(snap, forceHitUpdate: true);
+                RootSurface.UpdateLayout();
             }
-            _controller.EnsureExpandedHwndTier(ExpandedTierW, ExpandedTierH, placement.LeftDip, placement.TopDip);
+
+            if (_isRenderAuditMode)
+            {
+                _controller.EnsureExpandedHwndTier(ExpandedTierW, ExpandedTierH, placement.LeftDip, placement.TopDip);
+            }
+            else
+            {
+                _controller.EnsureExpandedHwnd(placement.LeftPx, placement.TopPx, placement.WidthPx, placement.HeightPx);
+            }
         }
         else if (_isExpandedTierActive && !snapImmediately)
         {
@@ -1213,10 +1202,12 @@ public partial class IslandWindow : Window
         else
         {
             _pendingCompactTierCollapse = false;
-            if (_isExpandedTierActive)
+            if (_isExpandedTierActive || _tierHostWidth != CompactTierW || _tierHostHeight != CompactTierH)
             {
                 _isExpandedTierActive = false;
                 SetTierCanvasSize(CompactTierW, CompactTierH);
+                ApplyMotionFrameToVisuals(snap, forceHitUpdate: true);
+                RootSurface.UpdateLayout();
             }
             _controller.SetWindowTierBounds(CompactTierW, CompactTierH, placement.LeftDip, placement.TopDip);
         }
@@ -1225,11 +1216,6 @@ public partial class IslandWindow : Window
     private void SwitchToCompactTier()
     {
         _pendingCompactTierCollapse = false;
-        if (!_isRenderAuditMode)
-        {
-            ApplyMotionFrameToVisuals(_lastSnapshot, forceHitUpdate: true);
-            return;
-        }
         _isExpandedTierActive = false;
         SetTierCanvasSize(CompactTierW, CompactTierH);
 
@@ -1242,8 +1228,9 @@ public partial class IslandWindow : Window
             _orch.Config.DockPlacement,
             _orch.Config.CustomFreeTopDip);
 
-        _controller.CollapseHwndTierNow(CompactTierW, CompactTierH, placement.LeftDip, placement.TopDip);
         ApplyMotionFrameToVisuals(_lastSnapshot, forceHitUpdate: true);
+        RootSurface.UpdateLayout();
+        _controller.CollapseHwndTierNow(CompactTierW, CompactTierH, placement.LeftDip, placement.TopDip);
     }
 
     private void SetTierCanvasSize(double w, double h)

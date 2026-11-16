@@ -1194,4 +1194,96 @@ public static unsafe partial class NativeMethods
 
     [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
     public static partial uint ExtractIconExW(string lpszFile, int nIconIndex, nint* phiconLarge, nint* phiconSmall, uint nIcons);
+
+    [LibraryImport("user32.dll", EntryPoint = "EnumDisplayDevicesW", StringMarshalling = StringMarshalling.Utf16)]
+    private static unsafe partial int EnumDisplayDevicesW(string? lpDevice, uint iDevNum, DISPLAY_DEVICEW_NATIVE* lpDisplayDevice, uint dwFlags);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private unsafe struct DISPLAY_DEVICEW_NATIVE
+    {
+        public int cb;
+        public fixed char DeviceName[32];
+        public fixed char DeviceString[128];
+        public int StateFlags;
+        public fixed char DeviceID[128];
+        public fixed char DeviceKey[128];
+    }
+
+    private static readonly Lazy<bool> s_hasAmdDisplayAdapter = new(DetectAmdDisplayAdapterCore);
+
+    /// <summary>
+    /// Returns true if an active desktop-attached display adapter is an AMD/Radeon GPU (VEN_1002).
+    /// Cached per process so startup and settings UI can query it without repeated GDI enumeration.
+    /// </summary>
+    public static bool HasAmdDisplayAdapter() => s_hasAmdDisplayAdapter.Value;
+
+    /// <summary>
+    /// Evaluates raw Win32 DISPLAY_DEVICEW metadata to determine whether an active attached adapter is AMD/Radeon.
+    /// Exposed as a pure helper for deterministic unit testing.
+    /// </summary>
+    public static bool IsAmdAdapterMetadata(int stateFlags, string? deviceId, string? deviceString)
+    {
+        const int DisplayDeviceAttachedToDesktop = 0x00000001;
+        if ((stateFlags & DisplayDeviceAttachedToDesktop) == 0)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(deviceId)
+            && deviceId.Contains("VEN_1002", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(deviceString))
+        {
+            if (deviceString.Contains("AMD", StringComparison.OrdinalIgnoreCase)
+                || deviceString.Contains("Radeon", StringComparison.OrdinalIgnoreCase)
+                || deviceString.Contains("Advanced Micro Devices", StringComparison.OrdinalIgnoreCase)
+                || deviceString.StartsWith("ATI ", StringComparison.OrdinalIgnoreCase)
+                || deviceString.Contains(" ATI ", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(deviceString.Trim(), "ATI", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static unsafe bool DetectAmdDisplayAdapterCore()
+    {
+        try
+        {
+            for (uint i = 0; i < 64; i++)
+            {
+                DISPLAY_DEVICEW_NATIVE dd = default;
+                dd.cb = sizeof(DISPLAY_DEVICEW_NATIVE);
+                if (EnumDisplayDevicesW(null, i, &dd, 0) == 0)
+                {
+                    break;
+                }
+
+                string deviceId = ReadFixedNullTerminated(dd.DeviceID, 128);
+                string deviceString = ReadFixedNullTerminated(dd.DeviceString, 128);
+                if (IsAmdAdapterMetadata(dd.StateFlags, deviceId, deviceString))
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    private static unsafe string ReadFixedNullTerminated(char* buffer, int maxChars)
+    {
+        var span = new ReadOnlySpan<char>(buffer, maxChars);
+        int nul = span.IndexOf('\0');
+        return (nul >= 0 ? span[..nul] : span).ToString();
+    }
 }

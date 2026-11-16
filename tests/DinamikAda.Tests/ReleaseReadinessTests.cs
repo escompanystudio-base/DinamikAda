@@ -1,11 +1,14 @@
 using System.Collections.Immutable;
+using System.Text.Json;
 using DinamikAda.Core.Abstractions;
+using DinamikAda.Core.Config;
 using DinamikAda.Core.Localization;
 using DinamikAda.Modules.CommandHub;
 using DinamikAda.Modules.Media;
 using DinamikAda.Modules.SystemControl;
 using DinamikAda.Modules.Telemetry;
 using DinamikAda.Platform.Win32.Hotkeys;
+using DinamikAda.Platform.Win32.Interop;
 using Moq;
 using Xunit;
 
@@ -245,5 +248,52 @@ public sealed class ReleaseReadinessTests
         Assert.Equal("Google Chrome", GsmtcMediaService.FormatFallbackAppName("Chrome"));
         Assert.Equal("Spotify", GsmtcMediaService.FormatFallbackAppName("Spotify.exe"));
         Assert.Equal("youtube-music", GsmtcMediaService.FormatFallbackAppName("com.github.th-ch.youtube-music"));
+    }
+
+    [Fact]
+    public void NativeMethods_IsAmdAdapterMetadata_MatchesOnlyActiveAttachedAmdAdapters()
+    {
+        Assert.True(NativeMethods.IsAmdAdapterMetadata(
+            0x80005,
+            @"PCI\VEN_1002&DEV_73DF&SUBSYS_05E71043&REV_C0",
+            "AMD Radeon RX 6750 XT"));
+        Assert.True(NativeMethods.IsAmdAdapterMetadata(
+            0x00000001,
+            "",
+            "ATI Radeon HD 5800 Series"));
+        Assert.False(NativeMethods.IsAmdAdapterMetadata(
+            0x0,
+            @"PCI\VEN_1002&DEV_73DF",
+            "AMD Radeon RX 6750 XT"));
+        Assert.False(NativeMethods.IsAmdAdapterMetadata(
+            0x0,
+            "",
+            "Meta Virtual Monitor"));
+        Assert.False(NativeMethods.IsAmdAdapterMetadata(
+            0x80005,
+            @"PCI\VEN_10DE&DEV_2684",
+            "NVIDIA GeForce RTX 4090"));
+        Assert.False(NativeMethods.IsAmdAdapterMetadata(
+            0x80005,
+            @"PCI\VEN_8086&DEV_A780",
+            "Intel(R) UHD Graphics 770"));
+        Assert.False(NativeMethods.IsAmdAdapterMetadata(
+            0x80005,
+            "",
+            "Virtual Presentation Display"));
+    }
+
+    [Fact]
+    public void AppConfig_AmdSafeSoftwareCompositing_DefaultsTrueAndRoundTripsThroughJson()
+    {
+        var defaults = new AppConfig();
+        Assert.True(defaults.UseHardwareRendering);
+        Assert.True(defaults.AmdSafeSoftwareCompositing);
+
+        defaults.AmdSafeSoftwareCompositing = false;
+        string json = JsonSerializer.Serialize(defaults);
+        var loaded = JsonSerializer.Deserialize<AppConfig>(json);
+        Assert.NotNull(loaded);
+        Assert.False(loaded.AmdSafeSoftwareCompositing);
     }
 }
