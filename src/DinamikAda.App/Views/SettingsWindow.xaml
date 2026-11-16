@@ -261,6 +261,7 @@
                             <CheckBox x:Name="ChkEnableBottomDock" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,2,0,4" Content="macOS Tarzı Senkron Alt Dock" Click="OnBottomDockToggleChanged"/>
                             <CheckBox x:Name="ChkHideWindowsTaskbar" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Windows Görev Çubuğunu Gizle (Alt Dock Açıkken)"/>
                             <CheckBox x:Name="ChkDockMagnification" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Üzerine Gelince Simge Büyütme Animasyonu"/>
+                            <CheckBox x:Name="ChkDockIntellihide" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Akıllı Gizleme (Çakışan Pencerede Gizlen, Alt Kenardan Aç)"/>
 
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>

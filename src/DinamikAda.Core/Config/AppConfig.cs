@@ -86,6 +86,7 @@ public sealed class AppConfig
     public bool EnableBottomDock { get; set; } = true;
     public bool HideWindowsTaskbar { get; set; } = true;
     public bool DockMagnificationEnabled { get; set; } = true;
+    public bool DockIntellihideEnabled { get; set; } = true;
     public bool DockFollowFullscreenHide { get; set; } = true;
     public bool DockReserveWorkArea { get; set; } = false;
     public int DockIconSizeDip { get; set; } = 32;

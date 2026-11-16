@@ -239,7 +239,7 @@ public sealed unsafe class FullscreenDetector : IFullscreenDetector, IDisposable
 
         bool hasCaption = (windowStyle & NativeMethods.WS_CAPTION) != 0;
         bool isMaximized = isZoomed || (windowStyle & NativeMethods.WS_MAXIMIZE) != 0;
-        if (!isExclusiveQuns && !busyFullscreen && isMaximized && hasCaption && workCoversMonitor)
+        if (!isExclusiveQuns && isMaximized && hasCaption && workCoversMonitor)
         {
             return new FullscreenSnapshot(false, FullscreenAppKind.None, processName, monitorHandle, "MaximizedWorkArea");
         }

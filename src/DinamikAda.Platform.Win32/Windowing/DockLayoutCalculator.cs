@@ -267,4 +267,106 @@ public static class DockLayoutCalculator
 
         return false;
     }
+
+    public static NativeMethods.RECT ComputeDockHitRectPx(
+        MonitorDescriptor monitor,
+        double capsuleWidthDip,
+        double capsuleHeightDip,
+        double bottomMarginDip = 6.0,
+        int topBufferPx = 4)
+    {
+        ArgumentNullException.ThrowIfNull(monitor);
+        double scale = Math.Max(1.0, monitor.DpiScale);
+        int monW = Math.Max(1, monitor.WidthPx);
+        int monH = Math.Max(1, monitor.HeightPx);
+        int capW = Math.Clamp((int)Math.Round(Math.Max(80.0, capsuleWidthDip) * scale, MidpointRounding.AwayFromZero), 80, monW);
+        int capH = Math.Clamp((int)Math.Round(Math.Max(36.0, capsuleHeightDip) * scale, MidpointRounding.AwayFromZero), 36, Math.Max(36, monH / 3));
+        int marginPx = Math.Max(0, (int)Math.Round(bottomMarginDip * scale, MidpointRounding.AwayFromZero));
+
+        int left = monitor.LeftPx + (monW - capW) / 2;
+        int right = left + capW;
+        int bottom = monitor.TopPx + monH;
+        int top = Math.Max(monitor.TopPx, bottom - marginPx - capH - Math.Max(0, topBufferPx));
+
+        return new NativeMethods.RECT
+        {
+            Left = left,
+            Top = top,
+            Right = right,
+            Bottom = bottom
+        };
+    }
+
+    public static bool DoesWindowOverlapDockZone(NativeMethods.RECT windowRect, NativeMethods.RECT dockZone, int minOverlapPx = 1)
+    {
+        if (windowRect.Width <= 0 || windowRect.Height <= 0) return false;
+        int threshold = Math.Max(1, minOverlapPx);
+        int overlapX = Math.Min(windowRect.Right, dockZone.Right) - Math.Max(windowRect.Left, dockZone.Left);
+        int overlapY = Math.Min(windowRect.Bottom, dockZone.Bottom) - Math.Max(windowRect.Top, dockZone.Top);
+        return overlapX >= threshold && overlapY >= threshold;
+    }
+
+    public static bool IsPointInBottomRevealZone(int cursorX, int cursorY, MonitorDescriptor monitor, int edgeHeightPx = 4)
+    {
+        ArgumentNullException.ThrowIfNull(monitor);
+        int right = monitor.LeftPx + Math.Max(1, monitor.WidthPx);
+        int bottom = monitor.TopPx + Math.Max(1, monitor.HeightPx);
+        int triggerH = Math.Clamp(edgeHeightPx, 1, 24);
+        return cursorX >= monitor.LeftPx && cursorX < right
+            && cursorY >= bottom - triggerH
+            && cursorY <= bottom;
+    }
+
+    public static bool IsPointInDockKeepOpenZone(
+        int cursorX,
+        int cursorY,
+        NativeMethods.RECT dockZone,
+        int padHorizontalPx = 24,
+        int padTopPx = 30)
+    {
+        int padH = Math.Max(0, padHorizontalPx);
+        int padT = Math.Max(0, padTopPx);
+        return cursorX >= dockZone.Left - padH
+            && cursorX <= dockZone.Right + padH
+            && cursorY >= dockZone.Top - padT
+            && cursorY <= dockZone.Bottom;
+    }
+
+    public static bool IsNonBlockingShellOrWallpaperClass(string? className, string? processName = null)
+    {
+        if (!string.IsNullOrWhiteSpace(processName))
+        {
+            string trimmedProc = processName.Trim();
+            if (trimmedProc.Equals("wallpaper32", StringComparison.OrdinalIgnoreCase) ||
+                trimmedProc.Equals("wallpaper64", StringComparison.OrdinalIgnoreCase) ||
+                trimmedProc.Equals("Lively", StringComparison.OrdinalIgnoreCase) ||
+                trimmedProc.Equals("Rainmeter", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(className)) return false;
+        string cls = className.Trim();
+        if (IsTaskbarWindowClass(cls) || IsTrayHostWindowClass(cls)) return true;
+
+        return cls.Equals("Progman", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("WorkerW", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("NotifyIconOverflowWindow", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("TopLevelOverflowWindow", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("TopLevelWindowForOverflowXamlIsland", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("TopLevelWindowForXamlOverflow", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("EdgeUiInputTopWndClass", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("Shell_LightDismissHost", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("Windows.UI.Core.CoreWindow", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("IME", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("MSCTFIME UI", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("SysShadow", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("TaskListThumbnailWnd", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("MultitaskingViewFrame", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("ForegroundStaging", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("Xaml_WindowedPopupClass", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("#32768", StringComparison.OrdinalIgnoreCase)
+            || cls.Equals("DinamikAdaPureDimmerOverlay", StringComparison.OrdinalIgnoreCase);
+    }
 }

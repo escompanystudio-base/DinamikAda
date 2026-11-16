@@ -204,6 +204,9 @@ public static class Strings
     public static string TrayOpenApp(string lang) => Pick(lang, "Aç / Öne Getir", "Open / Bring to Front");
     public static string TrayOpenLocation(string lang) => Pick(lang, "Dosya Konumunu Aç", "Open File Location");
     public static string TrayQuitApp(string lang) => Pick(lang, "Uygulamayı Kapat", "Quit Background App");
+    public static string DockIntellihideLabel(string lang) => Pick(lang, "Akıllı Gizleme (Çakışan Pencerede Gizlen, Alt Kenardan Aç)", "Smart Auto-Hide (Dodge Windows, Reveal at Bottom Edge)");
+    public static string DockIntellihideEnableMenu(string lang) => Pick(lang, "Akıllı Gizlemeyi Aç (Intellihide)", "Enable Smart Auto-Hide (Intellihide)");
+    public static string DockIntellihideDisableMenu(string lang) => Pick(lang, "Akıllı Gizlemeyi Kapat (Sabit Kal)", "Disable Smart Auto-Hide (Keep Visible)");
     public static string DockFloatOverAppsMenu(string lang) => Pick(lang, "Yüzer Kavisli Mod (Uygulamalar Alta İnsin)", "Floating Curved Mode (Full-Height Apps)");
     public static string DockReserveStripMenu(string lang) => Pick(lang, "Alt Şerit Boşluğunu Koru", "Reserve Full Bottom Strip");
 

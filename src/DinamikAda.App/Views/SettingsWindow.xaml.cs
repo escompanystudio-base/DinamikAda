@@ -166,6 +166,7 @@ public partial class SettingsWindow : Window
             ChkEnableBottomDock.IsChecked = cfg.EnableBottomDock;
             ChkHideWindowsTaskbar.IsChecked = cfg.HideWindowsTaskbar;
             ChkDockMagnification.IsChecked = cfg.DockMagnificationEnabled;
+            ChkDockIntellihide.IsChecked = cfg.DockIntellihideEnabled;
             SliderDockIconSize.Value = Math.Clamp(cfg.DockIconSizeDip, 26, 48);
             ChkHardwareRendering.IsChecked = cfg.UseHardwareRendering;
             ChkSpectrumVisualizer.IsChecked = cfg.EnableSpectrumVisualizer;
@@ -397,6 +398,7 @@ public partial class SettingsWindow : Window
         ChkEnableBottomDock.Content = Strings.EnableBottomDockLabel(lang);
         ChkHideWindowsTaskbar.Content = Strings.HideWindowsTaskbarLabel(lang);
         ChkDockMagnification.Content = Strings.DockMagnificationLabel(lang);
+        ChkDockIntellihide.Content = Strings.DockIntellihideLabel(lang);
         LblDockIconSize.Text = Strings.DockIconSizeLabel(lang);
 
         HdrMotionSection.Text = Strings.Pick(lang, "Performans, Yenileme Hızı & Etkileşim", "Performance, Refresh Rate & Interaction");
@@ -696,6 +698,7 @@ public partial class SettingsWindow : Window
         bool dockEnabled = ChkEnableBottomDock.IsChecked == true;
         ChkHideWindowsTaskbar.IsEnabled = dockEnabled;
         ChkDockMagnification.IsEnabled = dockEnabled;
+        ChkDockIntellihide.IsEnabled = dockEnabled;
         SliderDockIconSize.IsEnabled = dockEnabled;
         LblDockIconSize.Opacity = dockEnabled ? 1.0 : 0.45;
         ValDockIconSize.Opacity = dockEnabled ? 1.0 : 0.45;
@@ -936,6 +939,7 @@ public partial class SettingsWindow : Window
         cfg.EnableBottomDock = ChkEnableBottomDock.IsChecked == true;
         cfg.HideWindowsTaskbar = ChkHideWindowsTaskbar.IsChecked == true;
         cfg.DockMagnificationEnabled = ChkDockMagnification.IsChecked == true;
+        cfg.DockIntellihideEnabled = ChkDockIntellihide.IsChecked == true;
         cfg.DockIconSizeDip = (int)Math.Round(SliderDockIconSize.Value);
         cfg.MonitorMode = GetSelectedValue(ComboMonitorMode, cfg.MonitorMode);
         if (cfg.MonitorMode == MonitorPlacementMode.PinnedMonitor)

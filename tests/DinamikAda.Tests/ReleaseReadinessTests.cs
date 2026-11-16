@@ -659,8 +659,55 @@ public sealed class ReleaseReadinessTests
 
         var defaultCfg = new AppConfig();
         Assert.False(defaultCfg.DockReserveWorkArea);
+        Assert.True(defaultCfg.DockIntellihideEnabled);
         Assert.Equal(4u, NativeMethods.ABM_GETSTATE);
         Assert.Equal(10u, NativeMethods.ABM_SETSTATE);
         Assert.Equal(1, NativeMethods.ABS_AUTOHIDE);
+    }
+
+    [Fact]
+    public void DockLayoutCalculator_IntellihideGeometryAndFilters_WorkDeterministically()
+    {
+        var mon = new MonitorDescriptor(0, @"\\.\DISPLAY1", "Primary", true, 0, 0, 1920, 1080, 1.0, 240);
+        var dockZone = DockLayoutCalculator.ComputeDockHitRectPx(mon, capsuleWidthDip: 720, capsuleHeightDip: 50, bottomMarginDip: 6, topBufferPx: 4);
+        Assert.Equal(600, dockZone.Left);
+        Assert.Equal(1320, dockZone.Right);
+        Assert.Equal(1020, dockZone.Top);
+        Assert.Equal(1080, dockZone.Bottom);
+
+        // Maximized / full-height / slightly negative frame borders trigger Intellihide
+        Assert.True(DockLayoutCalculator.DoesWindowOverlapDockZone(new NativeMethods.RECT { Left = 0, Top = 0, Right = 1920, Bottom = 1080 }, dockZone));
+        Assert.True(DockLayoutCalculator.DoesWindowOverlapDockZone(new NativeMethods.RECT { Left = -8, Top = -8, Right = 1928, Bottom = 1088 }, dockZone));
+
+        // Floating window ending above dock does NOT hide dock
+        Assert.False(DockLayoutCalculator.DoesWindowOverlapDockZone(new NativeMethods.RECT { Left = 378, Top = 132, Right = 1468, Bottom = 892 }, dockZone));
+
+        // Left & right split panels leaving center dock clear do NOT hide dock
+        Assert.False(DockLayoutCalculator.DoesWindowOverlapDockZone(new NativeMethods.RECT { Left = 0, Top = 0, Right = 580, Bottom = 1080 }, dockZone));
+        Assert.False(DockLayoutCalculator.DoesWindowOverlapDockZone(new NativeMethods.RECT { Left = 1340, Top = 0, Right = 1920, Bottom = 1080 }, dockZone));
+
+        // Reserved WorkArea mode ending cleanly at 1027px must not trigger Intellihide when minOverlapPx is 12
+        Assert.False(DockLayoutCalculator.DoesWindowOverlapDockZone(
+            new NativeMethods.RECT { Left = 0, Top = 0, Right = 1920, Bottom = 1027 }, dockZone, minOverlapPx: 12));
+
+        // Bottom reveal zone only hits the bottom bezel (not input boxes sitting 15-40px higher)
+        Assert.True(DockLayoutCalculator.IsPointInBottomRevealZone(960, 1079, mon, edgeHeightPx: 4));
+        Assert.True(DockLayoutCalculator.IsPointInBottomRevealZone(960, 1076, mon, edgeHeightPx: 4));
+        Assert.False(DockLayoutCalculator.IsPointInBottomRevealZone(960, 1060, mon, edgeHeightPx: 4));
+        Assert.False(DockLayoutCalculator.IsPointInBottomRevealZone(-1, 1079, mon, edgeHeightPx: 4));
+        Assert.False(DockLayoutCalculator.IsPointInBottomRevealZone(1920, 1079, mon, edgeHeightPx: 4));
+
+        // Keep-open zone covers magnified icon headroom above dock
+        Assert.True(DockLayoutCalculator.IsPointInDockKeepOpenZone(960, 1005, dockZone, padHorizontalPx: 24, padTopPx: 30));
+        Assert.False(DockLayoutCalculator.IsPointInDockKeepOpenZone(960, 900, dockZone, padHorizontalPx: 24, padTopPx: 30));
+
+        // Desktop/shell/wallpaper classes never count as overlapping apps
+        Assert.True(DockLayoutCalculator.IsNonBlockingShellOrWallpaperClass("Progman"));
+        Assert.True(DockLayoutCalculator.IsNonBlockingShellOrWallpaperClass("WorkerW"));
+        Assert.True(DockLayoutCalculator.IsNonBlockingShellOrWallpaperClass("Shell_TrayWnd"));
+        Assert.True(DockLayoutCalculator.IsNonBlockingShellOrWallpaperClass("#32768"));
+        Assert.True(DockLayoutCalculator.IsNonBlockingShellOrWallpaperClass("Chrome_WidgetWin_1", "wallpaper32"));
+        Assert.False(DockLayoutCalculator.IsNonBlockingShellOrWallpaperClass("Chrome_WidgetWin_1", "Antigravity"));
+        Assert.False(DockLayoutCalculator.IsNonBlockingShellOrWallpaperClass("MozillaWindowClass", "zen"));
     }
 }

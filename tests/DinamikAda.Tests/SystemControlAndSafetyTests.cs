@@ -194,6 +194,12 @@ public sealed class SystemControlAndSafetyTests
         Assert.False(maximizedAutoHide.IsFullscreen);
         Assert.Equal("MaximizedWorkArea", maximizedAutoHide.Reason);
 
+        // Even if Shell reports QUNS_BUSY (2) while taskbar is auto-hidden and work area covers the full monitor,
+        // a normal maximized captioned browser/editor window must NOT be misclassified as fullscreen.
+        var maximizedWithBusyQuns = FullscreenDetector.EvaluatePure(2 /* QUNS_BUSY */, "chrome", "Chrome_WidgetWin_1", 0x17CF0000, 0x200100, monRect, monRect, 1, isZoomed: true, workRect: monRect);
+        Assert.False(maximizedWithBusyQuns.IsFullscreen);
+        Assert.Equal("MaximizedWorkArea", maximizedWithBusyQuns.Reason);
+
         var coveredVisibleTaskbar = FullscreenDetector.EvaluatePure(5, "code", "Chrome_WidgetWin_1", 0x17000000, 0, monRect, monRect, 1, isZoomed: true, workRect: normalWorkRect);
         Assert.True(coveredVisibleTaskbar.IsFullscreen);
         Assert.Equal(FullscreenAppKind.Productivity, coveredVisibleTaskbar.Kind);

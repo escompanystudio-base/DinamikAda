@@ -13,6 +13,7 @@ using DinamikAda.App.Services;
 using DinamikAda.Core.Abstractions;
 using DinamikAda.Core.Arbitration;
 using DinamikAda.Core.Localization;
+using DinamikAda.Modules.CommandHub;
 using DinamikAda.Platform.Win32.Interop;
 using DinamikAda.Platform.Win32.Windowing;
 
@@ -33,12 +34,15 @@ public partial class DockWindow : Window
     private readonly DispatcherTimer _reconcileTimer;
     private readonly DispatcherTimer _refreshDebounceTimer;
     private readonly DispatcherTimer _popupClockTimer;
+    private readonly DispatcherTimer _intellihideDebounceTimer;
+    private readonly DispatcherTimer _intellihideEdgeTimer;
 
     private nint _hwnd;
     private HwndSource? _hwndSource;
-    private nint _winEventFgHook;
-    private nint _winEventCreateHook;
-    private nint _winEventDestroyHook;
+    private nint _winEventSysHook;
+    private nint _winEventObjHook;
+    private nint _winEventLocHook;
+    private nint _winEventCloakHook;
     private NativeMethods.WinEventDelegate? _winEventDelegate;
 
     private MonitorDescriptor _activeMonitor;
@@ -53,6 +57,15 @@ public partial class DockWindow : Window
     private bool _isClosed;
     private bool _isSmokeOrAuditMode;
     private bool _isFullscreenHidden;
+    private bool _hasOverlappingWindow;
+    private bool _isIntellihidePeeking;
+    private bool _isIntellihideTucked;
+    private bool _isClickThroughApplied;
+    private double _currentHideProgress;
+    private double _targetHideProgress;
+    private long _edgeEnterTickMs;
+    private long _hideGraceStartTickMs;
+    private NativeMethods.RECT _cachedDockHitRectPx;
 
     // 240Hz macOS hover magnification & bounce motion state (strictly middle app icons; Start/Trash stay static)
     private readonly List<DockSlotVisual> _slots = new(32);
@@ -145,6 +158,22 @@ public partial class DockWindow : Window
         };
         _popupClockTimer.Tick += (_, _) => UpdatePopupLiveClockAndFooter();
 
+        _intellihideDebounceTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(45)
+        };
+        _intellihideDebounceTimer.Tick += (_, _) =>
+        {
+            _intellihideDebounceTimer.Stop();
+            EvaluateDockOverlapAndState();
+        };
+
+        _intellihideEdgeTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(50)
+        };
+        _intellihideEdgeTimer.Tick += (_, _) => UpdateEdgePeekAndIntellihideTick();
+
         SourceInitialized += OnDockSourceInitialized;
         Loaded += OnDockLoaded;
         Closing += OnDockClosing;
@@ -192,10 +221,14 @@ public partial class DockWindow : Window
             _lastRenderedStructureKey = string.Empty; // Force icon size/layout rebuild cleanly
             RefreshDockItemsNow();
             SyncCoordinatorState(_orch.Coordinator.Current);
+            EvaluateDockOverlapAndState();
         }
         else
         {
             StopRenderLoop();
+            _intellihideDebounceTimer.Stop();
+            _intellihideEdgeTimer.Stop();
+            SetClickThrough(false);
             if (_hwnd != 0 && NativeMethods.IsWindowVisible(_hwnd))
             {
                 NativeMethods.ShowWindow(_hwnd, NativeMethods.SW_HIDE);
@@ -248,7 +281,14 @@ public partial class DockWindow : Window
                 }
                 if (wantFsHide)
                 {
+                    _intellihideDebounceTimer.Stop();
+                    _intellihideEdgeTimer.Stop();
+                    SetClickThrough(false);
                     StopRenderLoop();
+                }
+                else
+                {
+                    EvaluateDockOverlapAndState();
                 }
             }
         }
@@ -296,6 +336,12 @@ public partial class DockWindow : Window
         };
         _currentAppItems = auditApps;
         _lastRecycleBin = new RecycleBinSummary(3, 4096);
+        _isIntellihideTucked = false;
+        _isIntellihidePeeking = false;
+        _currentHideProgress = 0.0;
+        _targetHideProgress = 0.0;
+        DockCapsuleOffsetTransform.Y = 0.0;
+        DockPillContainer.Opacity = 1.0;
         RebuildVisualSlots(force: true);
         SyncCoordinatorState(_orch.Coordinator.Current);
 
@@ -415,6 +461,8 @@ public partial class DockWindow : Window
         _reconcileTimer.Stop();
         _refreshDebounceTimer.Stop();
         _popupClockTimer.Stop();
+        _intellihideDebounceTimer.Stop();
+        _intellihideEdgeTimer.Stop();
         ClockCalendarPopup.IsOpen = false;
         TrayOverflowPopup.IsOpen = false;
         _orch.Coordinator.SnapshotChanged -= OnCoordinatorSnapshotChanged;
@@ -464,6 +512,7 @@ public partial class DockWindow : Window
         if (_orch.Config.EnableBottomDock && !_isFullscreenHidden)
         {
             RefreshDockItemsNow();
+            EvaluateDockOverlapAndState();
         }
     }
 
@@ -528,27 +577,33 @@ public partial class DockWindow : Window
         _winEventDelegate = OnDockTrackedWinEvent;
         const uint flags = NativeMethods.WINEVENT_OUTOFCONTEXT | NativeMethods.WINEVENT_SKIPOWNPROCESS;
 
-        _winEventFgHook = NativeMethods.SetWinEventHook(
+        _winEventSysHook = NativeMethods.SetWinEventHook(
             NativeMethods.EVENT_SYSTEM_FOREGROUND,
-            NativeMethods.EVENT_SYSTEM_FOREGROUND,
+            NativeMethods.EVENT_SYSTEM_MINIMIZEEND,
             0, _winEventDelegate, 0, 0, flags);
 
-        _winEventCreateHook = NativeMethods.SetWinEventHook(
+        _winEventObjHook = NativeMethods.SetWinEventHook(
             NativeMethods.EVENT_OBJECT_CREATE,
-            NativeMethods.EVENT_OBJECT_CREATE,
+            NativeMethods.EVENT_OBJECT_HIDE,
             0, _winEventDelegate, 0, 0, flags);
 
-        _winEventDestroyHook = NativeMethods.SetWinEventHook(
-            NativeMethods.EVENT_OBJECT_DESTROY,
-            NativeMethods.EVENT_OBJECT_DESTROY,
+        _winEventLocHook = NativeMethods.SetWinEventHook(
+            NativeMethods.EVENT_OBJECT_LOCATIONCHANGE,
+            NativeMethods.EVENT_OBJECT_LOCATIONCHANGE,
+            0, _winEventDelegate, 0, 0, flags);
+
+        _winEventCloakHook = NativeMethods.SetWinEventHook(
+            NativeMethods.EVENT_OBJECT_CLOAKED,
+            NativeMethods.EVENT_OBJECT_UNCLOAKED,
             0, _winEventDelegate, 0, 0, flags);
     }
 
     private void UninstallWindowEventHooks()
     {
-        if (_winEventFgHook != 0) { NativeMethods.UnhookWinEvent(_winEventFgHook); _winEventFgHook = 0; }
-        if (_winEventCreateHook != 0) { NativeMethods.UnhookWinEvent(_winEventCreateHook); _winEventCreateHook = 0; }
-        if (_winEventDestroyHook != 0) { NativeMethods.UnhookWinEvent(_winEventDestroyHook); _winEventDestroyHook = 0; }
+        if (_winEventSysHook != 0) { NativeMethods.UnhookWinEvent(_winEventSysHook); _winEventSysHook = 0; }
+        if (_winEventObjHook != 0) { NativeMethods.UnhookWinEvent(_winEventObjHook); _winEventObjHook = 0; }
+        if (_winEventLocHook != 0) { NativeMethods.UnhookWinEvent(_winEventLocHook); _winEventLocHook = 0; }
+        if (_winEventCloakHook != 0) { NativeMethods.UnhookWinEvent(_winEventCloakHook); _winEventCloakHook = 0; }
         _winEventDelegate = null;
     }
 
@@ -566,10 +621,290 @@ public partial class DockWindow : Window
             return;
         }
 
-        if (!_refreshDebounceTimer.IsEnabled)
+        if (hwnd == _hwnd)
+        {
+            return;
+        }
+
+        if (eventType != NativeMethods.EVENT_OBJECT_LOCATIONCHANGE && !_refreshDebounceTimer.IsEnabled)
         {
             _refreshDebounceTimer.Start();
         }
+
+        if (_orch.Config.EnableBottomDock && _orch.Config.DockIntellihideEnabled && !_isFullscreenHidden)
+        {
+            ScheduleIntellihideEval();
+        }
+    }
+
+    private void ScheduleIntellihideEval()
+    {
+        if (_isClosed || _isSmokeOrAuditMode) return;
+        _intellihideDebounceTimer.Stop();
+        _intellihideDebounceTimer.Start();
+    }
+
+    private NativeMethods.RECT ComputeCurrentDockHitRectPx()
+    {
+        double capW = DockPillContainer.ActualWidth > 10.0
+            ? DockPillContainer.ActualWidth
+            : Math.Max(300.0, DockPillContainer.DesiredSize.Width);
+        double capH = DockPillContainer.ActualHeight > 10.0
+            ? DockPillContainer.ActualHeight
+            : Math.Max(_orch.Config.DockIconSizeDip + 19.0, DockPillContainer.DesiredSize.Height);
+        return DockLayoutCalculator.ComputeDockHitRectPx(_activeMonitor, capW, capH, bottomMarginDip: 6.0, topBufferPx: 4);
+    }
+
+    private bool IsAnyDockOverlayOpen()
+    {
+        return ClockCalendarPopup.IsOpen
+            || TrayOverflowPopup.IsOpen
+            || (_activeContextMenu is { IsOpen: true });
+    }
+
+    private void EvaluateDockOverlapAndState()
+    {
+        if (_isClosed || _isSmokeOrAuditMode || !_orch.Config.EnableBottomDock || _isFullscreenHidden)
+        {
+            _hasOverlappingWindow = false;
+            _isIntellihidePeeking = false;
+            _edgeEnterTickMs = 0;
+            _hideGraceStartTickMs = 0;
+            _intellihideEdgeTimer.Stop();
+            SetClickThrough(false);
+            return;
+        }
+
+        if (!_orch.Config.DockIntellihideEnabled)
+        {
+            _hasOverlappingWindow = false;
+            _isIntellihidePeeking = false;
+            _edgeEnterTickMs = 0;
+            _hideGraceStartTickMs = 0;
+            _intellihideEdgeTimer.Stop();
+            SetIntellihideTucked(false);
+            return;
+        }
+
+        _cachedDockHitRectPx = ComputeCurrentDockHitRectPx();
+        int minOverlapPx = _orch.Config.DockReserveWorkArea
+            ? Math.Max(12, (int)Math.Round(12.0 * _activeMonitor.DpiScale))
+            : 1;
+
+        bool overlaps = HasAnyOverlappingExternalWindow(_cachedDockHitRectPx, minOverlapPx);
+        _hasOverlappingWindow = overlaps;
+
+        if (!overlaps)
+        {
+            _isIntellihidePeeking = false;
+            _edgeEnterTickMs = 0;
+            _hideGraceStartTickMs = 0;
+            _intellihideEdgeTimer.Stop();
+            SetIntellihideTucked(false);
+            return;
+        }
+
+        if (!_intellihideEdgeTimer.IsEnabled)
+        {
+            _intellihideEdgeTimer.Start();
+        }
+        UpdateEdgePeekAndIntellihideTick();
+    }
+
+    private void UpdateEdgePeekAndIntellihideTick()
+    {
+        if (_isClosed || _isSmokeOrAuditMode || !_orch.Config.EnableBottomDock || _isFullscreenHidden || !_orch.Config.DockIntellihideEnabled)
+        {
+            _intellihideEdgeTimer.Stop();
+            SetClickThrough(false);
+            return;
+        }
+
+        if (!_hasOverlappingWindow)
+        {
+            _intellihideEdgeTimer.Stop();
+            SetIntellihideTucked(false);
+            return;
+        }
+
+        _cachedDockHitRectPx = ComputeCurrentDockHitRectPx();
+        if (!NativeMethods.GetCursorPos(out var pt))
+        {
+            SetIntellihideTucked(!IsAnyDockOverlayOpen());
+            return;
+        }
+
+        bool leftButtonDown = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_LBUTTON) & 0x8000) != 0;
+        long nowMs = Environment.TickCount64;
+        int edgePx = Math.Clamp((int)Math.Round(4.0 * _activeMonitor.DpiScale), 4, 8);
+        bool inRevealEdge = DockLayoutCalculator.IsPointInBottomRevealZone(pt.X, pt.Y, _activeMonitor, edgePx);
+        int hoverPadH = (int)Math.Round(24.0 * _activeMonitor.DpiScale);
+        int hoverPadTop = (int)Math.Round(30.0 * _activeMonitor.DpiScale);
+        bool inKeepOpenZone = DockLayoutCalculator.IsPointInDockKeepOpenZone(pt.X, pt.Y, _cachedDockHitRectPx, hoverPadH, hoverPadTop);
+        bool overlayOpen = IsAnyDockOverlayOpen();
+
+        if (!_isIntellihidePeeking)
+        {
+            if (overlayOpen)
+            {
+                _isIntellihidePeeking = true;
+                _hideGraceStartTickMs = 0;
+                SetIntellihideTucked(false);
+                return;
+            }
+
+            if (inRevealEdge && !leftButtonDown)
+            {
+                if (_edgeEnterTickMs == 0)
+                {
+                    _edgeEnterTickMs = nowMs;
+                }
+                else if (nowMs - _edgeEnterTickMs >= 35)
+                {
+                    _isIntellihidePeeking = true;
+                    _hideGraceStartTickMs = 0;
+                    SetIntellihideTucked(false);
+                    return;
+                }
+            }
+            else
+            {
+                _edgeEnterTickMs = 0;
+            }
+
+            SetIntellihideTucked(true);
+            return;
+        }
+
+        if (overlayOpen || _isHovered || inKeepOpenZone || inRevealEdge)
+        {
+            _hideGraceStartTickMs = 0;
+            SetIntellihideTucked(false);
+            return;
+        }
+
+        if (_hideGraceStartTickMs == 0)
+        {
+            _hideGraceStartTickMs = nowMs;
+            return;
+        }
+
+        if (nowMs - _hideGraceStartTickMs >= 260)
+        {
+            _isIntellihidePeeking = false;
+            _edgeEnterTickMs = 0;
+            _hideGraceStartTickMs = 0;
+            SetIntellihideTucked(true);
+        }
+    }
+
+    private void SetIntellihideTucked(bool tucked)
+    {
+        if (_isIntellihideTucked == tucked && (_targetHideProgress == (tucked ? 1.0 : 0.0)))
+        {
+            return;
+        }
+
+        _isIntellihideTucked = tucked;
+        _targetHideProgress = tucked ? 1.0 : 0.0;
+        SetClickThrough(tucked);
+
+        if (tucked)
+        {
+            _isHovered = false;
+            _hoverLocalX = null;
+            _hoveredSlotIndex = -1;
+            DockTooltipBorder.Opacity = 0;
+            UpdateMagnificationTargets(null);
+        }
+
+        StartRenderLoop();
+    }
+
+    private void SetClickThrough(bool clickThrough)
+    {
+        if (_hwnd == 0 || _isSmokeOrAuditMode || _isClickThroughApplied == clickThrough) return;
+        _isClickThroughApplied = clickThrough;
+        nint exStyle = NativeMethods.GetWindowLongPtrW(_hwnd, NativeMethods.GWL_EXSTYLE);
+        long val = exStyle.ToInt64();
+        long next = clickThrough
+            ? (val | NativeMethods.WS_EX_TRANSPARENT)
+            : (val & ~NativeMethods.WS_EX_TRANSPARENT);
+        if (next != val)
+        {
+            NativeMethods.SetWindowLongPtrW(_hwnd, NativeMethods.GWL_EXSTYLE, new nint(next));
+        }
+    }
+
+    private bool HasAnyOverlappingExternalWindow(NativeMethods.RECT dockZone, int minOverlapPx)
+    {
+        int ownPid = Environment.ProcessId;
+        bool foundOverlap = false;
+
+        NativeMethods.EnumWindows((hwnd, _lParam) =>
+        {
+            if (hwnd == _hwnd || !NativeMethods.IsWindowVisible(hwnd) || NativeMethods.IsIconic(hwnd))
+                return true;
+
+            if (NativeMethods.GetWindow(hwnd, NativeMethods.GW_OWNER) != 0)
+                return true;
+
+            long exStyle = NativeMethods.GetWindowLongPtrW(hwnd, NativeMethods.GWL_EXSTYLE).ToInt64();
+            if ((exStyle & NativeMethods.WS_EX_TOOLWINDOW) != 0)
+                return true;
+
+            _ = NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid == 0 || pid == ownPid)
+                return true;
+
+            if (!TryReadExtendedWindowRect(hwnd, out var rect))
+                return true;
+
+            if (!DockLayoutCalculator.DoesWindowOverlapDockZone(rect, dockZone, minOverlapPx))
+                return true;
+
+            if (NativeMethods.DwmGetWindowAttribute(hwnd, NativeMethods.DWMWA_CLOAKED, out int cloaked, 4) == 0 && cloaked != 0)
+                return true;
+
+            string cls = ReadWindowClassSafe(hwnd);
+            string title = ReadWindowTitleSafe(hwnd);
+            if (DockLayoutCalculator.IsNonBlockingShellOrWallpaperClass(cls)
+                || !WindowControlMath.IsEligibleExternalWindowMetadata(cls, title))
+            {
+                return true;
+            }
+
+            foundOverlap = true;
+            return false;
+        }, 0);
+
+        return foundOverlap;
+    }
+
+    private static unsafe bool TryReadExtendedWindowRect(nint hwnd, out NativeMethods.RECT rect)
+    {
+        if (NativeMethods.DwmGetWindowAttribute(hwnd, NativeMethods.DWMWA_EXTENDED_FRAME_BOUNDS, out rect, sizeof(NativeMethods.RECT)) == 0)
+        {
+            return true;
+        }
+        return NativeMethods.GetWindowRect(hwnd, out rect);
+    }
+
+    private static unsafe string ReadWindowClassSafe(nint hwnd)
+    {
+        char* clsBuf = stackalloc char[128];
+        int clsLen = NativeMethods.GetClassNameW(hwnd, clsBuf, 128);
+        return clsLen > 0 ? new string(clsBuf, 0, clsLen).Trim() : string.Empty;
+    }
+
+    private static unsafe string ReadWindowTitleSafe(nint hwnd)
+    {
+        int len = NativeMethods.GetWindowTextLengthW(hwnd);
+        if (len <= 0) return string.Empty;
+        int cap = Math.Min(len + 1, 256);
+        char* buf = stackalloc char[cap];
+        int read = NativeMethods.GetWindowTextW(hwnd, buf, cap);
+        return read > 0 ? new string(buf, 0, read).Trim() : string.Empty;
     }
 
     private nint OnDockWndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
@@ -697,6 +1032,11 @@ public partial class DockWindow : Window
         if (_isHovered && _hoverLocalX.HasValue)
         {
             UpdateMagnificationTargets(_hoverLocalX);
+        }
+
+        if (!_isSmokeOrAuditMode && _orch.Config.EnableBottomDock && !_isFullscreenHidden)
+        {
+            _cachedDockHitRectPx = ComputeCurrentDockHitRectPx();
         }
     }
 
@@ -1151,6 +1491,7 @@ public partial class DockWindow : Window
     private void OnTrayPopupClosed(object? sender, EventArgs e)
     {
         _lastTrayPopupClosedTicks = Stopwatch.GetTimestamp();
+        ScheduleIntellihideEval();
     }
 
     private void OnTrayPopupRefreshClick(object sender, RoutedEventArgs e)
@@ -1510,6 +1851,7 @@ public partial class DockWindow : Window
     {
         _popupClockTimer.Stop();
         _lastPopupClosedTicks = Stopwatch.GetTimestamp();
+        ScheduleIntellihideEval();
     }
 
     private void OnPopupPrevMonthClick(object sender, RoutedEventArgs e)
@@ -1798,6 +2140,20 @@ public partial class DockWindow : Window
         }
 
         menu.Items.Add(new Separator());
+        var toggleIntellihide = new MenuItem
+        {
+            Header = _orch.Config.DockIntellihideEnabled
+                ? Strings.DockIntellihideDisableMenu(lang)
+                : Strings.DockIntellihideEnableMenu(lang)
+        };
+        toggleIntellihide.Click += (_, _) =>
+        {
+            _orch.Config.DockIntellihideEnabled = !_orch.Config.DockIntellihideEnabled;
+            _orch.SaveConfig();
+            ApplyConfigAndSync();
+        };
+        menu.Items.Add(toggleIntellihide);
+
         var toggleWorkArea = new MenuItem
         {
             Header = _orch.Config.DockReserveWorkArea
@@ -1830,6 +2186,7 @@ public partial class DockWindow : Window
         settingsItem.Click += (_, _) => _orch.RequestOpenSettings();
         menu.Items.Add(settingsItem);
 
+        menu.Closed += (_, _) => ScheduleIntellihideEval();
         menu.PlacementTarget = slot.Container;
         menu.Placement = PlacementMode.Top;
         menu.IsOpen = true;
@@ -2098,12 +2455,32 @@ public partial class DockWindow : Window
             s.Translate.Y = s.CurrentLiftY + s.CurrentBounceY;
         }
 
-        if (_isHovered && _hoveredSlotIndex >= 0)
+        double hideDiff = _targetHideProgress - _currentHideProgress;
+        if (Math.Abs(hideDiff) > 0.002)
+        {
+            double hideSpeed = _targetHideProgress > _currentHideProgress ? 18.0 : 28.0;
+            double hideAlpha = 1.0 - Math.Exp(-hideSpeed * dt);
+            _currentHideProgress = Math.Clamp(_currentHideProgress + hideDiff * hideAlpha, 0.0, 1.0);
+            anyMoving = true;
+        }
+        else
+        {
+            _currentHideProgress = _targetHideProgress;
+        }
+
+        double capH = DockPillContainer.ActualHeight > 10.0
+            ? DockPillContainer.ActualHeight
+            : Math.Max(_orch.Config.DockIconSizeDip + 19.0, 52.0);
+        double hideDistance = capH + 14.0;
+        DockCapsuleOffsetTransform.Y = _currentHideProgress * hideDistance;
+        DockPillContainer.Opacity = Math.Clamp(1.0 - Math.Pow(_currentHideProgress, 1.35), 0.0, 1.0);
+
+        if (_isHovered && !_isIntellihideTucked && _hoveredSlotIndex >= 0)
         {
             UpdateHoverTooltip(_hoveredSlotIndex);
         }
 
-        if (!anyMoving && !_isHovered)
+        if (!anyMoving && (!_isHovered || _isIntellihideTucked))
         {
             StopRenderLoop();
         }
