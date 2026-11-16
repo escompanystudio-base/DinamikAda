@@ -78,7 +78,8 @@ public static class DockLayoutCalculator
         double baseSlotPitchDip,
         double maxScale = 1.48,
         double influenceRadiusDip = 136.0,
-        double liftFactor = 0.48)
+        double liftFactor = 0.48,
+        double spreadFactor = 0.68)
     {
         int n = slotCentersX?.Count ?? 0;
         if (n == 0) return [];
@@ -96,6 +97,7 @@ public static class DockLayoutCalculator
 
         double cx = cursorLocalX.Value;
         double radius = Math.Max(24.0, influenceRadiusDip);
+        double clampedSpread = Math.Clamp(spreadFactor, 0.0, 1.0);
         double[] scales = new double[n];
         double[] widths = new double[n];
         double[] pos = new double[n];
@@ -110,7 +112,7 @@ public static class DockLayoutCalculator
                 scale = 1.0 + (maxScale - 1.0) * (phase * phase);
             }
             scales[i] = scale;
-            widths[i] = pitch + (scale - 1.0) * pitch * 0.68;
+            widths[i] = pitch + (scale - 1.0) * pitch * clampedSpread;
         }
 
         pos[0] = 0.0;

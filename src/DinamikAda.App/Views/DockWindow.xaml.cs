@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -20,8 +21,8 @@ namespace DinamikAda.App.Views;
 public partial class DockWindow : Window
 {
     private const double HostHeightDip = DockLayoutCalculator.DefaultHostHeightDip;
-    private const double MagnifyMaxScale = 1.38;
-    private const double MagnifyRadiusDip = 108.0;
+    private const double MagnifyMaxScale = 1.34;
+    private const double MagnifyRadiusDip = 104.0;
     private const double MotionSmoothSpeed = 24.0;
     private const double BounceDurationSec = 0.55;
 
@@ -31,6 +32,7 @@ public partial class DockWindow : Window
 
     private readonly DispatcherTimer _reconcileTimer;
     private readonly DispatcherTimer _refreshDebounceTimer;
+    private readonly DispatcherTimer _popupClockTimer;
 
     private nint _hwnd;
     private HwndSource? _hwndSource;
@@ -52,24 +54,29 @@ public partial class DockWindow : Window
     private bool _isSmokeOrAuditMode;
     private bool _isFullscreenHidden;
 
-    // 240Hz macOS hover magnification & bounce motion state
+    // 240Hz macOS hover magnification & bounce motion state (strictly middle app icons; Start/Trash stay static)
     private readonly List<DockSlotVisual> _slots = new(32);
     private double[] _slotCentersX = [];
-    private double _basePillWidth;
-    private double _currentExtraSpread;
-    private double _targetExtraSpread;
+    private double[] _appSlotCentersX = [];
+    private int[] _appSlotIndices = [];
+    private double _appsMinX;
+    private double _appsMaxX;
     private double? _hoverLocalX;
     private bool _isHovered;
     private bool _isRenderingLoopActive;
     private long _lastRenderTicks;
     private TextBlock? _clockTimeText;
     private TextBlock? _clockDateText;
+    private Border? _clockChip;
     private Border? _islandSyncBadge;
     private TextBlock? _islandSyncBadgeText;
     private FrameworkElement? _islandSyncDot;
     private TextBlock? _trashIconText;
     private Ellipse? _trashDot;
     private ContextMenu? _activeContextMenu;
+    private DateTime _popupDisplayMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime _popupRenderedToday = DateTime.Today;
+    private long _lastPopupClosedTicks;
 
     private sealed class DockSlotVisual
     {
@@ -126,6 +133,12 @@ public partial class DockWindow : Window
             _refreshDebounceTimer.Stop();
             RefreshDockItemsNow();
         };
+
+        _popupClockTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _popupClockTimer.Tick += (_, _) => UpdatePopupLiveClockAndFooter();
 
         SourceInitialized += OnDockSourceInitialized;
         Loaded += OnDockLoaded;
@@ -206,6 +219,8 @@ public partial class DockWindow : Window
         DockAuraStop0.Color = Color.FromArgb(0x1E, primary.R, primary.G, primary.B);
         DockAuraStop1.Color = Color.FromArgb(0x14, secondary.R, secondary.G, secondary.B);
         DockAuraStop2.Color = Color.FromArgb(0x1A, highlight.R, highlight.G, highlight.B);
+        PopupAuraStop0.Color = Color.FromArgb(0x1C, primary.R, primary.G, primary.B);
+        PopupAuraStop1.Color = Color.FromArgb(0x10, secondary.R, secondary.G, secondary.B);
 
         // Update fullscreen auto-hide smoothly
         bool wantFsHide = _orch.Config.DockFollowFullscreenHide
@@ -283,6 +298,38 @@ public partial class DockWindow : Window
         return bmp;
     }
 
+    public RenderTargetBitmap RenderCalendarPopupForAudit(int width = 300, int height = 340)
+    {
+        SetSmokeOrAuditMode(true);
+        _popupDisplayMonth = new DateTime(2026, 11, 1);
+        _popupRenderedToday = new DateTime(2026, 11, 16);
+        UpdatePopupLiveClockAndFooter();
+        RebuildPopupCalendarGrid();
+        SyncCoordinatorState(_orch.Coordinator.Current);
+
+        ClockCalendarCard.Measure(new Size(264, double.PositiveInfinity));
+        double cardH = Math.Ceiling(ClockCalendarCard.DesiredSize.Height);
+        ClockCalendarCard.Arrange(new Rect(0, 0, 264, cardH));
+        ClockCalendarCard.UpdateLayout();
+
+        int finalW = Math.Max(width, 288);
+        int finalH = Math.Max(height, (int)cardH + 24);
+        var dv = new DrawingVisual();
+        using (var dc = dv.RenderOpen())
+        {
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(8, 10, 16)), null, new Rect(0, 0, finalW, finalH));
+            var vb = new VisualBrush(ClockCalendarCard) { Stretch = Stretch.None };
+            double x = Math.Round((finalW - 264) * 0.5);
+            double y = Math.Round((finalH - cardH) * 0.5);
+            dc.DrawRectangle(vb, null, new Rect(x, y, 264, cardH));
+        }
+
+        var bmp = new RenderTargetBitmap(finalW, finalH, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(dv);
+        if (bmp.CanFreeze) bmp.Freeze();
+        return bmp;
+    }
+
     private void OnDockSourceInitialized(object? sender, EventArgs e)
     {
         if (_isSmokeOrAuditMode) return;
@@ -313,6 +360,8 @@ public partial class DockWindow : Window
         StopRenderLoop();
         _reconcileTimer.Stop();
         _refreshDebounceTimer.Stop();
+        _popupClockTimer.Stop();
+        ClockCalendarPopup.IsOpen = false;
         _orch.Coordinator.SnapshotChanged -= OnCoordinatorSnapshotChanged;
         UninstallWindowEventHooks();
         _hwndSource?.RemoveHook(OnDockWndProc);
@@ -529,7 +578,7 @@ public partial class DockWindow : Window
             isForeground: false,
             windowCount: 0);
 
-        AddVerticalDivider(iconSize);
+        AddVerticalDivider(iconSize, leftMargin: 4, rightMargin: 10);
 
         // 2. Pinned & Unpinned App Slots (separated cleanly when both exist)
         bool sawPinned = false;
@@ -565,7 +614,7 @@ public partial class DockWindow : Window
                 windowCount: item.Windows.Count);
         }
 
-        AddVerticalDivider(iconSize);
+        AddVerticalDivider(iconSize, leftMargin: 10, rightMargin: 4);
 
         // 3. Synchronized DinamikAda Live Island Slot
         AddIslandSyncSlot(lang, iconSize, tileWidth + 10.0, tileHeight);
@@ -578,7 +627,6 @@ public partial class DockWindow : Window
 
         DockPillContainer.ClearValue(WidthProperty);
         DockPillContainer.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        _basePillWidth = Math.Max(120.0, DockPillContainer.DesiredSize.Width);
         RecomputeSlotCenters();
 
         if (_isHovered && _hoverLocalX.HasValue)
@@ -762,6 +810,14 @@ public partial class DockWindow : Window
             Kind = kind
         };
 
+        if (kind == SlotKind.StartMenu)
+        {
+            container.MouseEnter += (_, _) =>
+                plate.Background = new SolidColorBrush(Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF));
+            container.MouseLeave += (_, _) =>
+                plate.Background = new SolidColorBrush(Color.FromArgb(0x12, 0xFF, 0xFF, 0xFF));
+        }
+
         container.MouseLeftButtonUp += (_, ev) =>
         {
             ev.Handled = true;
@@ -889,7 +945,6 @@ public partial class DockWindow : Window
         container.MouseLeftButtonUp += (_, ev) =>
         {
             ev.Handled = true;
-            TriggerBounce(slotVisual);
             if (_orch.Coordinator.Current.State == IslandPresentationState.S4Expanded)
             {
                 _orch.Coordinator.RequestCollapse(forceUnpin: true);
@@ -930,6 +985,7 @@ public partial class DockWindow : Window
         {
             Width = iconSize,
             Height = iconSize,
+            CornerRadius = new CornerRadius(Math.Round(iconSize * 0.26)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
             Background = Brushes.Transparent
@@ -972,10 +1028,14 @@ public partial class DockWindow : Window
             Kind = SlotKind.Trash
         };
 
+        // Trash remains completely stationary (no magnification, shift, or click bounce)
+        container.MouseEnter += (_, _) =>
+            plate.Background = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF));
+        container.MouseLeave += (_, _) =>
+            plate.Background = Brushes.Transparent;
         container.MouseLeftButtonUp += (_, ev) =>
         {
             ev.Handled = true;
-            TriggerBounce(slotVisual);
             DockAppsService.OpenRecycleBin();
         };
         container.MouseRightButtonUp += (_, ev) =>
@@ -988,14 +1048,14 @@ public partial class DockWindow : Window
         DockItemsHost.Children.Add(container);
     }
 
-    private void AddVerticalDivider(int iconSize)
+    private void AddVerticalDivider(int iconSize, double leftMargin = 4.0, double rightMargin = 4.0)
     {
         int divH = Math.Max(16, iconSize - 12);
         DockItemsHost.Children.Add(new Border
         {
             Width = 1,
             Height = divH,
-            Margin = new Thickness(4, Math.Round((iconSize - divH) * 0.5), 4, 0),
+            Margin = new Thickness(leftMargin, Math.Round((iconSize - divH) * 0.5), rightMargin, 0),
             VerticalAlignment = VerticalAlignment.Top,
             Background = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF)),
             IsHitTestVisible = false
@@ -1038,16 +1098,228 @@ public partial class DockWindow : Window
         stack.Children.Add(_clockDateText);
         clockBtn.Child = stack;
 
+        clockBtn.MouseEnter += (_, _) =>
+        {
+            clockBtn.Background = new SolidColorBrush(Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+            clockBtn.BorderBrush = new SolidColorBrush(Color.FromArgb(0x28, 0xFF, 0xFF, 0xFF));
+        };
+        clockBtn.MouseLeave += (_, _) =>
+        {
+            clockBtn.Background = new SolidColorBrush(Color.FromArgb(0x0E, 0xFF, 0xFF, 0xFF));
+            clockBtn.BorderBrush = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF));
+        };
         clockBtn.MouseLeftButtonUp += (_, ev) =>
         {
             ev.Handled = true;
-            _orch.Coordinator.RequestExpand(ExpandedTabId.Now);
+            ToggleClockPopup();
         };
 
+        _clockChip = clockBtn;
         _lastClockMinute = string.Empty;
         UpdateClockText();
         DockItemsHost.Children.Add(clockBtn);
     }
+
+    private void ToggleClockPopup()
+    {
+        if (_clockChip is null) return;
+        if (ClockCalendarPopup.IsOpen)
+        {
+            ClockCalendarPopup.IsOpen = false;
+            return;
+        }
+
+        double sinceClose = (Stopwatch.GetTimestamp() - _lastPopupClosedTicks) / (double)Stopwatch.Frequency;
+        if (_lastPopupClosedTicks != 0 && sinceClose < 0.22)
+        {
+            return;
+        }
+
+        ClockCalendarPopup.PlacementTarget = _clockChip;
+        ClockCalendarPopup.IsOpen = true;
+    }
+
+    private void OnClockPopupOpened(object? sender, EventArgs e)
+    {
+        if (_isClosed) return;
+        _popupRenderedToday = DateTime.Today;
+        _popupDisplayMonth = new DateTime(_popupRenderedToday.Year, _popupRenderedToday.Month, 1);
+        UpdatePopupLiveClockAndFooter();
+        RebuildPopupCalendarGrid();
+        SyncCoordinatorState(_orch.Coordinator.Current);
+        if (!_isSmokeOrAuditMode)
+        {
+            _popupClockTimer.Start();
+        }
+    }
+
+    private void OnClockPopupClosed(object? sender, EventArgs e)
+    {
+        _popupClockTimer.Stop();
+        _lastPopupClosedTicks = Stopwatch.GetTimestamp();
+    }
+
+    private void OnPopupPrevMonthClick(object sender, RoutedEventArgs e)
+    {
+        _popupDisplayMonth = _popupDisplayMonth.AddMonths(-1);
+        RebuildPopupCalendarGrid();
+    }
+
+    private void OnPopupNextMonthClick(object sender, RoutedEventArgs e)
+    {
+        _popupDisplayMonth = _popupDisplayMonth.AddMonths(1);
+        RebuildPopupCalendarGrid();
+    }
+
+    private void OnPopupTodayClick(object sender, RoutedEventArgs e)
+    {
+        var today = DateTime.Today;
+        _popupRenderedToday = today;
+        _popupDisplayMonth = new DateTime(today.Year, today.Month, 1);
+        RebuildPopupCalendarGrid();
+    }
+
+    private void OnPopupFooterClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        ClockCalendarPopup.IsOpen = false;
+        _orch.Coordinator.RequestExpand(ExpandedTabId.Now);
+    }
+
+    private void UpdatePopupLiveClockAndFooter()
+    {
+        var now = DateTime.Now;
+        var culture = GetActiveUiCulture();
+
+        PopupClockHm.Text = now.ToString("HH:mm", culture);
+        PopupClockSec.Text = now.ToString(":ss", culture);
+
+        string weekday = culture.DateTimeFormat.GetDayName(now.DayOfWeek);
+        PopupDateWeekday.Text = string.IsNullOrEmpty(weekday)
+            ? weekday
+            : char.ToUpper(weekday[0], culture) + weekday[1..];
+        PopupDateFull.Text = now.ToString("dd MMMM yyyy", culture);
+
+        if (!_isSmokeOrAuditMode && now.Date != _popupRenderedToday)
+        {
+            _popupRenderedToday = now.Date;
+            RebuildPopupCalendarGrid();
+        }
+
+        bool isEn = string.Equals(_orch.Config.Language, "en", StringComparison.OrdinalIgnoreCase);
+        var meeting = _orch.Calendar.ActiveOrNextMeeting;
+        if (meeting is not null)
+        {
+            var startLocal = meeting.StartUtc.ToLocalTime();
+            bool isLive = meeting.StartUtc <= DateTimeOffset.UtcNow && meeting.EndUtc > DateTimeOffset.UtcNow;
+            PopupMeetingDot.Fill = new SolidColorBrush(isLive
+                ? Color.FromRgb(48, 209, 88)
+                : Color.FromRgb(10, 132, 255));
+            PopupFooterText.Text = isLive
+                ? $"{(isEn ? "Now" : "Şimdi")} · {meeting.Summary}"
+                : $"{startLocal:HH:mm} · {meeting.Summary}";
+        }
+        else
+        {
+            PopupMeetingDot.Fill = new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF));
+            PopupFooterText.Text = isEn ? "No events scheduled today" : "Bugün planlı etkinlik yok";
+        }
+    }
+
+    private void RebuildPopupCalendarGrid()
+    {
+        var culture = GetActiveUiCulture();
+        bool isEn = string.Equals(_orch.Config.Language, "en", StringComparison.OrdinalIgnoreCase);
+
+        string rawMonth = _popupDisplayMonth.ToString("MMMM yyyy", culture);
+        PopupMonthTitle.Text = string.IsNullOrEmpty(rawMonth)
+            ? rawMonth
+            : char.ToUpper(rawMonth[0], culture) + rawMonth[1..];
+
+        var today = _popupRenderedToday;
+        bool isCurrentMonth = _popupDisplayMonth.Year == today.Year && _popupDisplayMonth.Month == today.Month;
+        BtnPopupToday.Content = isEn ? "Today" : "Bugün";
+        BtnPopupToday.Visibility = isCurrentMonth ? Visibility.Collapsed : Visibility.Visible;
+
+        if (PopupWeekdayGrid.Children.Count == 0 || !Equals(PopupWeekdayGrid.Tag, _orch.Config.Language))
+        {
+            PopupWeekdayGrid.Tag = _orch.Config.Language;
+            PopupWeekdayGrid.Children.Clear();
+            string[] weekdays = isEn
+                ? ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
+                : ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+            var weekdayBrush = new SolidColorBrush(Color.FromArgb(0x88, 0xF5, 0xF5, 0xF7));
+            foreach (string wd in weekdays)
+            {
+                PopupWeekdayGrid.Children.Add(new TextBlock
+                {
+                    Text = wd,
+                    FontFamily = (FontFamily)FindResource("UiFont"),
+                    FontSize = 9.5,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = weekdayBrush,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 2, 0, 2)
+                });
+            }
+        }
+
+        PopupDaysGrid.Children.Clear();
+        var firstOfMonth = new DateTime(_popupDisplayMonth.Year, _popupDisplayMonth.Month, 1);
+        int mondayOffset = ((int)firstOfMonth.DayOfWeek + 6) % 7; // Mon=0 .. Sun=6
+        DateTime gridStart = firstOfMonth.AddDays(-mondayOffset);
+
+        var todayBg = new SolidColorBrush(Color.FromRgb(10, 132, 255));
+        var hoverBg = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF));
+        var normalFg = new SolidColorBrush(Color.FromRgb(245, 245, 247));
+        var weekendFg = new SolidColorBrush(Color.FromArgb(0xB8, 0xF5, 0xF5, 0xF7));
+        var outsideFg = new SolidColorBrush(Color.FromArgb(0x3E, 0xF5, 0xF5, 0xF7));
+
+        for (int i = 0; i < 42; i++)
+        {
+            DateTime cellDate = gridStart.AddDays(i);
+            bool inMonth = cellDate.Month == _popupDisplayMonth.Month && cellDate.Year == _popupDisplayMonth.Year;
+            bool isToday = cellDate.Date == today.Date;
+            bool isWeekend = cellDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+
+            var cell = new Border
+            {
+                Height = 25,
+                Margin = new Thickness(1.5),
+                CornerRadius = new CornerRadius(8),
+                Background = isToday ? todayBg : Brushes.Transparent,
+                Child = new TextBlock
+                {
+                    Text = cellDate.Day.ToString(CultureInfo.InvariantCulture),
+                    FontFamily = (FontFamily)FindResource("UiFont"),
+                    FontSize = 10.5,
+                    FontWeight = isToday ? FontWeights.Bold : FontWeights.Medium,
+                    Foreground = isToday
+                        ? Brushes.White
+                        : !inMonth
+                            ? outsideFg
+                            : isWeekend
+                                ? weekendFg
+                                : normalFg,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            };
+
+            if (!isToday && inMonth)
+            {
+                cell.MouseEnter += (_, _) => cell.Background = hoverBg;
+                cell.MouseLeave += (_, _) => cell.Background = Brushes.Transparent;
+            }
+
+            PopupDaysGrid.Children.Add(cell);
+        }
+    }
+
+    private CultureInfo GetActiveUiCulture() =>
+        CultureInfo.GetCultureInfo(string.Equals(_orch.Config.Language, "en", StringComparison.OrdinalIgnoreCase)
+            ? "en-US"
+            : "tr-TR");
 
     private void UpdateClockText()
     {
@@ -1065,7 +1337,6 @@ public partial class DockWindow : Window
         switch (slot.Kind)
         {
             case SlotKind.StartMenu:
-                TriggerBounce(slot);
                 WindowsTaskbarManager.TriggerStartMenu();
                 break;
 
@@ -1196,12 +1467,20 @@ public partial class DockWindow : Window
         if (_slots.Count == 0)
         {
             _slotCentersX = [];
+            _appSlotCentersX = [];
+            _appSlotIndices = [];
+            _appsMinX = 0.0;
+            _appsMaxX = 0.0;
             return;
         }
 
         DockItemsHost.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double accumX = 0.0;
         var centers = new double[_slots.Count];
+        var appCenters = new List<double>(_slots.Count);
+        var appIndices = new List<int>(_slots.Count);
+        double minX = double.MaxValue;
+        double maxX = double.MinValue;
         int slotIdx = 0;
 
         foreach (UIElement child in DockItemsHost.Children)
@@ -1209,12 +1488,25 @@ public partial class DockWindow : Window
             double w = child.DesiredSize.Width;
             if (child is Grid g && slotIdx < _slots.Count && ReferenceEquals(g, _slots[slotIdx].Container))
             {
-                centers[slotIdx++] = accumX + w * 0.5;
+                double cx = accumX + w * 0.5;
+                centers[slotIdx] = cx;
+                if (_slots[slotIdx].Kind == SlotKind.App)
+                {
+                    appCenters.Add(cx);
+                    appIndices.Add(slotIdx);
+                    if (accumX < minX) minX = accumX;
+                    if (accumX + w > maxX) maxX = accumX + w;
+                }
+                slotIdx++;
             }
             accumX += w;
         }
 
         _slotCentersX = centers;
+        _appSlotCentersX = [.. appCenters];
+        _appSlotIndices = [.. appIndices];
+        _appsMinX = appIndices.Count > 0 ? minX : 0.0;
+        _appsMaxX = appIndices.Count > 0 ? maxX : 0.0;
     }
 
     private void OnDockMouseEnter(object sender, MouseEventArgs e)
@@ -1249,39 +1541,57 @@ public partial class DockWindow : Window
         double pitch = iconSize + 6.0;
         bool enableMag = _orch.Config.DockMagnificationEnabled;
 
-        var transforms = DockLayoutCalculator.ComputeMagnification(
-            enableMag ? cursorLocalX : null,
-            _slotCentersX,
-            pitch,
-            maxScale: enableMag ? MagnifyMaxScale : 1.0,
-            influenceRadiusDip: MagnifyRadiusDip,
-            liftFactor: 0.36);
+        // Lock outer dock elements (Start Menu, Island Sync, Trash) strictly stationary
+        foreach (var slot in _slots)
+        {
+            slot.TargetScale = 1.0;
+            slot.TargetShiftX = 0.0;
+            slot.TargetLiftY = 0.0;
+        }
 
-        var targetScales = new double[_slots.Count];
+        double? appCursorX = enableMag
+            && cursorLocalX.HasValue
+            && _appSlotIndices.Length > 0
+            && cursorLocalX.Value >= _appsMinX - 8.0
+            && cursorLocalX.Value <= _appsMaxX + 8.0
+                ? cursorLocalX
+                : null;
+
+        if (_appSlotCentersX.Length > 0)
+        {
+            var appTransforms = DockLayoutCalculator.ComputeMagnification(
+                appCursorX,
+                _appSlotCentersX,
+                pitch,
+                maxScale: enableMag ? MagnifyMaxScale : 1.0,
+                influenceRadiusDip: MagnifyRadiusDip,
+                liftFactor: 0.34,
+                spreadFactor: 0.30);
+
+            for (int k = 0; k < _appSlotIndices.Length && k < appTransforms.Length; k++)
+            {
+                int slotIndex = _appSlotIndices[k];
+                _slots[slotIndex].TargetScale = appTransforms[k].Scale;
+                _slots[slotIndex].TargetShiftX = appTransforms[k].ShiftXDip;
+                _slots[slotIndex].TargetLiftY = appTransforms[k].LiftYDip;
+            }
+        }
+
         int closestIdx = -1;
         double closestDist = double.MaxValue;
-
-        for (int i = 0; i < _slots.Count && i < transforms.Length; i++)
+        if (cursorLocalX.HasValue)
         {
-            _slots[i].TargetScale = transforms[i].Scale;
-            _slots[i].TargetShiftX = transforms[i].ShiftXDip;
-            _slots[i].TargetLiftY = transforms[i].LiftYDip;
-            targetScales[i] = transforms[i].Scale;
-
-            if (cursorLocalX.HasValue && i < _slotCentersX.Length)
+            for (int i = 0; i < _slots.Count && i < _slotCentersX.Length; i++)
             {
+                double hitHalfWidth = (_slots[i].Container.Width * 0.5) + 3.0;
                 double dist = Math.Abs(cursorLocalX.Value - _slotCentersX[i]);
-                if (dist < pitch * 0.58 && dist < closestDist)
+                if (dist <= hitHalfWidth && dist < closestDist)
                 {
                     closestDist = dist;
                     closestIdx = i;
                 }
             }
         }
-
-        _targetExtraSpread = enableMag
-            ? DockLayoutCalculator.ComputeExtraRowSpreadDip(targetScales, pitch)
-            : 0.0;
 
         UpdateHoverTooltip(closestIdx);
     }
@@ -1358,28 +1668,23 @@ public partial class DockWindow : Window
         double alpha = 1.0 - Math.Exp(-MotionSmoothSpeed * dt);
         bool anyMoving = false;
 
-        _currentExtraSpread += (_targetExtraSpread - _currentExtraSpread) * alpha;
-        if (Math.Abs(_targetExtraSpread - _currentExtraSpread) > 0.08)
-        {
-            anyMoving = true;
-        }
-        else
-        {
-            _currentExtraSpread = _targetExtraSpread;
-        }
-
-        if (_basePillWidth > 10.0)
-        {
-            double desiredW = _basePillWidth + _currentExtraSpread;
-            if (Math.Abs(DockPillContainer.Width - desiredW) > 0.1 || double.IsNaN(DockPillContainer.Width))
-            {
-                DockPillContainer.Width = desiredW;
-            }
-        }
-
         for (int i = 0; i < _slots.Count; i++)
         {
             var s = _slots[i];
+
+            if (s.Kind != SlotKind.App)
+            {
+                s.CurrentScale = 1.0;
+                s.CurrentShiftX = 0.0;
+                s.CurrentLiftY = 0.0;
+                s.BounceStartTicks = 0;
+                s.CurrentBounceY = 0.0;
+                s.Scale.ScaleX = 1.0;
+                s.Scale.ScaleY = 1.0;
+                s.Translate.X = 0.0;
+                s.Translate.Y = 0.0;
+                continue;
+            }
 
             s.CurrentScale += (s.TargetScale - s.CurrentScale) * alpha;
             s.CurrentShiftX += (s.TargetShiftX - s.CurrentShiftX) * alpha;
@@ -1427,7 +1732,6 @@ public partial class DockWindow : Window
 
         if (!anyMoving && !_isHovered)
         {
-            DockPillContainer.ClearValue(WidthProperty);
             StopRenderLoop();
         }
     }

@@ -206,6 +206,16 @@ public static class Program
         services.AddSingleton<VoiceNoteService>();
         services.AddSingleton<WindowDesktopControlService>();
         services.AddSingleton<DeveloperBridgeService>();
+        services.AddSingleton<AiQuotaTrackerService>(sp =>
+        {
+            var cfg = sp.GetRequiredService<AppConfig>();
+            var store = sp.GetRequiredService<AppConfigStore>();
+            return new AiQuotaTrackerService(
+                cfg,
+                () => store.Save(cfg),
+                sp.GetRequiredService<ITransientHudBus>(),
+                sp.GetRequiredService<TimeProvider>());
+        });
 
         services.AddSingleton<HungProcessService>();
         services.AddSingleton<SystemTelemetryService>();
@@ -1066,7 +1076,15 @@ public static class Program
         SavePng(window.RenderAuditBackdropBitmap(800, 460), Path.Combine(outputDir, "24_s4_tab_control_sched_power.png"));
         savedCount++;
 
-        // 25: S4 Widgets Tab with Quick Color Picker & Window Snap Bar
+        // 25: S4 Widgets Tab with Quick Color Picker, Window Snap Bar & AI Quota Tracker
+        var auditUtc = DateTimeOffset.UtcNow;
+        AiQuotaSlotSnapshot[] demoAiQuota =
+        [
+            new("ai1", "ChatGPT", "ChatGPT #1", "#10A37F", 180, null, TimeSpan.Zero, true, null, true),
+            new("ai2", "Claude", "Claude #1", "#D97757", 300, null, TimeSpan.Zero, true, null, true),
+            new("ai3", "ChatGPT", "ChatGPT #2", "#10A37F", 180, auditUtc.AddMinutes(84), TimeSpan.FromMinutes(84), false, 0.53, true),
+            new("ai4", "Gemini", "Gemini #1", "#4E8DF5", 180, auditUtc.AddMinutes(32), TimeSpan.FromMinutes(32), false, 0.82, true)
+        ];
         coord.RequestExpand(ExpandedTabId.Widgets);
         window.ApplyRenderAuditState(
             coord.Current,
@@ -1082,7 +1100,8 @@ public static class Program
             fullTelemetry,
             demoWidgets,
             demoCommands,
-            desktopAudio);
+            desktopAudio,
+            demoAiQuota: demoAiQuota);
         SavePng(window.RenderAuditBackdropBitmap(800, 460), Path.Combine(outputDir, "25_s4_tab_widgets_snap.png"));
         savedCount++;
 
@@ -1179,6 +1198,8 @@ public static class Program
 
         var dockAudit = provider.GetRequiredService<DockWindow>();
         SavePng(dockAudit.RenderForAudit(960, 96), Path.Combine(outputDir, "31_bottom_dock.png"));
+        savedCount++;
+        SavePng(dockAudit.RenderCalendarPopupForAudit(300, 340), Path.Combine(outputDir, "32_dock_calendar_popup.png"));
         savedCount++;
 
         Console.WriteLine($"RENDER_AUDIT_PASS: {savedCount} files -> {outputDir}");

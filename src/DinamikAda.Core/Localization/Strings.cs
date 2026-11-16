@@ -199,6 +199,29 @@ public static class Strings
     public static string DockNewWindow(string lang) => Pick(lang, "Yeni Pencere Aç", "Open New Window");
     public static string DockCloseWindow(string lang) => Pick(lang, "Pencereyi Kapat", "Close Window");
 
+    // Multi-Account AI Subscription & Quota Reset Tracker
+    public static string AiQuotaSectionTitle(string lang) => Pick(lang, "AI Abonelik & Kota Takibi", "AI Subscriptions & Quota");
+    public static string AiQuotaReadyBadge(string lang) => Pick(lang, "HAZIR", "READY");
+    public static string AiQuotaCooldownBadge(string lang) => Pick(lang, "BEKLEMEDE", "COOLDOWN");
+    public static string AiQuotaMarkExhaustedBtn(string lang) => Pick(lang, "Limit Doldu", "Hit Limit");
+    public static string AiQuotaMarkReadyBtn(string lang) => Pick(lang, "Hazır Yap", "Mark Ready");
+    public static string AiQuotaAddCustomBtn(string lang) => Pick(lang, "+ Özel", "+ Custom");
+    public static string AiQuotaEditTitle(string lang) => Pick(lang, "AI Hesabı Ekle / Düzenle", "Add / Edit AI Account");
+    public static string AiQuotaAccountNameLabel(string lang) => Pick(lang, "Hesap Etiketi", "Account Label");
+    public static string AiQuotaProviderLabel(string lang) => Pick(lang, "Platform", "Provider");
+    public static string AiQuotaWindowMinutesLabel(string lang) => Pick(lang, "Yenilenme Süresi (dk)", "Reset Window (min)");
+    public static string AiQuotaNotifyResetLabel(string lang) => Pick(lang, "Kota açılınca adada bildir", "Notify on Island when quota resets");
+    public static string AiQuotaUnlockedTitle(string lang, string accountLabel) =>
+        Pick(lang, $"Kota Yenilendi · {accountLabel}", $"Quota Reset · {accountLabel}");
+    public static string AiQuotaUnlockedSub(string lang, string provider) =>
+        Pick(lang, $"{provider} hesabı yeniden kullanıma hazır", $"{provider} account is ready to use again");
+    public static string AiQuotaEmpty(string lang) =>
+        Pick(lang, "Henüz takip edilen AI hesabı yok. Yukarıdan hızlıca ekleyin.", "No AI accounts added yet. Use quick buttons above.");
+    public static string AiQuotaAllReadySummary(string lang, int total) =>
+        Pick(lang, $"{total}/{total} Hazır", $"{total}/{total} Ready");
+    public static string AiQuotaMixedSummary(string lang, int ready, int total, string nextClock) =>
+        Pick(lang, $"{ready}/{total} Hazır · Sonraki {nextClock}", $"{ready}/{total} Ready · Next {nextClock}");
+
     public static string Get(string lang, string key) => key switch
     {
         nameof(TabNow) => TabNow(lang),

@@ -50,6 +50,7 @@ public sealed class AppOrchestrator : IAsyncDisposable
     public WindowDesktopControlService WindowControl { get; }
     public UsbDriveMonitorService UsbDrives { get; }
     public DeveloperBridgeService DeveloperBridge { get; }
+    public AiQuotaTrackerService AiQuota { get; }
 
     public event EventHandler? OpenSettingsRequested;
     public event EventHandler? QrShareRequested;
@@ -111,7 +112,8 @@ public sealed class AppOrchestrator : IAsyncDisposable
         VoiceNoteService voiceNotes,
         WindowDesktopControlService windowControl,
         UsbDriveMonitorService usbDrives,
-        DeveloperBridgeService developerBridge)
+        DeveloperBridgeService developerBridge,
+        AiQuotaTrackerService aiQuota)
     {
         Config = config;
         ConfigStore = configStore;
@@ -143,6 +145,7 @@ public sealed class AppOrchestrator : IAsyncDisposable
         WindowControl = windowControl;
         UsbDrives = usbDrives;
         DeveloperBridge = developerBridge;
+        AiQuota = aiQuota;
 
         BindModuleSignals();
     }
@@ -182,6 +185,7 @@ public sealed class AppOrchestrator : IAsyncDisposable
         ApplyRuntimeConfig();
         Privacy.Start();
         Widgets.Start();
+        AiQuota.Start();
         Widgets.SetPausedWhenCollapsed(Coordinator.Current.State != IslandPresentationState.S4Expanded);
         UpdateWidgetPillActivity(Widgets.GetSnapshots());
 
@@ -267,6 +271,7 @@ public sealed class AppOrchestrator : IAsyncDisposable
         Calendar.Language = Config.Language;
         Transfers.Language = Config.Language;
         VoiceNotes.Language = Config.Language;
+        AiQuota.Language = Config.Language;
 
         Calendar.Configure(Config.CalendarEnabled, Config.CalendarIcsSources);
         Transfers.Configure(Config.DownloadsWatchEnabled, Config.DownloadsWatchPath);
@@ -1557,6 +1562,7 @@ public sealed class AppOrchestrator : IAsyncDisposable
         Shelf.ClearShareWindow();
 
         DeveloperBridge.Dispose();
+        AiQuota.Dispose();
         LanDrop.Dispose();
         Calendar.Dispose();
         Transfers.Dispose();

@@ -90,6 +90,10 @@ public sealed class AppConfig
     public int DockIconSizeDip { get; set; } = 32;
     public List<string> PinnedDockApps { get; set; } = new();
 
+    // Local Multi-Account AI Subscription Quota & Reset Tracker (no browser cookies or credential bypass)
+    public bool AiQuotaSeeded { get; set; } = false;
+    public List<AiQuotaSlotConfig> AiQuotaSlots { get; set; } = new();
+
     [JsonIgnore]
     public bool ShowSpectrum
     {
@@ -162,6 +166,7 @@ public sealed class AppConfig
         FullscreenHideExes = SanitizeExeList(FullscreenHideExes);
         DockIconSizeDip = Math.Clamp(DockIconSizeDip, 26, 48);
         PinnedDockApps = SanitizeExeList(PinnedDockApps);
+        AiQuotaSlots = SanitizeAiQuotaSlots(AiQuotaSlots);
 
         PinnedTabs = PinnedTabs is null
             ? CreateDefaultTabs()
@@ -182,6 +187,49 @@ public sealed class AppConfig
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+    private static List<AiQuotaSlotConfig> SanitizeAiQuotaSlots(List<AiQuotaSlotConfig>? slots)
+    {
+        if (slots is null || slots.Count == 0)
+        {
+            return new List<AiQuotaSlotConfig>();
+        }
+
+        var clean = new List<AiQuotaSlotConfig>(Math.Min(slots.Count, AiQuotaSlotConfig.MaxSlotCount));
+        var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var s in slots)
+        {
+            if (s is null) continue;
+            if (clean.Count >= AiQuotaSlotConfig.MaxSlotCount) break;
+
+            string provider = string.IsNullOrWhiteSpace(s.Provider) ? "ChatGPT" : s.Provider.Trim();
+            if (provider.Length > 24) provider = provider[..24];
+
+            string label = string.IsNullOrWhiteSpace(s.Label) ? provider : s.Label.Trim();
+            if (label.Length > 36) label = label[..36];
+
+            string id = string.IsNullOrWhiteSpace(s.Id) ? Guid.NewGuid().ToString("N")[..8] : s.Id.Trim();
+            if (id.Length > 24) id = id[..24];
+            if (!seenIds.Add(id))
+            {
+                id = Guid.NewGuid().ToString("N")[..8];
+                seenIds.Add(id);
+            }
+
+            clean.Add(new AiQuotaSlotConfig
+            {
+                Id = id,
+                Provider = provider,
+                Label = label,
+                ResetWindowMinutes = Math.Clamp(s.ResetWindowMinutes, AiQuotaSlotConfig.MinWindowMinutes, AiQuotaSlotConfig.MaxWindowMinutes),
+                NextResetUtcTicks = Math.Max(0L, s.NextResetUtcTicks),
+                NotifyOnReset = s.NotifyOnReset
+            });
+        }
+
+        return clean;
+    }
+
     private static List<ExpandedTabId> CreateDefaultTabs() =>
     [
         ExpandedTabId.Now,
@@ -191,6 +239,20 @@ public sealed class AppConfig
         ExpandedTabId.System,
         ExpandedTabId.Widgets
     ];
+}
+
+public sealed class AiQuotaSlotConfig
+{
+    public const int MaxSlotCount = 12;
+    public const int MinWindowMinutes = 5;
+    public const int MaxWindowMinutes = 10080;
+
+    public string Id { get; set; } = string.Empty;
+    public string Provider { get; set; } = "ChatGPT";
+    public string Label { get; set; } = "ChatGPT #1";
+    public int ResetWindowMinutes { get; set; } = 180;
+    public long NextResetUtcTicks { get; set; }
+    public bool NotifyOnReset { get; set; } = true;
 }
 
 public sealed class AppConfigStore

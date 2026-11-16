@@ -536,5 +536,88 @@ public sealed class ReleaseReadinessTests
         cfg.DockIconSizeDip = 120;
         cfg.Sanitize();
         Assert.Equal(48, cfg.DockIconSizeDip);
+
+        double[] appCenters = [19.0, 57.0, 95.0, 133.0, 171.0];
+        var reducedMag = DockLayoutCalculator.ComputeMagnification(95.0, appCenters, 38.0, maxScale: 1.34, influenceRadiusDip: 104.0, spreadFactor: 0.30);
+        Assert.True(reducedMag[1].ShiftXDip < 0.0 && Math.Abs(reducedMag[1].ShiftXDip) < 10.0);
+        Assert.True(reducedMag[3].ShiftXDip > 0.0 && Math.Abs(reducedMag[3].ShiftXDip) < 10.0);
+    }
+
+    private sealed class MutableUtcTimeProvider(DateTimeOffset startUtc) : TimeProvider
+    {
+        private DateTimeOffset _utcNow = startUtc;
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+        public void Advance(TimeSpan delta) => _utcNow = _utcNow.Add(delta);
+    }
+
+    [Fact]
+    public void AiQuotaTracker_ManagesCooldownsSortingPersistenceAndUnlockHud()
+    {
+        var clock = new MutableUtcTimeProvider(new DateTimeOffset(2026, 11, 16, 16, 0, 0, TimeSpan.Zero));
+        var publishedHuds = new List<TransientHudEvent>();
+        var hudBus = new Mock<ITransientHudBus>();
+        hudBus.Setup(h => h.Publish(It.IsAny<TransientHudEvent>()))
+            .Callback<TransientHudEvent>(ev => publishedHuds.Add(ev));
+
+        int saveCount = 0;
+        var cfg = new AppConfig { Language = "tr" };
+
+        using var svc = new AiQuotaTrackerService(cfg, () => saveCount++, hudBus.Object, clock);
+        svc.Start();
+
+        Assert.True(cfg.AiQuotaSeeded);
+        Assert.Equal(4, cfg.AiQuotaSlots.Count);
+        Assert.True(saveCount >= 1);
+
+        var initialSummary = svc.GetSummary();
+        Assert.Equal(4, initialSummary.ReadyCount);
+        Assert.Equal(4, initialSummary.TotalCount);
+        Assert.Null(initialSummary.SoonestCooldown);
+        Assert.False(svc.HasActiveCooldowns);
+
+        var snapshots = svc.GetSnapshots();
+        string gpt1Id = snapshots.First(s => s.Label == "ChatGPT #1").Id;
+        string gpt2Id = snapshots.First(s => s.Label == "ChatGPT #2").Id;
+
+        Assert.True(svc.MarkExhausted(gpt1Id)); // 180 min
+        Assert.True(svc.MarkExhausted(gpt2Id, overrideMinutes: 60)); // 60 min
+        Assert.True(svc.AdjustRemaining(gpt2Id, -30)); // now 30 min left
+        Assert.True(svc.HasActiveCooldowns);
+
+        var ordered = svc.GetSnapshots();
+        // Ready slots appear first, then soonest cooldown (gpt2 30m before gpt1 180m)
+        Assert.True(ordered[0].IsReady);
+        Assert.True(ordered[1].IsReady);
+        Assert.Equal(gpt2Id, ordered[2].Id);
+        Assert.Equal(gpt1Id, ordered[3].Id);
+        Assert.InRange(ordered[2].Remaining.TotalMinutes, 29.9, 30.1);
+
+        var midSummary = svc.GetSummary();
+        Assert.Equal(2, midSummary.ReadyCount);
+        Assert.Equal(gpt2Id, midSummary.SoonestCooldown?.Id);
+
+        // Advance clock by 31 minutes -> only gpt2 unlocks and publishes WidgetAlert HUD
+        clock.Advance(TimeSpan.FromMinutes(31));
+        svc.ReevaluateDueResets();
+
+        Assert.Single(publishedHuds);
+        Assert.Equal(HudKind.WidgetAlert, publishedHuds[0].Kind);
+        Assert.Contains("ChatGPT #2", publishedHuds[0].Title);
+        Assert.Equal("ai.open-tab", publishedHuds[0].PrimaryActionId);
+
+        var afterUnlock = svc.GetSnapshots();
+        Assert.Equal(3, afterUnlock.Count(s => s.IsReady));
+        Assert.True(svc.MarkReady(gpt1Id));
+        Assert.False(svc.HasActiveCooldowns);
+
+        // Verify Config Sanitize bounds up to MaxSlotCount and clamps window minutes
+        for (int i = 0; i < 15; i++)
+        {
+            svc.AddSlot("Custom", $"Custom #{i}", resetWindowMinutes: 20000);
+        }
+        cfg.Sanitize();
+        Assert.Equal(AiQuotaSlotConfig.MaxSlotCount, cfg.AiQuotaSlots.Count);
+        Assert.All(cfg.AiQuotaSlots, s =>
+            Assert.InRange(s.ResetWindowMinutes, AiQuotaSlotConfig.MinWindowMinutes, AiQuotaSlotConfig.MaxWindowMinutes));
     }
 }

@@ -115,6 +115,7 @@ public partial class IslandWindow : Window
     private readonly DispatcherTimer _collapseDebounceTimer;
     private readonly DispatcherTimer _dragLeaveDebounceTimer;
     private readonly DispatcherTimer _mediaPositionTimer;
+    private readonly DispatcherTimer _aiQuotaTickTimer;
     private readonly DispatcherTimer _dragCursorMonitorTimer;
     private readonly DispatcherTimer _shiftDodgeTimer;
     private readonly Win32TrayIcon _trayIcon = new();
@@ -218,7 +219,10 @@ public partial class IslandWindow : Window
     private IReadOnlyList<ClipboardEntry>? _auditClipOverride;
     private SystemTelemetrySnapshot? _auditTelemetryOverride;
     private IReadOnlyList<WidgetRenderSnapshot>? _auditWidgetsOverride;
+    private IReadOnlyList<AiQuotaSlotSnapshot>? _auditAiQuotaOverride;
     private ScheduledPowerSnapshot? _auditScheduledPowerOverride;
+    private string? _editingAiSlotId;
+    private string _editingAiProvider = "ChatGPT";
 
     public IslandWindowController WindowController => _controller;
     public bool IsRenderingLoopActive => _isRenderingLoopActive;
@@ -286,6 +290,16 @@ public partial class IslandWindow : Window
         _mediaPositionTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(500) };
         _mediaPositionTimer.Tick += OnMediaPositionTimerTick;
 
+        _aiQuotaTickTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(1000) };
+        _aiQuotaTickTimer.Tick += (_, _) =>
+        {
+            if (!_isClosed && IsExpandedTabVisible(ExpandedTabId.Widgets))
+            {
+                RenderAiQuotaSection(_auditAiQuotaOverride ?? _orch.AiQuota.GetSnapshots());
+            }
+            SyncAiQuotaTimerState();
+        };
+
         _dragCursorMonitorTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(90) };
         _dragCursorMonitorTimer.Tick += OnDragCursorMonitorTick;
 
@@ -351,6 +365,7 @@ public partial class IslandWindow : Window
         if (_isRenderAuditMode) return;
 
         SyncMediaPositionTimerState();
+        SyncAiQuotaTimerState();
         _ = RefreshInitialContentAsync();
         if (!_isSmokeMode && _dockWindow is not null && !_dockWindow.IsVisible)
         {
@@ -367,6 +382,7 @@ public partial class IslandWindow : Window
         _collapseDebounceTimer.Stop();
         _dragLeaveDebounceTimer.Stop();
         _mediaPositionTimer.Stop();
+        _aiQuotaTickTimer.Stop();
         _dragCursorMonitorTimer.Stop();
         _shiftDodgeTimer.Stop();
 
@@ -416,6 +432,7 @@ public partial class IslandWindow : Window
         _orch.Clipboard.EntriesChanged += OnClipboardEntriesChanged;
         _orch.Telemetry.TelemetryUpdated += OnTelemetryUpdated;
         _orch.Widgets.WidgetsChanged += OnWidgetsChanged;
+        _orch.AiQuota.SlotsChanged += OnAiQuotaSlotsChanged;
         _orch.OpenSettingsRequested += OnOrchestratorOpenSettingsRequested;
         _orch.QrShareRequested += OnOrchestratorQrShareRequested;
         _orch.RegionOcrRequested += OnOrchestratorRegionOcrRequested;
@@ -444,6 +461,7 @@ public partial class IslandWindow : Window
         _orch.Clipboard.EntriesChanged -= OnClipboardEntriesChanged;
         _orch.Telemetry.TelemetryUpdated -= OnTelemetryUpdated;
         _orch.Widgets.WidgetsChanged -= OnWidgetsChanged;
+        _orch.AiQuota.SlotsChanged -= OnAiQuotaSlotsChanged;
         _orch.OpenSettingsRequested -= OnOrchestratorOpenSettingsRequested;
         _orch.QrShareRequested -= OnOrchestratorQrShareRequested;
         _orch.RegionOcrRequested -= OnOrchestratorRegionOcrRequested;
@@ -1086,6 +1104,7 @@ public partial class IslandWindow : Window
         }
 
         SyncMediaPositionTimerState();
+        SyncAiQuotaTimerState();
 
         UpdateCompactAndSatelliteContent(snap);
         UpdateTransientHudContent(snap);
@@ -1574,7 +1593,7 @@ public partial class IslandWindow : Window
             HudActionButton.Content = hud.PrimaryActionLabel;
             HudActionButton.Visibility = Visibility.Visible;
         }
-        else if (hud.InteractiveOnHover && hud.Kind is HudKind.FileStashed or HudKind.Clipboard or HudKind.NotificationPulse or HudKind.TimerAlert or HudKind.TransferComplete or HudKind.QrShare or HudKind.OcrCapture or HudKind.VoiceNote)
+        else if (hud.InteractiveOnHover && hud.Kind is HudKind.FileStashed or HudKind.Clipboard or HudKind.NotificationPulse or HudKind.TimerAlert or HudKind.TransferComplete or HudKind.QrShare or HudKind.OcrCapture or HudKind.VoiceNote or HudKind.WidgetAlert)
         {
             HudActionButton.Content = hud.Kind switch
             {
@@ -1585,6 +1604,7 @@ public partial class IslandWindow : Window
                 HudKind.VoiceNote => Strings.TabShelf(_orch.Config.Language),
                 HudKind.TransferComplete => Strings.TransferStashAction(_orch.Config.Language),
                 HudKind.TimerAlert => Strings.TabNow(_orch.Config.Language),
+                HudKind.WidgetAlert => Strings.TabWidgets(_orch.Config.Language),
                 _ => Strings.OpenHub(_orch.Config.Language)
             };
             HudActionButton.Visibility = Visibility.Visible;
@@ -1648,6 +1668,7 @@ public partial class IslandWindow : Window
         HudKind.VoiceNote => "\uE720",
         HudKind.TimerAlert => "\uE916",
         HudKind.NotificationPulse => "\uEA8F",
+        HudKind.WidgetAlert => "\uE916",
         _ => "\uE946"
     };
 
@@ -1691,6 +1712,7 @@ public partial class IslandWindow : Window
             }
         }
         SyncMediaPositionTimerState();
+        SyncAiQuotaTimerState();
 
         string lang = _orch.Config.Language;
         var audioSnap = _auditAudioOverride ?? _orch.Audio.Current;
@@ -1982,6 +2004,7 @@ public partial class IslandWindow : Window
 
         CloseExpandedOverlays();
         UpdateTabIndicatorTarget(targetBtn, snapIndicator);
+        SyncAiQuotaTimerState();
         if (!_isRenderAuditMode && activeTab == ExpandedTabId.Now && ShouldAnimateAmbientGlow(_lastSnapshot))
         {
             StartRenderLoop();
@@ -1992,6 +2015,7 @@ public partial class IslandWindow : Window
     {
         NotifDetailOverlay.Visibility = Visibility.Collapsed;
         AudioQualityOverlay.Visibility = Visibility.Collapsed;
+        CloseAiQuotaEditor();
         SysIdleAppsConfirmPanel.Visibility = Visibility.Collapsed;
         SystemProcessScrollViewer.Visibility = Visibility.Visible;
         _activeDetailNotification = null;
@@ -2057,6 +2081,27 @@ public partial class IslandWindow : Window
         }
     }
 
+    private void SyncAiQuotaTimerState()
+    {
+        bool shouldTick = !_isClosed &&
+                          !_isRenderAuditMode &&
+                          _lastSnapshot.State == IslandPresentationState.S4Expanded &&
+                          _lastSnapshot.ActiveTab == ExpandedTabId.Widgets &&
+                          _orch.AiQuota.HasActiveCooldowns;
+
+        if (shouldTick)
+        {
+            if (!_aiQuotaTickTimer.IsEnabled)
+            {
+                _aiQuotaTickTimer.Start();
+            }
+        }
+        else if (_aiQuotaTickTimer.IsEnabled)
+        {
+            _aiQuotaTickTimer.Stop();
+        }
+    }
+
     private void RefreshExpandedTabPanel(ExpandedTabId tab)
     {
         ClearTabDirty(tab);
@@ -2093,6 +2138,8 @@ public partial class IslandWindow : Window
 
             case ExpandedTabId.Widgets:
                 RenderWidgetsTab(_auditWidgetsOverride ?? _orch.Widgets.GetSnapshots());
+                RenderAiQuotaSection(_auditAiQuotaOverride ?? _orch.AiQuota.GetSnapshots());
+                SyncAiQuotaTimerState();
                 break;
         }
     }
@@ -2648,6 +2695,7 @@ public partial class IslandWindow : Window
         e.Handled = true;
         NotifDetailOverlay.Visibility = Visibility.Collapsed;
         AudioQualityOverlay.Visibility = Visibility.Collapsed;
+        CloseAiQuotaEditor();
         _activeDetailNotification = null;
     }
 
@@ -4310,6 +4358,405 @@ public partial class IslandWindow : Window
         }
     }
 
+    private void OnAiQuotaSlotsChanged(object? sender, IReadOnlyList<AiQuotaSlotSnapshot> slots)
+    {
+        if (_isClosed) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_isClosed) return;
+            if (IsExpandedTabVisible(ExpandedTabId.Widgets))
+            {
+                RenderAiQuotaSection(_auditAiQuotaOverride ?? slots);
+            }
+            else
+            {
+                MarkTabDirty(ExpandedTabId.Widgets);
+            }
+            SyncAiQuotaTimerState();
+        });
+    }
+
+    private void RenderAiQuotaSection(IReadOnlyList<AiQuotaSlotSnapshot> slots)
+    {
+        string lang = _orch.Config.Language;
+        AiQuotaWrapPanel.Children.Clear();
+        AiQuotaEmptyText.Visibility = slots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        int readyCount = 0;
+        AiQuotaSlotSnapshot? soonest = null;
+        foreach (var s in slots)
+        {
+            if (s.IsReady) readyCount++;
+            else if (soonest is null || s.Remaining < soonest.Remaining) soonest = s;
+        }
+
+        if (slots.Count == 0)
+        {
+            AiQuotaSummaryPill.Background = CardSurfaceBrush;
+            AiQuotaSummaryText.Foreground = MutedTabFgBrush;
+            AiQuotaSummaryText.Text = "0/0";
+        }
+        else if (readyCount == slots.Count)
+        {
+            AiQuotaSummaryPill.Background = new SolidColorBrush(Color.FromArgb(0x1C, 0x30, 0xD1, 0x58));
+            AiQuotaSummaryText.Foreground = (Brush)FindResource("AccentGreenBrush");
+            AiQuotaSummaryText.Text = Strings.AiQuotaAllReadySummary(lang, slots.Count);
+        }
+        else
+        {
+            string nextClock = soonest?.NextResetUtc?.ToLocalTime().ToString("HH:mm") ?? "--:--";
+            bool hasReady = readyCount > 0;
+            AiQuotaSummaryPill.Background = new SolidColorBrush(hasReady
+                ? Color.FromArgb(0x1C, 0x30, 0xD1, 0x58)
+                : Color.FromArgb(0x22, 0xFF, 0x9F, 0x0A));
+            AiQuotaSummaryText.Foreground = (Brush)FindResource(hasReady ? "AccentGreenBrush" : "AccentAmberBrush");
+            AiQuotaSummaryText.Text = Strings.AiQuotaMixedSummary(lang, readyCount, slots.Count, nextClock);
+        }
+
+        var amberBrush = (Brush)FindResource("AccentAmberBrush");
+        var greenBrush = (Brush)FindResource("AccentGreenBrush");
+
+        foreach (var slot in slots)
+        {
+            Brush accentBrush = ParseHexBrush(slot.AccentHex, "#10A37F");
+            Color borderColor = slot.IsReady
+                ? Color.FromArgb(0x2A, 0x30, 0xD1, 0x58)
+                : Color.FromArgb(0x36, 0xFF, 0x9F, 0x0A);
+
+            var card = new Border
+            {
+                Width = 172,
+                CornerRadius = new CornerRadius(11),
+                Background = new SolidColorBrush(Color.FromArgb(0xD0, 0x13, 0x17, 0x22)),
+                BorderBrush = new SolidColorBrush(borderColor),
+                BorderThickness = new Thickness(0.8),
+                Padding = new Thickness(9, 7, 9, 7),
+                Margin = new Thickness(0, 0, 6, 6)
+            };
+
+            var stack = new StackPanel();
+
+            // Header: Provider dot + Account Label + Edit/Delete buttons
+            var head = new DockPanel();
+            var rightIcons = new StackPanel { Orientation = Orientation.Horizontal };
+            DockPanel.SetDock(rightIcons, Dock.Right);
+
+            string slotId = slot.Id;
+            var editBtn = new Button
+            {
+                Style = (Style)FindResource("IconCircleButtonStyle"),
+                Width = 18,
+                Height = 18,
+                Background = Brushes.Transparent,
+                FontFamily = (FontFamily)FindResource("IconFont"),
+                FontSize = 9,
+                Foreground = MutedTabFgBrush,
+                Content = "\uE70F",
+                Margin = new Thickness(0, 0, 2, 0)
+            };
+            editBtn.Click += (_, _) =>
+            {
+                if (!_isRenderAuditMode) OpenAiQuotaEditor(slot);
+            };
+            rightIcons.Children.Add(editBtn);
+
+            var delBtn = new Button
+            {
+                Style = (Style)FindResource("IconCircleButtonStyle"),
+                Width = 18,
+                Height = 18,
+                Background = Brushes.Transparent,
+                FontFamily = (FontFamily)FindResource("IconFont"),
+                FontSize = 9,
+                Foreground = MutedTabFgBrush,
+                Content = "\uE74D"
+            };
+            delBtn.Click += (_, _) =>
+            {
+                if (!_isRenderAuditMode) _orch.AiQuota.RemoveSlot(slotId);
+            };
+            rightIcons.Children.Add(delBtn);
+            head.Children.Add(rightIcons);
+
+            var leftName = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            leftName.Children.Add(new System.Windows.Shapes.Ellipse
+            {
+                Width = 6,
+                Height = 6,
+                Fill = accentBrush,
+                Margin = new Thickness(0, 0, 5, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            leftName.Children.Add(new TextBlock
+            {
+                Text = slot.Label,
+                FontFamily = UiTextFontFamily,
+                FontSize = 10.6,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = ActiveTabFgBrush,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 104
+            });
+            head.Children.Add(leftName);
+            stack.Children.Add(head);
+
+            // Middle: Status + Countdown + Reset Clock Time
+            var statusRow = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+            if (slot.IsReady)
+            {
+                statusRow.Children.Add(new TextBlock
+                {
+                    Text = Strings.AiQuotaReadyBadge(lang),
+                    FontFamily = (FontFamily)FindResource("UiFont"),
+                    FontSize = 10.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = greenBrush,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+                statusRow.Children.Add(new TextBlock
+                {
+                    Text = string.Equals(lang, "en", StringComparison.OrdinalIgnoreCase)
+                        ? $"{slot.ResetWindowMinutes}m win"
+                        : $"{slot.ResetWindowMinutes}dk",
+                    FontFamily = UiTextFontFamily,
+                    FontSize = 9.2,
+                    Foreground = MutedTabFgBrush,
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+            }
+            else
+            {
+                statusRow.Children.Add(new TextBlock
+                {
+                    Text = AiQuotaTrackerService.FormatDurationCompact(slot.Remaining, lang),
+                    FontFamily = (FontFamily)FindResource("UiFont"),
+                    FontSize = 10.8,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = amberBrush,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+                string resetLocalStr = slot.NextResetUtc?.ToLocalTime().ToString("HH:mm") ?? "--:--";
+                statusRow.Children.Add(new TextBlock
+                {
+                    Text = $"\u21BB {resetLocalStr}",
+                    FontFamily = (FontFamily)FindResource("UiFont"),
+                    FontSize = 9.4,
+                    Foreground = MutedTabFgBrush,
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+            }
+            stack.Children.Add(statusRow);
+
+            if (!slot.IsReady && slot.CooldownProgress01.HasValue)
+            {
+                stack.Children.Add(new System.Windows.Controls.ProgressBar
+                {
+                    Style = (Style)FindResource("ObsidianProgressBarStyle"),
+                    Minimum = 0,
+                    Maximum = 100,
+                    Value = Math.Clamp(slot.CooldownProgress01.Value * 100.0, 2, 100),
+                    Foreground = amberBrush,
+                    Height = 3,
+                    Margin = new Thickness(0, 4, 0, 0)
+                });
+            }
+
+            // Bottom Action Bar
+            var actions = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 6, 0, 0)
+            };
+
+            if (slot.IsReady)
+            {
+                var limitBtn = new Button
+                {
+                    Style = (Style)FindResource("PillTabButtonStyle"),
+                    Content = Strings.AiQuotaMarkExhaustedBtn(lang),
+                    Padding = new Thickness(8, 2, 8, 2),
+                    FontSize = 9.2,
+                    Foreground = amberBrush
+                };
+                limitBtn.Click += (_, _) =>
+                {
+                    if (!_isRenderAuditMode) _orch.AiQuota.MarkExhausted(slotId);
+                };
+                actions.Children.Add(limitBtn);
+            }
+            else
+            {
+                bool isEn = string.Equals(lang, "en", StringComparison.OrdinalIgnoreCase);
+                var sub30 = new Button
+                {
+                    Style = (Style)FindResource("PillTabButtonStyle"),
+                    Content = isEn ? "-30m" : "-30d",
+                    Padding = new Thickness(5, 2, 5, 2),
+                    FontSize = 9.0,
+                    Margin = new Thickness(0, 0, 4, 0)
+                };
+                sub30.Click += (_, _) =>
+                {
+                    if (!_isRenderAuditMode) _orch.AiQuota.AdjustRemaining(slotId, -30);
+                };
+                actions.Children.Add(sub30);
+
+                var add30 = new Button
+                {
+                    Style = (Style)FindResource("PillTabButtonStyle"),
+                    Content = isEn ? "+30m" : "+30d",
+                    Padding = new Thickness(5, 2, 5, 2),
+                    FontSize = 9.0,
+                    Margin = new Thickness(0, 0, 4, 0)
+                };
+                add30.Click += (_, _) =>
+                {
+                    if (!_isRenderAuditMode) _orch.AiQuota.AdjustRemaining(slotId, +30);
+                };
+                actions.Children.Add(add30);
+
+                var readyBtn = new Button
+                {
+                    Style = (Style)FindResource("PillTabButtonStyle"),
+                    Content = Strings.AiQuotaMarkReadyBtn(lang),
+                    Padding = new Thickness(6, 2, 6, 2),
+                    FontSize = 9.0,
+                    Foreground = greenBrush
+                };
+                readyBtn.Click += (_, _) =>
+                {
+                    if (!_isRenderAuditMode) _orch.AiQuota.MarkReady(slotId);
+                };
+                actions.Children.Add(readyBtn);
+            }
+
+            stack.Children.Add(actions);
+            card.Child = stack;
+            AiQuotaWrapPanel.Children.Add(card);
+        }
+    }
+
+    private void OnAiQuickAddProviderClick(object sender, RoutedEventArgs e)
+    {
+        if (_isRenderAuditMode || sender is not Button btn) return;
+        string provider = btn.Tag?.ToString() ?? "ChatGPT";
+        _orch.AiQuota.AddSlot(provider);
+    }
+
+    private void OnAiAddCustomClick(object sender, RoutedEventArgs e)
+    {
+        if (_isRenderAuditMode) return;
+        OpenAiQuotaEditor(null);
+    }
+
+    private void OpenAiQuotaEditor(AiQuotaSlotSnapshot? existing)
+    {
+        _editingAiSlotId = existing?.Id;
+        _editingAiProvider = existing?.Provider ?? "ChatGPT";
+        AiQuotaEditNameBox.Text = existing?.Label ?? string.Empty;
+        AiQuotaEditMinutesBox.Text = (existing?.ResetWindowMinutes ?? AiQuotaTrackerService.GetDefaultWindowMinutes(_editingAiProvider)).ToString();
+        AiQuotaEditNotifyCheck.IsChecked = existing?.NotifyOnReset ?? true;
+        BtnAiEditDelete.Visibility = existing is null ? Visibility.Collapsed : Visibility.Visible;
+        UpdateAiEditProviderButtons();
+
+        AiQuotaEditOverlay.Visibility = Visibility.Visible;
+        if (!_isRenderAuditMode)
+        {
+            _controller.SetActivatable(true, restoreFocusHwnd: null);
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+            {
+                AiQuotaEditNameBox.Focus();
+                Keyboard.Focus(AiQuotaEditNameBox);
+                AiQuotaEditNameBox.SelectAll();
+            });
+        }
+    }
+
+    private void CloseAiQuotaEditor()
+    {
+        if (AiQuotaEditOverlay.Visibility != Visibility.Visible) return;
+        AiQuotaEditOverlay.Visibility = Visibility.Collapsed;
+        _editingAiSlotId = null;
+        if (!_isRenderAuditMode)
+        {
+            _controller.SetActivatable(_lastSnapshot.Layout.RequiresKeyboardFocus, restoreFocusHwnd: null);
+        }
+    }
+
+    private void UpdateAiEditProviderButtons()
+    {
+        Button[] btns = [BtnAiEditProvChatGpt, BtnAiEditProvClaude, BtnAiEditProvGemini, BtnAiEditProvCustom];
+        foreach (var b in btns)
+        {
+            string tag = b.Tag?.ToString() ?? string.Empty;
+            bool match = string.Equals(tag, _editingAiProvider, StringComparison.OrdinalIgnoreCase);
+            b.Foreground = match
+                ? ParseHexBrush(AiQuotaTrackerService.GetProviderAccentHex(tag), "#0A84FF")
+                : MutedTabFgBrush;
+            b.FontWeight = match ? FontWeights.Bold : FontWeights.Medium;
+        }
+    }
+
+    private void OnAiEditProviderPickClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button b) return;
+        _editingAiProvider = b.Tag?.ToString() ?? "ChatGPT";
+        UpdateAiEditProviderButtons();
+        if (_editingAiSlotId is null)
+        {
+            AiQuotaEditMinutesBox.Text = AiQuotaTrackerService.GetDefaultWindowMinutes(_editingAiProvider).ToString();
+        }
+    }
+
+    private void OnAiEditWindowPresetClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is string mins)
+        {
+            AiQuotaEditMinutesBox.Text = mins;
+        }
+    }
+
+    private void OnAiEditSaveClick(object sender, RoutedEventArgs e)
+    {
+        if (_isRenderAuditMode)
+        {
+            CloseAiQuotaEditor();
+            return;
+        }
+
+        if (!int.TryParse(AiQuotaEditMinutesBox.Text.Trim(), out int minutes))
+        {
+            minutes = AiQuotaTrackerService.GetDefaultWindowMinutes(_editingAiProvider);
+        }
+        minutes = Math.Clamp(minutes, AiQuotaSlotConfig.MinWindowMinutes, AiQuotaSlotConfig.MaxWindowMinutes);
+        bool notify = AiQuotaEditNotifyCheck.IsChecked != false;
+        string rawName = AiQuotaEditNameBox.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(_editingAiSlotId))
+        {
+            _orch.AiQuota.AddSlot(_editingAiProvider, rawName, minutes, notify);
+        }
+        else
+        {
+            _orch.AiQuota.UpdateSlot(_editingAiSlotId, _editingAiProvider, rawName, minutes, notify);
+        }
+
+        CloseAiQuotaEditor();
+    }
+
+    private void OnAiEditDeleteClick(object sender, RoutedEventArgs e)
+    {
+        if (!_isRenderAuditMode && !string.IsNullOrWhiteSpace(_editingAiSlotId))
+        {
+            _orch.AiQuota.RemoveSlot(_editingAiSlotId);
+        }
+        CloseAiQuotaEditor();
+    }
+
+    private void OnAiEditCloseClick(object sender, RoutedEventArgs e) => CloseAiQuotaEditor();
+
     // -------------------------------------------------------------------------
     // Command Palette (S5Command — Single Click + ScrollBar Safe Guard)
     // -------------------------------------------------------------------------
@@ -5249,6 +5696,11 @@ public partial class IslandWindow : Window
             case "power.cancel":
                 _orch.Timers.CancelScheduledPowerAction();
                 _orch.Coordinator.DismissTransientHud();
+                break;
+
+            case "ai.open-tab":
+                _orch.Coordinator.DismissTransientHud();
+                _orch.Coordinator.RequestExpand(ExpandedTabId.Widgets);
                 break;
         }
     }
@@ -6289,6 +6741,18 @@ public partial class IslandWindow : Window
         BtnReloadWidgets.Content = Strings.Pick(lang, "Yenile", "Reload");
         WidgetsEmptyText.Text = Strings.Pick(lang, "Etkin araç eklentisi yok.", "No active widget plugins.");
         BtnToolColorPicker.Content = Strings.ColorPickerTitle(lang);
+        AiQuotaHeaderText.Text = Strings.AiQuotaSectionTitle(lang);
+        AiQuotaEmptyText.Text = Strings.AiQuotaEmpty(lang);
+        BtnAiAddCustom.Content = Strings.AiQuotaAddCustomBtn(lang);
+        AiQuotaEditTitleText.Text = Strings.AiQuotaEditTitle(lang);
+        AiQuotaEditProviderLabel.Text = Strings.AiQuotaProviderLabel(lang);
+        AiQuotaEditNameLabel.Text = Strings.AiQuotaAccountNameLabel(lang);
+        AiQuotaEditWindowLabel.Text = Strings.AiQuotaWindowMinutesLabel(lang);
+        AiQuotaEditNotifyCheck.Content = Strings.AiQuotaNotifyResetLabel(lang);
+        BtnAiEditProvCustom.Content = Strings.Pick(lang, "Diğer", "Custom");
+        BtnAiEditDelete.Content = Strings.Pick(lang, "Sil", "Delete");
+        BtnAiEditCancel.Content = Strings.Cancel(lang);
+        BtnAiEditSave.Content = Strings.Save(lang);
 
         SysGpuDetailLabel.Text = Strings.Pick(lang, "GPU VRAM & Sıcaklık", "GPU VRAM & Temp");
         SysDiskDetailLabel.Text = Strings.Pick(lang, $"{Strings.DiskUsageLabel(lang)} & I/O", $"{Strings.DiskUsageLabel(lang)} & I/O");
@@ -6358,7 +6822,8 @@ public partial class IslandWindow : Window
         string? demoLyric = null,
         MeetingOccurrence? demoMeeting = null,
         LanDropShareInfo? demoQrShare = null,
-        ScheduledPowerSnapshot? demoScheduledPower = null)
+        ScheduledPowerSnapshot? demoScheduledPower = null,
+        IReadOnlyList<AiQuotaSlotSnapshot>? demoAiQuota = null)
     {
         _isRenderAuditMode = true;
         _auditMediaOverride = demoMedia;
@@ -6375,6 +6840,7 @@ public partial class IslandWindow : Window
         _auditClipOverride = demoClip;
         _auditTelemetryOverride = demoTelemetry;
         _auditWidgetsOverride = demoWidgets;
+        _auditAiQuotaOverride = demoAiQuota;
         _auditScheduledPowerOverride = demoScheduledPower;
 
         bool needExpanded = RequiresExpandedTier(snap.State);
@@ -6513,7 +6979,7 @@ public partial class IslandWindow : Window
             if (cur is FrameworkElement fe &&
                 (Equals(fe.Tag, "Interactive") ||
                  ReferenceEquals(fe.Cursor, System.Windows.Input.Cursors.Hand) ||
-                 fe.Name is "NotifDetailOverlay" or "AudioQualityOverlay"))
+                 fe.Name is "NotifDetailOverlay" or "AudioQualityOverlay" or "AiQuotaEditOverlay"))
             {
                 return true;
             }
