@@ -620,4 +620,25 @@ public sealed class ReleaseReadinessTests
         Assert.All(cfg.AiQuotaSlots, s =>
             Assert.InRange(s.ResetWindowMinutes, AiQuotaSlotConfig.MinWindowMinutes, AiQuotaSlotConfig.MaxWindowMinutes));
     }
+
+    [Fact]
+    public void Win32SendInputAndTrayOverflowClassifier_MatchWindows11Contracts()
+    {
+        // SendInput on 64-bit Windows requires exact 40-byte INPUT structure size; otherwise SendInput(VK_LWIN) returns 0.
+        Assert.Equal(40, System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.INPUT>());
+
+        Assert.True(DockLayoutCalculator.IsTrayHostWindowClass("Electron_NotifyIconHostWindow"));
+        Assert.True(DockLayoutCalculator.IsTrayHostWindowClass("H.NotifyIcon_55037c0d"));
+        Assert.True(DockLayoutCalculator.IsTrayHostWindowClass("QTrayIconMessageWindowClass"));
+        Assert.True(DockLayoutCalculator.IsTrayHostWindowClass("Chrome_StatusTrayWindow"));
+        Assert.True(DockLayoutCalculator.IsTrayHostWindowClass("LauncherSystemTrayHandler"));
+        Assert.False(DockLayoutCalculator.IsTrayHostWindowClass("Shell_TrayWnd"));
+        Assert.False(DockLayoutCalculator.IsTrayHostWindowClass("SystemTray_Main"));
+
+        Assert.True(DockLayoutCalculator.IsEligibleHiddenMainWindowMetadata("Chrome_WidgetWin_1", "@suflinyo - Discord"));
+        Assert.True(DockLayoutCalculator.IsEligibleHiddenMainWindowMetadata("WinUIDesktopWin32WindowClass", "WhatsApp"));
+        Assert.False(DockLayoutCalculator.IsEligibleHiddenMainWindowMetadata("IME", "Default IME"));
+        Assert.False(DockLayoutCalculator.IsEligibleHiddenMainWindowMetadata("Chrome_WidgetWin_0", ""));
+        Assert.False(DockLayoutCalculator.IsEligibleHiddenMainWindowMetadata("GDI+ Hook Window Class", "GDI+ Window (QuickLook.exe)"));
+    }
 }

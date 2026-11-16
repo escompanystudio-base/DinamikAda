@@ -899,6 +899,9 @@ public static unsafe partial class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool QueryFullProcessImageNameW(nint hProcess, uint dwFlags, char* lpExeName, ref uint lpdwSize);
 
+    [LibraryImport("kernel32.dll")]
+    public static partial int GetApplicationUserModelId(nint hProcess, ref uint applicationUserModelIdLength, char* applicationUserModelId);
+
     // iphlpapi.dll (GetIfTable2 / FreeMibTable)
     [LibraryImport("iphlpapi.dll")]
     public static partial int GetIfTable2(out nint Table);
@@ -980,7 +983,8 @@ public static unsafe partial class NativeMethods
         public nuint dwExtraInfo;
     }
 
-    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    // Native Win32 INPUT is sizeof(type + align + union(MOUSEINPUT = 32B)) = 40 bytes on x64
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
     public struct INPUT
     {
         [FieldOffset(0)] public uint type;

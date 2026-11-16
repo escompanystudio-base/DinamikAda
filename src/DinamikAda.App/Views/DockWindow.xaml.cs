@@ -73,6 +73,10 @@ public partial class DockWindow : Window
     private FrameworkElement? _islandSyncDot;
     private TextBlock? _trashIconText;
     private Ellipse? _trashDot;
+    private Border? _trayChevronBtn;
+    private Ellipse? _trayActiveDot;
+    private int _lastTrayAppCount;
+    private long _lastTrayPopupClosedTicks;
     private ContextMenu? _activeContextMenu;
     private DateTime _popupDisplayMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateTime _popupRenderedToday = DateTime.Today;
@@ -105,7 +109,8 @@ public partial class DockWindow : Window
         StartMenu = 0,
         App = 1,
         IslandSync = 2,
-        Trash = 3
+        Trash = 3,
+        TrayOverflow = 4
     }
 
     public DockWindow(AppOrchestrator orchestrator, WindowsTaskbarManager taskbarManager)
@@ -221,6 +226,8 @@ public partial class DockWindow : Window
         DockAuraStop2.Color = Color.FromArgb(0x1A, highlight.R, highlight.G, highlight.B);
         PopupAuraStop0.Color = Color.FromArgb(0x1C, primary.R, primary.G, primary.B);
         PopupAuraStop1.Color = Color.FromArgb(0x10, secondary.R, secondary.G, secondary.B);
+        TrayPopupAuraStop0.Color = Color.FromArgb(0x1C, primary.R, primary.G, primary.B);
+        TrayPopupAuraStop1.Color = Color.FromArgb(0x10, secondary.R, secondary.G, secondary.B);
 
         // Update fullscreen auto-hide smoothly
         bool wantFsHide = _orch.Config.DockFollowFullscreenHide
@@ -330,6 +337,44 @@ public partial class DockWindow : Window
         return bmp;
     }
 
+    public RenderTargetBitmap RenderTrayPopupForAudit(int width = 300, int height = 240)
+    {
+        SetSmokeOrAuditMode(true);
+        var demoItems = new BackgroundTrayAppItem[]
+        {
+            new("audit:discord", "Discord", "Discord.exe", null, 1, 0, "Electron_NotifyIconHostWindow", null),
+            new("audit:whatsapp", "WhatsApp", "WhatsApp.Root.exe", null, 2, 0, "H.NotifyIcon", null),
+            new("audit:steam", "Steam", "steam.exe", null, 3, 0, "Chrome_StatusTrayWindow", null),
+            new("audit:ytmusic", "YouTube Music", "YouTube Music.exe", null, 4, 0, "Electron_NotifyIconHostWindow", null),
+            new("audit:chatgpt", "ChatGPT", "ChatGPT.exe", null, 5, 0, "OwlElectron_NotifyIconHostWindow", null),
+            new("audit:wpe", "Wallpaper Engine", "wallpaper32.exe", null, 6, 0, "WPETrayWindow", null)
+        };
+        RebuildTrayOverflowGrid(demoItems);
+        SyncCoordinatorState(_orch.Coordinator.Current);
+
+        TrayOverflowCard.Measure(new Size(264, double.PositiveInfinity));
+        double cardH = Math.Ceiling(TrayOverflowCard.DesiredSize.Height);
+        TrayOverflowCard.Arrange(new Rect(0, 0, 264, cardH));
+        TrayOverflowCard.UpdateLayout();
+
+        int finalW = Math.Max(width, 288);
+        int finalH = Math.Max(height, (int)cardH + 24);
+        var dv = new DrawingVisual();
+        using (var dc = dv.RenderOpen())
+        {
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(8, 10, 16)), null, new Rect(0, 0, finalW, finalH));
+            var vb = new VisualBrush(TrayOverflowCard) { Stretch = Stretch.None };
+            double x = Math.Round((finalW - 264) * 0.5);
+            double y = Math.Round((finalH - cardH) * 0.5);
+            dc.DrawRectangle(vb, null, new Rect(x, y, 264, cardH));
+        }
+
+        var bmp = new RenderTargetBitmap(finalW, finalH, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(dv);
+        if (bmp.CanFreeze) bmp.Freeze();
+        return bmp;
+    }
+
     private void OnDockSourceInitialized(object? sender, EventArgs e)
     {
         if (_isSmokeOrAuditMode) return;
@@ -350,6 +395,11 @@ public partial class DockWindow : Window
 
         _orch.Coordinator.SnapshotChanged += OnCoordinatorSnapshotChanged;
         ApplyConfigAndSync();
+        _lastTrayAppCount = _appsService.QueryBackgroundTrayApps().Count;
+        if (_trayActiveDot is not null)
+        {
+            _trayActiveDot.Opacity = _lastTrayAppCount > 0 ? 1.0 : 0.0;
+        }
         _reconcileTimer.Start();
     }
 
@@ -362,6 +412,7 @@ public partial class DockWindow : Window
         _refreshDebounceTimer.Stop();
         _popupClockTimer.Stop();
         ClockCalendarPopup.IsOpen = false;
+        TrayOverflowPopup.IsOpen = false;
         _orch.Coordinator.SnapshotChanged -= OnCoordinatorSnapshotChanged;
         UninstallWindowEventHooks();
         _hwndSource?.RemoveHook(OnDockWndProc);
@@ -396,6 +447,13 @@ public partial class DockWindow : Window
             if (prevRb.HasItems != _lastRecycleBin.HasItems && _trashDot is not null)
             {
                 _trashDot.Opacity = _lastRecycleBin.HasItems ? 1.0 : 0.0;
+            }
+
+            int trayCount = _appsService.QueryBackgroundTrayApps().Count;
+            _lastTrayAppCount = trayCount;
+            if (_trayActiveDot is not null)
+            {
+                _trayActiveDot.Opacity = trayCount > 0 ? 1.0 : 0.0;
             }
         }
 
@@ -619,7 +677,10 @@ public partial class DockWindow : Window
         // 3. Synchronized DinamikAda Live Island Slot
         AddIslandSyncSlot(lang, iconSize, tileWidth + 10.0, tileHeight);
 
-        // 4. macOS Trash / Recycle Bin Slot
+        // 4. Windows Background / Tray Overflow ("^") Chevron Slot (stationary)
+        AddTrayChevronSlot(lang, iconSize, Math.Max(26.0, iconSize - 6.0), tileHeight);
+
+        // 5. macOS Trash / Recycle Bin Slot (stationary)
         AddTrashSlot(lang, iconSize, tileWidth, tileHeight);
 
         // 5. Compact Clock & Date Chip
@@ -964,6 +1025,293 @@ public partial class DockWindow : Window
         DockItemsHost.Children.Add(container);
     }
 
+    private void AddTrayChevronSlot(string lang, int iconSize, double tileW, double tileH)
+    {
+        var scale = new ScaleTransform(1.0, 1.0, tileW * 0.5, tileH);
+        var translate = new TranslateTransform(0.0, 0.0);
+        var tg = new TransformGroup();
+        tg.Children.Add(scale);
+        tg.Children.Add(translate);
+
+        var container = new Grid
+        {
+            Width = tileW,
+            Height = tileH + 7.0,
+            Cursor = Cursors.Hand,
+            Background = Brushes.Transparent,
+            RenderTransform = tg
+        };
+
+        var plate = new Border
+        {
+            Width = Math.Max(24.0, tileW - 2.0),
+            Height = iconSize,
+            CornerRadius = new CornerRadius(9),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            Background = new SolidColorBrush(Color.FromArgb(0x0E, 0xFF, 0xFF, 0xFF)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(0.6)
+        };
+
+        plate.Child = new TextBlock
+        {
+            Text = "\uE70E",
+            FontFamily = (FontFamily)FindResource("IconFont"),
+            FontSize = Math.Max(9.5, Math.Round(iconSize * 0.34)),
+            Foreground = new SolidColorBrush(Color.FromRgb(228, 228, 231)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        container.Children.Add(plate);
+
+        _trayActiveDot = new Ellipse
+        {
+            Width = 3.5,
+            Height = 3.5,
+            Fill = new SolidColorBrush(Color.FromRgb(100, 210, 255)),
+            Opacity = _lastTrayAppCount > 0 ? 1.0 : 0.0,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 0, 0.5),
+            IsHitTestVisible = false
+        };
+        container.Children.Add(_trayActiveDot);
+
+        var slotVisual = new DockSlotVisual
+        {
+            Container = container,
+            Scale = scale,
+            Translate = translate,
+            IconPlate = plate,
+            RunningDot = _trayActiveDot,
+            RunningPill = null,
+            TooltipLabel = Strings.DockTrayAppsLabel(lang),
+            Kind = SlotKind.TrayOverflow
+        };
+
+        container.MouseEnter += (_, _) =>
+        {
+            plate.Background = new SolidColorBrush(Color.FromArgb(0x1C, 0xFF, 0xFF, 0xFF));
+            plate.BorderBrush = new SolidColorBrush(Color.FromArgb(0x2A, 0xFF, 0xFF, 0xFF));
+        };
+        container.MouseLeave += (_, _) =>
+        {
+            plate.Background = new SolidColorBrush(Color.FromArgb(0x0E, 0xFF, 0xFF, 0xFF));
+            plate.BorderBrush = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF));
+        };
+        container.MouseLeftButtonUp += (_, ev) =>
+        {
+            ev.Handled = true;
+            ToggleTrayPopup();
+        };
+        container.MouseRightButtonUp += (_, ev) =>
+        {
+            ev.Handled = true;
+            HandleSlotContextMenu(slotVisual);
+        };
+
+        _trayChevronBtn = plate;
+        _slots.Add(slotVisual);
+        DockItemsHost.Children.Add(container);
+    }
+
+    private void ToggleTrayPopup()
+    {
+        if (_trayChevronBtn is null) return;
+        ClockCalendarPopup.IsOpen = false;
+        if (TrayOverflowPopup.IsOpen)
+        {
+            TrayOverflowPopup.IsOpen = false;
+            return;
+        }
+
+        double sinceClose = (Stopwatch.GetTimestamp() - _lastTrayPopupClosedTicks) / (double)Stopwatch.Frequency;
+        if (_lastTrayPopupClosedTicks != 0 && sinceClose < 0.22)
+        {
+            return;
+        }
+
+        TrayOverflowPopup.PlacementTarget = _trayChevronBtn;
+        TrayOverflowPopup.IsOpen = true;
+    }
+
+    private void OnTrayPopupOpened(object? sender, EventArgs e)
+    {
+        if (_isClosed) return;
+        var items = _isSmokeOrAuditMode ? [] : _appsService.QueryBackgroundTrayApps();
+        RebuildTrayOverflowGrid(items);
+        SyncCoordinatorState(_orch.Coordinator.Current);
+    }
+
+    private void OnTrayPopupClosed(object? sender, EventArgs e)
+    {
+        _lastTrayPopupClosedTicks = Stopwatch.GetTimestamp();
+    }
+
+    private void OnTrayPopupRefreshClick(object sender, RoutedEventArgs e)
+    {
+        if (_isSmokeOrAuditMode) return;
+        RebuildTrayOverflowGrid(_appsService.QueryBackgroundTrayApps());
+    }
+
+    private void RebuildTrayOverflowGrid(IReadOnlyList<BackgroundTrayAppItem> items)
+    {
+        string lang = _orch.Config.Language;
+        _lastTrayAppCount = items.Count;
+        if (_trayActiveDot is not null)
+        {
+            _trayActiveDot.Opacity = items.Count > 0 ? 1.0 : 0.0;
+        }
+
+        TrayPopupTitleText.Text = Strings.TrayOverflowHeader(lang);
+        TrayPopupEmptyText.Text = Strings.TrayOverflowEmpty(lang);
+        TrayPopupCountText.Text = items.Count.ToString(CultureInfo.InvariantCulture);
+
+        TrayOverflowGrid.Children.Clear();
+        TrayPopupEmptyText.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        var tileNormalBg = new SolidColorBrush(Color.FromArgb(0x0D, 0xFF, 0xFF, 0xFF));
+        var tileHoverBg = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
+        var tileBorder = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF));
+        var tileHoverBorder = new SolidColorBrush(Color.FromArgb(0x36, 0x64, 0xD2, 0xFF));
+        var textPrimary = (Brush)FindResource("TextPrimaryBrush");
+        var iconFont = (FontFamily)FindResource("IconFont");
+        var uiTextFont = (FontFamily)FindResource("UiTextFont");
+
+        foreach (var item in items)
+        {
+            var captured = item;
+            var tile = new Border
+            {
+                Width = 54,
+                Height = 56,
+                Margin = new Thickness(2.5),
+                Padding = new Thickness(3, 5, 3, 4),
+                CornerRadius = new CornerRadius(10),
+                Background = tileNormalBg,
+                BorderBrush = tileBorder,
+                BorderThickness = new Thickness(0.6),
+                Cursor = Cursors.Hand,
+                ToolTip = string.IsNullOrWhiteSpace(captured.ExePath)
+                    ? captured.DisplayName
+                    : $"{captured.DisplayName}\n{System.IO.Path.GetFileName(captured.ExePath)}"
+            };
+
+            var content = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            if (captured.Icon is not null)
+            {
+                content.Children.Add(new Image
+                {
+                    Source = captured.Icon,
+                    Width = 24,
+                    Height = 24,
+                    Stretch = Stretch.Uniform,
+                    SnapsToDevicePixels = true,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 0, 0, 4)
+                });
+            }
+            else
+            {
+                content.Children.Add(new TextBlock
+                {
+                    Text = "\uE737",
+                    FontFamily = iconFont,
+                    FontSize = 18,
+                    Foreground = textPrimary,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 1, 0, 4)
+                });
+            }
+
+            content.Children.Add(new TextBlock
+            {
+                Text = captured.DisplayName,
+                FontFamily = uiTextFont,
+                FontSize = 9.0,
+                Foreground = textPrimary,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                MaxWidth = 48
+            });
+
+            tile.Child = content;
+            tile.MouseEnter += (_, _) =>
+            {
+                tile.Background = tileHoverBg;
+                tile.BorderBrush = tileHoverBorder;
+            };
+            tile.MouseLeave += (_, _) =>
+            {
+                tile.Background = tileNormalBg;
+                tile.BorderBrush = tileBorder;
+            };
+            tile.MouseLeftButtonUp += (_, ev) =>
+            {
+                ev.Handled = true;
+                TrayOverflowPopup.IsOpen = false;
+                if (!_isSmokeOrAuditMode)
+                {
+                    DockAppsService.ActivateBackgroundTrayApp(captured);
+                }
+            };
+            tile.MouseRightButtonUp += (_, ev) =>
+            {
+                ev.Handled = true;
+                ShowTrayItemContextMenu(tile, captured, lang);
+            };
+
+            TrayOverflowGrid.Children.Add(tile);
+        }
+    }
+
+    private void ShowTrayItemContextMenu(FrameworkElement anchor, BackgroundTrayAppItem item, string lang)
+    {
+        var menu = new ContextMenu();
+        _activeContextMenu = menu;
+
+        var openItem = new MenuItem { Header = Strings.TrayOpenApp(lang) };
+        openItem.Click += (_, _) =>
+        {
+            TrayOverflowPopup.IsOpen = false;
+            DockAppsService.ActivateBackgroundTrayApp(item);
+        };
+        menu.Items.Add(openItem);
+
+        if (!string.IsNullOrWhiteSpace(item.ExePath))
+        {
+            var locItem = new MenuItem { Header = Strings.TrayOpenLocation(lang) };
+            locItem.Click += (_, _) =>
+            {
+                TrayOverflowPopup.IsOpen = false;
+                DockAppsService.OpenAppFileLocation(item.ExePath);
+            };
+            menu.Items.Add(locItem);
+        }
+
+        menu.Items.Add(new Separator());
+        var quitItem = new MenuItem { Header = Strings.TrayQuitApp(lang) };
+        quitItem.Click += (_, _) =>
+        {
+            DockAppsService.QuitBackgroundTrayApp(item);
+            if (TrayOverflowPopup.IsOpen)
+            {
+                RebuildTrayOverflowGrid(_appsService.QueryBackgroundTrayApps());
+            }
+        };
+        menu.Items.Add(quitItem);
+
+        menu.PlacementTarget = anchor;
+        menu.Placement = PlacementMode.Top;
+        menu.IsOpen = true;
+    }
+
     private void AddTrashSlot(string lang, int iconSize, double tileW, double tileH)
     {
         var scale = new ScaleTransform(1.0, 1.0, tileW * 0.5, tileH);
@@ -1123,6 +1471,7 @@ public partial class DockWindow : Window
     private void ToggleClockPopup()
     {
         if (_clockChip is null) return;
+        TrayOverflowPopup.IsOpen = false;
         if (ClockCalendarPopup.IsOpen)
         {
             ClockCalendarPopup.IsOpen = false;

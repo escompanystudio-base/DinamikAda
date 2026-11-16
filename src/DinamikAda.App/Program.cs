@@ -52,6 +52,10 @@ public static class Program
         {
             initialConfig.HideWindowsTaskbar = false;
             initialConfig.EnableBottomDock = false;
+            if (smokeTest && renderAuditDir is null)
+            {
+                initialConfig.EnableSpectrumVisualizer = false;
+            }
         }
         if (renderAuditDir is not null)
         {
@@ -1200,6 +1204,8 @@ public static class Program
         SavePng(dockAudit.RenderForAudit(960, 96), Path.Combine(outputDir, "31_bottom_dock.png"));
         savedCount++;
         SavePng(dockAudit.RenderCalendarPopupForAudit(300, 340), Path.Combine(outputDir, "32_dock_calendar_popup.png"));
+        savedCount++;
+        SavePng(dockAudit.RenderTrayPopupForAudit(300, 240), Path.Combine(outputDir, "33_dock_tray_popup.png"));
         savedCount++;
 
         Console.WriteLine($"RENDER_AUDIT_PASS: {savedCount} files -> {outputDir}");

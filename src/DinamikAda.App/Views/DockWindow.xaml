@@ -246,5 +246,94 @@
                 </Grid>
             </Border>
         </Popup>
+
+        <!-- Minimalist Obsidian Background / System Tray Apps Flyout ("^" Chevron Menu) -->
+        <Popup x:Name="TrayOverflowPopup"
+               AllowsTransparency="True"
+               StaysOpen="False"
+               Placement="Top"
+               VerticalOffset="-10"
+               PopupAnimation="Fade"
+               Opened="OnTrayPopupOpened"
+               Closed="OnTrayPopupClosed">
+            <Border x:Name="TrayOverflowCard"
+                    Width="264"
+                    CornerRadius="16"
+                    Background="#F507090E"
+                    BorderBrush="#2CFFFFFF"
+                    BorderThickness="0.9">
+                <Grid>
+                    <!-- Synchronized Ambient Glow -->
+                    <Border CornerRadius="15" IsHitTestVisible="False">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop x:Name="TrayPopupAuraStop0" Color="#1C0A84FF" Offset="0.0" />
+                                <GradientStop x:Name="TrayPopupAuraStop1" Color="#105E5CE6" Offset="0.55" />
+                                <GradientStop Color="#00000000" Offset="1.0" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border Height="1"
+                                Margin="16,0"
+                                VerticalAlignment="Top"
+                                Background="{StaticResource ObsidianTopSpecularBrush}"
+                                Opacity="0.4" />
+                    </Border>
+
+                    <StackPanel Margin="12,11,12,10">
+                        <DockPanel Margin="2,0,2,8">
+                            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock x:Name="TrayPopupTitleText"
+                                           Text="Arka Plan Uygulamaları"
+                                           FontFamily="{StaticResource UiFont}"
+                                           FontSize="11.5"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center" />
+                                <Border x:Name="TrayPopupCountBadge"
+                                        Margin="6,0,0,0"
+                                        Padding="6,1"
+                                        CornerRadius="7"
+                                        Background="#1A64D2FF"
+                                        VerticalAlignment="Center">
+                                    <TextBlock x:Name="TrayPopupCountText"
+                                               Text="0"
+                                               FontFamily="{StaticResource UiFont}"
+                                               FontSize="9.2"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentCyanBrush}" />
+                                </Border>
+                            </StackPanel>
+                            <Button x:Name="BtnTrayPopupRefresh"
+                                    DockPanel.Dock="Right"
+                                    Width="22"
+                                    Height="22"
+                                    Padding="0"
+                                    FontFamily="{StaticResource IconFont}"
+                                    FontSize="10"
+                                    Content="&#xE72C;"
+                                    HorizontalAlignment="Right"
+                                    Style="{StaticResource DarkActionButtonStyle}"
+                                    Click="OnTrayPopupRefreshClick" />
+                        </DockPanel>
+
+                        <Border Height="1" Background="#16FFFFFF" Margin="0,0,0,8" />
+
+                        <ScrollViewer MaxHeight="204" Style="{StaticResource ObsidianScrollViewerStyle}">
+                            <Grid>
+                                <UniformGrid x:Name="TrayOverflowGrid" Columns="4" />
+                                <TextBlock x:Name="TrayPopupEmptyText"
+                                           Text="Arka planda çalışan gizli uygulama yok"
+                                           FontFamily="{StaticResource UiTextFont}"
+                                           FontSize="10.5"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,14,0,14"
+                                           Visibility="Collapsed" />
+                            </Grid>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Popup>
     </Grid>
 </Window>

@@ -146,4 +146,53 @@ public static class DockLayoutCalculator
         }
         return sum;
     }
+
+    public static bool IsTrayHostWindowClass(string? className)
+    {
+        if (string.IsNullOrWhiteSpace(className)) return false;
+        if (className.Equals("Shell_TrayWnd", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("Shell_SecondaryTrayWnd", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("SystemTray_Main", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return className.Contains("NotifyIcon", StringComparison.OrdinalIgnoreCase)
+            || className.Contains("TrayIcon", StringComparison.OrdinalIgnoreCase)
+            || className.Contains("StatusTray", StringComparison.OrdinalIgnoreCase)
+            || className.Contains("SystemTray", StringComparison.OrdinalIgnoreCase)
+            || className.Contains("TrayWindow", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsEligibleHiddenMainWindowMetadata(string? className, string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(className)) return false;
+
+        if (className.Equals("IME", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("MSCTFIME UI", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("GDI+ Hook Window Class", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("OleDdeWndClass", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("Chrome_WidgetWin_0", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("Progman", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("WorkerW", StringComparison.OrdinalIgnoreCase) ||
+            className.StartsWith(".NET-Broadcast", StringComparison.OrdinalIgnoreCase) ||
+            className.Contains("Notify", StringComparison.OrdinalIgnoreCase) ||
+            className.Contains("InputTrap", StringComparison.OrdinalIgnoreCase) ||
+            className.Contains("Overlay", StringComparison.OrdinalIgnoreCase) ||
+            className.StartsWith("HwndWrapper[", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (title.Equals("Menu", StringComparison.OrdinalIgnoreCase) ||
+            title.Equals("SystemTray", StringComparison.OrdinalIgnoreCase) ||
+            title.Equals("T", StringComparison.OrdinalIgnoreCase) ||
+            title.Contains("Overlay Primer", StringComparison.OrdinalIgnoreCase) ||
+            title.Contains("Default IME", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return true;
+    }
 }

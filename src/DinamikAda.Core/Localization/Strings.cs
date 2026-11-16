@@ -198,6 +198,12 @@ public static class Strings
     public static string DockUnpinApp(string lang) => Pick(lang, "Dock'tan Kaldır", "Unpin from Dock");
     public static string DockNewWindow(string lang) => Pick(lang, "Yeni Pencere Aç", "Open New Window");
     public static string DockCloseWindow(string lang) => Pick(lang, "Pencereyi Kapat", "Close Window");
+    public static string DockTrayAppsLabel(string lang) => Pick(lang, "Arka Plan Uygulamaları", "Background & Tray Apps");
+    public static string TrayOverflowHeader(string lang) => Pick(lang, "Arka Plan Uygulamaları", "Background Apps");
+    public static string TrayOverflowEmpty(string lang) => Pick(lang, "Arka planda çalışan gizli uygulama yok", "No background tray apps detected");
+    public static string TrayOpenApp(string lang) => Pick(lang, "Aç / Öne Getir", "Open / Bring to Front");
+    public static string TrayOpenLocation(string lang) => Pick(lang, "Dosya Konumunu Aç", "Open File Location");
+    public static string TrayQuitApp(string lang) => Pick(lang, "Uygulamayı Kapat", "Quit Background App");
 
     // Multi-Account AI Subscription & Quota Reset Tracker
     public static string AiQuotaSectionTitle(string lang) => Pick(lang, "AI Abonelik & Kota Takibi", "AI Subscriptions & Quota");

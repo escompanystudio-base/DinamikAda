@@ -37,6 +37,16 @@ public readonly record struct RecycleBinSummary(long ItemCount, long SizeBytes)
     public bool HasItems => ItemCount > 0;
 }
 
+public sealed record BackgroundTrayAppItem(
+    string Key,
+    string DisplayName,
+    string? ExePath,
+    string? Aumid,
+    uint ProcessId,
+    nint RestoreWindowHwnd,
+    string TrayWindowClass,
+    ImageSource? Icon);
+
 /// <summary>
 /// Manages pinned/running bottom dock items, low-memory bounded 48x48 frozen icon cache,
 /// Shell_Tray pinned shortcut import, and Recycle Bin status without polling churn.
@@ -379,6 +389,358 @@ public sealed unsafe class DockAppsService
         {
             // Ignore shell empty errors.
         }
+    }
+
+    public IReadOnlyList<BackgroundTrayAppItem> QueryBackgroundTrayApps()
+    {
+        int ownPid = Environment.ProcessId;
+        var visibleTaskbarPids = new HashSet<uint>();
+        var trayCandidates = new Dictionary<uint, string>();
+        var hiddenMainWindows = new Dictionary<uint, (nint Hwnd, string Title, string Cls)>();
+
+        NativeMethods.EnumWindows((hwnd, _lParam) =>
+        {
+            _ = NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid == 0 || pid == ownPid) return true;
+
+            string cls = ReadWindowClass(hwnd);
+            if (string.IsNullOrEmpty(cls)) return true;
+
+            bool vis = NativeMethods.IsWindowVisible(hwnd);
+            if (vis && NativeMethods.GetWindow(hwnd, NativeMethods.GW_OWNER) == 0)
+            {
+                long exStyle = NativeMethods.GetWindowLongPtrW(hwnd, NativeMethods.GWL_EXSTYLE);
+                if ((exStyle & NativeMethods.WS_EX_TOOLWINDOW) == 0 &&
+                    !(NativeMethods.DwmGetWindowAttribute(hwnd, NativeMethods.DWMWA_CLOAKED, out int cloaked, 4) == 0 && cloaked != 0))
+                {
+                    string title = ReadWindowTitle(hwnd);
+                    if (WindowControlMath.IsEligibleExternalWindowMetadata(cls, title))
+                    {
+                        visibleTaskbarPids.Add(pid);
+                        if (string.Equals(cls, "ApplicationFrameWindow", StringComparison.OrdinalIgnoreCase))
+                        {
+                            uint innerPid = ResolveUwpChildPid(hwnd, pid);
+                            if (innerPid != 0) visibleTaskbarPids.Add(innerPid);
+                        }
+                    }
+                }
+            }
+
+            if (IsTrayHostWindowClass(cls))
+            {
+                trayCandidates.TryAdd(pid, cls);
+            }
+
+            if (!vis && IsEligibleHiddenMainWindow(cls, ReadWindowTitle(hwnd), hwnd, out string winTitle))
+            {
+                if (!hiddenMainWindows.TryGetValue(pid, out var prev) || winTitle.Length > prev.Title.Length)
+                {
+                    hiddenMainWindows[pid] = (hwnd, winTitle, cls);
+                }
+            }
+
+            return true;
+        }, 0);
+
+        // Merge any process that owns a Tray host window or hidden real UI window and isn't currently on Dock.
+        var candidatePids = new HashSet<uint>(trayCandidates.Keys);
+        foreach (uint pid in hiddenMainWindows.Keys)
+        {
+            candidatePids.Add(pid);
+        }
+
+        // Pre-resolve Steam client PID if steamwebhelper holds the tray host window.
+        uint steamMainPid = 0;
+        string? steamMainExe = null;
+        try
+        {
+            foreach (var p in Process.GetProcessesByName("steam"))
+            {
+                steamMainPid = (uint)p.Id;
+                steamMainExe = GetExePathCached(steamMainPid);
+                p.Dispose();
+                break;
+            }
+        }
+        catch
+        {
+            // Ignore process query errors.
+        }
+
+        var visibleExePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (uint vpid in visibleTaskbarPids)
+        {
+            string vp = GetExePathCached(vpid);
+            if (!string.IsNullOrWhiteSpace(vp))
+            {
+                visibleExePaths.Add(NormalizePath(vp));
+            }
+        }
+
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var results = new List<BackgroundTrayAppItem>(16);
+
+        foreach (uint pid in candidatePids)
+        {
+            if (visibleTaskbarPids.Contains(pid)) continue;
+
+            string exePath = GetExePathCached(pid);
+            if (string.IsNullOrWhiteSpace(exePath)) continue;
+
+            string normExe = NormalizePath(exePath);
+            string exeName = Path.GetFileNameWithoutExtension(normExe);
+            if (IsIgnoredTrayProcess(exeName, normExe)) continue;
+
+            nint restoreHwnd = hiddenMainWindows.TryGetValue(pid, out var hidden) ? hidden.Hwnd : 0;
+            uint effectivePid = pid;
+            string effectiveExe = normExe;
+            string effectiveName = exeName;
+
+            if (string.Equals(exeName, "steamwebhelper", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(steamMainExe))
+            {
+                effectivePid = steamMainPid;
+                effectiveExe = NormalizePath(steamMainExe);
+                effectiveName = "Steam";
+            }
+
+            if (visibleExePaths.Contains(effectiveExe)) continue;
+
+            string? aumid = TryResolveAumid(effectivePid);
+            string uniqueKey = !string.IsNullOrWhiteSpace(aumid) ? aumid : effectiveExe;
+            if (!seenKeys.Add(uniqueKey)) continue;
+
+            string friendly = ResolveFriendlyTrayDisplayName(effectiveName, effectiveExe, hidden.Title);
+            ImageSource? icon = GetOrLoadBackgroundIcon(effectiveExe, restoreHwnd);
+            string trayCls = trayCandidates.GetValueOrDefault(pid, hidden.Cls ?? string.Empty);
+
+            results.Add(new BackgroundTrayAppItem(
+                Key: uniqueKey,
+                DisplayName: friendly,
+                ExePath: effectiveExe,
+                Aumid: aumid,
+                ProcessId: effectivePid,
+                RestoreWindowHwnd: restoreHwnd,
+                TrayWindowClass: trayCls,
+                Icon: icon));
+        }
+
+        results.Sort(static (a, b) => string.Compare(a.DisplayName, b.DisplayName, StringComparison.CurrentCultureIgnoreCase));
+        return results;
+    }
+
+    public static bool ActivateBackgroundTrayApp(BackgroundTrayAppItem item)
+    {
+        try
+        {
+            if (string.Equals(Path.GetFileNameWithoutExtension(item.ExePath), "steam", StringComparison.OrdinalIgnoreCase))
+            {
+                if (item.RestoreWindowHwnd != 0 && NativeMethods.IsWindow(item.RestoreWindowHwnd))
+                {
+                    NativeMethods.ShowWindow(item.RestoreWindowHwnd, NativeMethods.SW_SHOW);
+                    NativeMethods.ShowWindow(item.RestoreWindowHwnd, NativeMethods.SW_RESTORE);
+                    ForceForeground(item.RestoreWindowHwnd);
+                    return true;
+                }
+
+                Process.Start(new ProcessStartInfo("steam://open/main") { UseShellExecute = true });
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(item.Aumid))
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"shell:AppsFolder\\{item.Aumid}")
+                {
+                    UseShellExecute = true
+                });
+                return true;
+            }
+
+            if (item.RestoreWindowHwnd != 0 && NativeMethods.IsWindow(item.RestoreWindowHwnd))
+            {
+                NativeMethods.ShowWindow(item.RestoreWindowHwnd, NativeMethods.SW_SHOW);
+                NativeMethods.ShowWindow(item.RestoreWindowHwnd, NativeMethods.SW_RESTORE);
+                ForceForeground(item.RestoreWindowHwnd);
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(item.ExePath) && File.Exists(item.ExePath))
+            {
+                string? workDir = Path.GetDirectoryName(item.ExePath);
+                Process.Start(new ProcessStartInfo(item.ExePath)
+                {
+                    UseShellExecute = true,
+                    WorkingDirectory = !string.IsNullOrWhiteSpace(workDir) && Directory.Exists(workDir) ? workDir : string.Empty
+                });
+                return true;
+            }
+        }
+        catch
+        {
+            // Ignore shell activation failures.
+        }
+        return false;
+    }
+
+    public static void OpenAppFileLocation(string? exePath)
+    {
+        if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath)) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{exePath}\"")
+            {
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+            // Ignore explorer launch errors.
+        }
+    }
+
+    public static void QuitBackgroundTrayApp(BackgroundTrayAppItem item)
+    {
+        try
+        {
+            using var proc = Process.GetProcessById((int)item.ProcessId);
+            if (!proc.HasExited)
+            {
+                if (item.RestoreWindowHwnd != 0 && NativeMethods.IsWindow(item.RestoreWindowHwnd))
+                {
+                    NativeMethods.PostMessageW(item.RestoreWindowHwnd, NativeMethods.WM_CLOSE, 0, 0);
+                    if (proc.WaitForExit(1200)) return;
+                }
+                if (!proc.CloseMainWindow() || !proc.WaitForExit(1200))
+                {
+                    proc.Kill(entireProcessTree: true);
+                }
+            }
+        }
+        catch
+        {
+            // Process may have exited cleanly already.
+        }
+    }
+
+    public static bool IsTrayHostWindowClass(string? className) =>
+        DockLayoutCalculator.IsTrayHostWindowClass(className);
+
+    public static bool IsEligibleHiddenMainWindow(string className, string title, nint hwnd, out string cleanTitle)
+    {
+        cleanTitle = title;
+        if (!DockLayoutCalculator.IsEligibleHiddenMainWindowMetadata(className, title)) return false;
+        if (hwnd != 0 && NativeMethods.GetWindow(hwnd, NativeMethods.GW_OWNER) != 0) return false;
+        return WindowControlMath.IsEligibleExternalWindowMetadata(className, title);
+    }
+
+    private static bool IsIgnoredTrayProcess(string exeName, string normExePath)
+    {
+        if (string.IsNullOrWhiteSpace(exeName)) return true;
+
+        if (exeName.Equals("explorer", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("DinamikAda.App", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("SearchHost", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("StartMenuExperienceHost", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("ShellExperienceHost", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("TextInputHost", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase) ||
+            exeName.StartsWith("EOSOverlayRenderer", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        string winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (!string.IsNullOrWhiteSpace(winDir) &&
+            normExePath.StartsWith(winDir, StringComparison.OrdinalIgnoreCase) &&
+            (normExePath.Contains("\\SystemApps\\", StringComparison.OrdinalIgnoreCase) ||
+             normExePath.Contains("\\System32\\", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string ResolveFriendlyTrayDisplayName(string exeName, string exePath, string? hiddenTitle)
+    {
+        if (exeName.Equals("wallpaper32", StringComparison.OrdinalIgnoreCase)) return "Wallpaper Engine";
+        if (exeName.Equals("WhatsApp.Root", StringComparison.OrdinalIgnoreCase)) return "WhatsApp";
+        if (exeName.Equals("VKTablet", StringComparison.OrdinalIgnoreCase)) return "Veikk Tablet";
+        if (exeName.Equals("EpicGamesLauncher", StringComparison.OrdinalIgnoreCase)) return "Epic Games";
+
+        try
+        {
+            var info = FileVersionInfo.GetVersionInfo(exePath);
+            if (!string.IsNullOrWhiteSpace(info.ProductName) &&
+                info.ProductName.Length <= 32 &&
+                !info.ProductName.Contains("Microsoft", StringComparison.OrdinalIgnoreCase))
+            {
+                return info.ProductName.Trim();
+            }
+        }
+        catch
+        {
+            // Fall back cleanly.
+        }
+
+        if (exeName.Equals("ChatGPT", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(hiddenTitle, "ChatGPT", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ChatGPT";
+        }
+
+        return FormatFriendlyAppName(exeName);
+    }
+
+    private static string? TryResolveAumid(uint pid)
+    {
+        if (pid == 0) return null;
+        nint hProc = NativeMethods.OpenProcess(NativeMethods.PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        if (hProc == 0) return null;
+        try
+        {
+            uint len = 260;
+            char* buf = stackalloc char[260];
+            if (NativeMethods.GetApplicationUserModelId(hProc, ref len, buf) == 0 && len > 1)
+            {
+                return new string(buf, 0, (int)len - 1);
+            }
+        }
+        finally
+        {
+            NativeMethods.CloseHandle(hProc);
+        }
+        return null;
+    }
+
+    private ImageSource? GetOrLoadBackgroundIcon(string exePath, nint restoreHwnd)
+    {
+        string cacheKey = $"tray:{exePath}";
+        if (_iconCache.TryGetValue(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
+        ImageSource? loaded = null;
+        // MSIX/WindowsApps binaries often restrict direct file icon lookup; check window HICON first for Store apps.
+        bool isWindowsApps = exePath.Contains("\\WindowsApps\\", StringComparison.OrdinalIgnoreCase);
+        if (isWindowsApps && restoreHwnd != 0)
+        {
+            loaded = ExtractWindowHwndIcon(restoreHwnd);
+        }
+        loaded ??= ExtractFrozenIcon(exePath);
+        loaded ??= (restoreHwnd != 0 ? ExtractWindowHwndIcon(restoreHwnd) : null);
+
+        if (loaded is null) return null;
+
+        while (_iconCache.Count >= MaxIconCacheEntries && _iconCacheOrder.Count > 0)
+        {
+            string oldest = _iconCacheOrder.Dequeue();
+            _iconCache.Remove(oldest);
+        }
+        _iconCache[cacheKey] = loaded;
+        _iconCacheOrder.Enqueue(cacheKey);
+        return loaded;
     }
 
     private static void ForceForeground(nint targetHwnd)
