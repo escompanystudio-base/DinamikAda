@@ -156,7 +156,6 @@ public partial class IslandWindow : Window
     private bool _isSeekingMedia;
     private bool _suppressAudioUiEvents;
     private bool _suppressBrightnessUiEvents;
-    private bool _suppressWindowControlUiEvents;
     private bool _isCapturingOcr;
     private bool _isCapturingColor;
     private int _openAppRouteCombos;
@@ -2061,7 +2060,6 @@ public partial class IslandWindow : Window
                 if (!_isRenderAuditMode) _orch.WindowControl.CaptureForegroundIfExternal();
                 RenderControlConnectivity(_auditConnOverride ?? _orch.Connectivity.Current);
                 RenderControlBrightness(_auditDisplaysOverride ?? _orch.Brightness.GetDisplays());
-                RenderControlWindowBar();
                 RenderControlScheduledPower(_auditScheduledPowerOverride ?? _orch.Timers.ScheduledPowerState);
                 if (!_isRenderAuditMode) _ = _orch.Connectivity.RefreshAsync();
                 break;
@@ -3174,48 +3172,6 @@ public partial class IslandWindow : Window
         button.Background = isActive ? ActiveTileBgBrush : Brushes.Transparent;
         button.Foreground = isActive ? ActiveTabFgBrush : MutedTabFgBrush;
         button.FontWeight = isActive ? FontWeights.Bold : FontWeights.Medium;
-    }
-
-    private void RenderControlWindowBar()
-    {
-        string lang = _orch.Config.Language;
-        var winState = _isRenderAuditMode ? null : _orch.WindowControl.GetTargetWindowState();
-
-        _suppressWindowControlUiEvents = true;
-        try
-        {
-            if (winState is null)
-            {
-                ActiveWindowTargetLabel.Text = Strings.Pick(lang, "Hedef pencere yok", "No target window");
-                PinActiveWindowGlyphText.Text = "\uE718";
-                PinActiveWindowLabelText.Text = Strings.PinWindowBtn(lang);
-                BtnPinActiveWindow.Background = DefaultTileBgBrush;
-                BtnPinActiveWindow.Foreground = MutedTabFgBrush;
-                ActiveWindowOpacitySlider.Value = 100;
-                ActiveWindowOpacityPctText.Text = "100%";
-                ActiveWindowOpacitySlider.IsEnabled = false;
-                BtnPinActiveWindow.IsEnabled = false;
-            }
-            else
-            {
-                ActiveWindowTargetLabel.Text = winState.Title;
-                PinActiveWindowGlyphText.Text = "\uE718";
-                PinActiveWindowLabelText.Text = Strings.PinWindowBtn(lang);
-                BtnPinActiveWindow.Background = winState.IsTopMost ? ActiveTileBgBrush : DefaultTileBgBrush;
-                BtnPinActiveWindow.Foreground = winState.IsTopMost ? TileAccentBlueBrush : ActiveTabFgBrush;
-                if (!ActiveWindowOpacitySlider.IsMouseCaptureWithin)
-                {
-                    ActiveWindowOpacitySlider.Value = Math.Clamp(winState.OpacityPercent, 30, 100);
-                }
-                ActiveWindowOpacityPctText.Text = $"{Math.Clamp(winState.OpacityPercent, 30, 100)}%";
-                ActiveWindowOpacitySlider.IsEnabled = true;
-                BtnPinActiveWindow.IsEnabled = true;
-            }
-        }
-        finally
-        {
-            _suppressWindowControlUiEvents = false;
-        }
     }
 
     private void OnPrivacyChanged(object? sender, PrivacySensorSnapshot snap)
@@ -6117,31 +6073,6 @@ public partial class IslandWindow : Window
         }
     }
 
-    private void OnPinActiveWindowClick(object sender, RoutedEventArgs e)
-    {
-        if (_isRenderAuditMode) return;
-        _orch.ToggleActiveWindowPin();
-        RenderControlWindowBar();
-    }
-
-    private void OnActiveWindowOpacitySliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (_suppressWindowControlUiEvents || _isRenderAuditMode || !IsInitialized || ActiveWindowOpacityPctText is null || _orch is null) return;
-        int pct = (int)Math.Clamp(Math.Round(e.NewValue), 30, 100);
-        ActiveWindowOpacityPctText.Text = $"{pct}%";
-        _orch.WindowControl.SetWindowOpacity(pct);
-    }
-
-    private void OnDesktopPrevClick(object sender, RoutedEventArgs e)
-    {
-        if (!_isRenderAuditMode) _orch.SwitchVirtualDesktopWithHud(next: false);
-    }
-
-    private void OnDesktopNextClick(object sender, RoutedEventArgs e)
-    {
-        if (!_isRenderAuditMode) _orch.SwitchVirtualDesktopWithHud(next: true);
-    }
-
     private void OnClipboardClearUnpinnedClick(object sender, RoutedEventArgs e)
     {
         if (!_isRenderAuditMode) _orch.Clipboard.ClearUnpinned();
@@ -6280,17 +6211,9 @@ public partial class IslandWindow : Window
         BtnSleepPc.Content = Strings.Pick(lang, "Uyut", "Sleep");
         BtnDisplayOffPc.Content = Strings.Pick(lang, "Ekran", "Display");
         BtnPowerSettings.Content = Strings.Pick(lang, "Güç Planı", "Power Plan");
-        BtnPinActiveWindow.ToolTip = Strings.PinWindowBtn(lang);
-        PinActiveWindowGlyphText.Text = "\uE718";
-        PinActiveWindowLabelText.Text = Strings.PinWindowBtn(lang);
-        ActiveWindowOpacitySlider.ToolTip = Strings.WindowOpacityLabel(lang);
-        DesktopSwitchLabel.Text = Strings.Pick(lang, "Masaüstü", "Desktop");
-        BtnDesktopPrev.ToolTip = Strings.VirtualDesktopPrev(lang);
-        BtnDesktopNext.ToolTip = Strings.VirtualDesktopNext(lang);
         if (IsExpandedTabVisible(ExpandedTabId.Control))
         {
             RenderControlConnectivity(_auditConnOverride ?? _orch.Connectivity.Current);
-            RenderControlWindowBar();
         }
 
         ShelfHeaderTitle.Text = Strings.FileShelfTitle(lang);

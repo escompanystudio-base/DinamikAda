@@ -1434,7 +1434,6 @@
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
-                                            <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
 
                                         <UniformGrid Grid.Row="0" Columns="5" Margin="0,0,0,4">
@@ -1612,83 +1611,6 @@
                                                 </StackPanel>
                                             </Border>
                                         </Grid>
-
-                                        <!-- Bottom Window Pin/Opacity + Desktop + Privacy / BT Strip -->
-                                        <Border Grid.Row="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="10" Padding="8,4" Margin="0,4,0,0">
-                                            <StackPanel>
-                                                <Grid Margin="0,0,0,2">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <Button x:Name="BtnPinActiveWindow"
-                                                            Grid.Column="0"
-                                                            Style="{StaticResource PillTabButtonStyle}"
-                                                            Padding="7,2"
-                                                            FontSize="9.2"
-                                                            Click="OnPinActiveWindowClick">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock x:Name="PinActiveWindowGlyphText"
-                                                                       Text="&#xE718;"
-                                                                       FontFamily="{StaticResource IconFont}"
-                                                                       FontSize="9.5"
-                                                                       VerticalAlignment="Center"
-                                                                       Margin="0,0,4,0" />
-                                                            <TextBlock x:Name="PinActiveWindowLabelText"
-                                                                       Text="Üstte Tut"
-                                                                       VerticalAlignment="Center" />
-                                                        </StackPanel>
-                                                    </Button>
-                                                    <TextBlock x:Name="ActiveWindowTargetLabel"
-                                                               Grid.Column="1"
-                                                               Text=""
-                                                               FontFamily="{StaticResource UiTextFont}"
-                                                               FontSize="9.6"
-                                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                                               VerticalAlignment="Center"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               Margin="6,0" />
-                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
-                                                        <Slider x:Name="ActiveWindowOpacitySlider"
-                                                                Width="78"
-                                                                Minimum="30"
-                                                                Maximum="100"
-                                                                Value="100"
-                                                                ValueChanged="OnActiveWindowOpacitySliderChanged" />
-                                                        <TextBlock x:Name="ActiveWindowOpacityPctText"
-                                                                   Text="100%"
-                                                                   FontFamily="{StaticResource UiTextFont}"
-                                                                   FontSize="9.2"
-                                                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                                                   VerticalAlignment="Center"
-                                                                   Margin="4,0,0,0" />
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <Button x:Name="BtnDesktopPrev"
-                                                                Style="{StaticResource IconCircleButtonStyle}"
-                                                                Width="20" Height="20" FontSize="9"
-                                                                FontFamily="{StaticResource IconFont}"
-                                                                Content="&#xE76B;"
-                                                                Click="OnDesktopPrevClick" />
-                                                        <TextBlock x:Name="DesktopSwitchLabel"
-                                                                   Text="Masaüstü"
-                                                                   FontFamily="{StaticResource UiTextFont}"
-                                                                   FontSize="9.2"
-                                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                                   VerticalAlignment="Center"
-                                                                   Margin="4,0" />
-                                                        <Button x:Name="BtnDesktopNext"
-                                                                Style="{StaticResource IconCircleButtonStyle}"
-                                                                Width="20" Height="20" FontSize="9"
-                                                                FontFamily="{StaticResource IconFont}"
-                                                                Content="&#xE76C;"
-                                                                Click="OnDesktopNextClick" />
-                                                    </StackPanel>
-                                                </Grid>
-                                            </StackPanel>
-                                        </Border>
                                     </Grid>
 
                                     <!-- 4. SHELF & CLIPBOARD TAB -->
