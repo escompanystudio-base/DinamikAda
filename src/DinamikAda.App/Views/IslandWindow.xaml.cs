@@ -313,6 +313,7 @@ public partial class IslandWindow : Window
         _controller.VolumeDeviceChanged += OnControllerVolumeDeviceChanged;
         _controller.CaptureStateChanged += OnControllerCaptureStateChanged;
         _controller.ActivationChanged += OnControllerActivationChanged;
+        _controller.ClipboardUpdated += OnControllerClipboardUpdated;
 
         _orch.Clipboard.AttachToWindow(hwnd);
         _orch.WindowControl.SetIslandHandle(hwnd);
@@ -369,6 +370,7 @@ public partial class IslandWindow : Window
 
         if (!_isRenderAuditMode)
         {
+            _orch.Clipboard.AttachToWindow(0);
             _trayIcon.LeftClicked -= OnTrayLeftClicked;
             _trayIcon.DoubleClicked -= OnTrayLeftClicked;
             _trayIcon.RightClicked -= OnTrayRightClicked;
@@ -382,6 +384,7 @@ public partial class IslandWindow : Window
             _controller.VolumeDeviceChanged -= OnControllerVolumeDeviceChanged;
             _controller.CaptureStateChanged -= OnControllerCaptureStateChanged;
             _controller.ActivationChanged -= OnControllerActivationChanged;
+            _controller.ClipboardUpdated -= OnControllerClipboardUpdated;
             _controller.Dispose();
         }
     }
@@ -4808,6 +4811,12 @@ public partial class IslandWindow : Window
         _orch.UsbDrives.HandleVolumeDeviceChange(args.IsArrival, args.UnitMask);
     }
 
+    private void OnControllerClipboardUpdated(object? sender, EventArgs e)
+    {
+        if (_isClosed || _isRenderAuditMode || !_orch.Config.EnableClipboardVault) return;
+        _orch.Clipboard.OnWmClipboardUpdate();
+    }
+
     private void OnControllerCaptureStateChanged(object? sender, bool isActive)
     {
         Dispatcher.BeginInvoke(() =>
@@ -4875,6 +4884,12 @@ public partial class IslandWindow : Window
             return nint.Zero;
         }
 
+        nint ctrlResult = _controller.ProcessWndProc(hwnd, msg, wParam, lParam, ref handled);
+        if (handled)
+        {
+            return ctrlResult;
+        }
+
         if (msg == WmMouseHWheel &&
             !_isRenderAuditMode &&
             _orch.Config.NotchDesktopSwipeEnabled &&
@@ -4888,7 +4903,7 @@ public partial class IslandWindow : Window
                 return nint.Zero;
             }
         }
-        return nint.Zero;
+        return ctrlResult;
     }
 
     private void OnTrayLeftClicked(object? sender, EventArgs e)

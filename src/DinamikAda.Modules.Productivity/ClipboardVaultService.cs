@@ -140,7 +140,7 @@ public sealed class ClipboardVaultService : IDisposable
     private readonly SemaphoreSlim _diskLock = new(1, 1);
     private readonly List<ClipboardEntry> _entries = new();
     private nint _attachedHwnd;
-    private long _lastCaptureTickMs;
+    private long _captureSeq;
     private string? _lastSuppressedText;
     private long _lastSuppressedTicksMs;
     private CancellationTokenSource? _saveDebounceCts;
@@ -205,17 +205,28 @@ public sealed class ClipboardVaultService : IDisposable
 
     public void OnWmClipboardUpdate()
     {
-        long now = Environment.TickCount64;
-        if (now - _lastCaptureTickMs < 75) return;
-        _lastCaptureTickMs = now;
+        if (_disposed || _attachedHwnd == 0) return;
+        long seq = Interlocked.Increment(ref _captureSeq);
 
         _ = Task.Run(async () =>
         {
-            for (int attempt = 0; attempt < 3; attempt++)
+            try
             {
-                if (TryCaptureOnce()) return;
-                await Task.Delay(12);
+                await Task.Delay(30).ConfigureAwait(false);
+                if (_disposed || seq != Interlocked.Read(ref _captureSeq)) return;
+
+                int[] retryDelaysMs = [20, 35, 55, 85, 130];
+                for (int attempt = 0; attempt <= retryDelaysMs.Length; attempt++)
+                {
+                    if (_disposed || seq != Interlocked.Read(ref _captureSeq)) return;
+                    if (TryCaptureOnce()) return;
+                    if (attempt < retryDelaysMs.Length)
+                    {
+                        await Task.Delay(retryDelaysMs[attempt]).ConfigureAwait(false);
+                    }
+                }
             }
+            catch { }
         });
     }
 

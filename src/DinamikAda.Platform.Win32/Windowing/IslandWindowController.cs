@@ -50,6 +50,7 @@ public sealed class IslandWindowController : IWindowStyleHost, IDisposable
     public event EventHandler<(int Modifiers, int Key)>? HotkeyPressed;
     public event EventHandler<(int HotkeyId, int Modifiers, int Key)>? NamedHotkeyPressed;
     public event EventHandler<(bool IsArrival, uint UnitMask)>? VolumeDeviceChanged;
+    public event EventHandler? ClipboardUpdated;
 
     public void Attach(nint hwnd)
     {
@@ -375,6 +376,11 @@ public sealed class IslandWindowController : IWindowStyleHost, IDisposable
                 }
                 break;
             }
+
+            case NativeMethods.WM_CLIPBOARDUPDATE:
+                ClipboardUpdated?.Invoke(this, EventArgs.Empty);
+                handled = true;
+                break;
 
             case NativeMethods.WM_NCDESTROY:
                 UninstallCaptureHooks();

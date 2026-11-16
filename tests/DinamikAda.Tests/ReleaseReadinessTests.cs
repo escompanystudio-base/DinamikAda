@@ -9,6 +9,8 @@ using DinamikAda.Modules.SystemControl;
 using DinamikAda.Modules.Telemetry;
 using DinamikAda.Platform.Win32.Hotkeys;
 using DinamikAda.Platform.Win32.Interop;
+using DinamikAda.Platform.Win32.Windowing;
+using DinamikAda.Modules.Productivity;
 using Moq;
 using Xunit;
 
@@ -295,5 +297,74 @@ public sealed class ReleaseReadinessTests
         var loaded = JsonSerializer.Deserialize<AppConfig>(json);
         Assert.NotNull(loaded);
         Assert.False(loaded.AmdSafeSoftwareCompositing);
+    }
+
+    [Fact]
+    public void IslandWindowController_ProcessWndProc_DispatchesClipboardUpdateAndNamedHotkeys()
+    {
+        using var controller = new IslandWindowController();
+        int clipboardEvents = 0;
+        (int HotkeyId, int Modifiers, int Key)? hotKeyPayload = null;
+
+        controller.ClipboardUpdated += (_, _) => clipboardEvents++;
+        controller.NamedHotkeyPressed += (_, payload) => hotKeyPayload = payload;
+
+        bool handled = false;
+        nint clipRes = controller.ProcessWndProc(0, NativeMethods.WM_CLIPBOARDUPDATE, 0, 0, ref handled);
+        Assert.True(handled);
+        Assert.Equal(nint.Zero, clipRes);
+        Assert.Equal(1, clipboardEvents);
+
+        handled = false;
+        nint lParam = new nint((0x43 << 16) | 0x0006); // VK_C | MOD_CONTROL | MOD_SHIFT
+        _ = controller.ProcessWndProc(0, NativeMethods.WM_HOTKEY, new nint(GlobalHotkeyService.ColorPickerHotkeyId), lParam, ref handled);
+        Assert.True(handled);
+        Assert.Equal((GlobalHotkeyService.ColorPickerHotkeyId, 0x0006, 0x43), hotKeyPayload);
+
+        handled = false;
+        nint activateRes = controller.ProcessWndProc(0, NativeMethods.WM_MOUSEACTIVATE, 0, 0, ref handled);
+        Assert.True(handled);
+        Assert.Equal(new nint(NativeMethods.MA_NOACTIVATE), activateRes);
+    }
+
+    [Fact]
+    public async Task ClipboardVaultService_PersistsEncryptedEntriesAndHandlesBurstedWmUpdatesSafely()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), $"dinamikada-clip-{Guid.NewGuid():N}");
+        string vaultPath = Path.Combine(tempRoot, "clipboard.json");
+        try
+        {
+            using (var vault = new ClipboardVaultService(vaultPath: vaultPath, maxItems: 10))
+            {
+                ClipboardEntry? captured = null;
+                int changedCount = 0;
+                vault.EntryCaptured += (_, e) => captured = e;
+                vault.EntriesChanged += (_, _) => changedCount++;
+
+                var added = vault.AddTextEntry("https://example.com/?utm_source=test", "Text", copyToSystemClipboard: false);
+                Assert.NotNull(added);
+                Assert.NotNull(captured);
+                Assert.Equal(1, changedCount);
+                Assert.Single(vault.GetEntries());
+
+                // Burst updates with no attached HWND should coalesce cleanly without throwing
+                vault.OnWmClipboardUpdate();
+                vault.OnWmClipboardUpdate();
+                await Task.Delay(250);
+            }
+
+            Assert.True(File.Exists(vaultPath));
+            byte[] storedBytes = File.ReadAllBytes(vaultPath);
+            Assert.NotEqual((byte)'[', storedBytes[0]);
+
+            using var reloaded = new ClipboardVaultService(vaultPath: vaultPath, maxItems: 10);
+            var entries = reloaded.GetEntries();
+            Assert.Single(entries);
+            Assert.Equal("https://example.com/?utm_source=test", entries[0].FullText);
+        }
+        finally
+        {
+            try { if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true); } catch { }
+        }
     }
 }
