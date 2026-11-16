@@ -195,4 +195,75 @@ public static class DockLayoutCalculator
 
         return true;
     }
+
+    public static string ExpandKnownFolderPrefix(string? rawPath, Func<Guid, string?> resolveKnownFolder)
+    {
+        if (string.IsNullOrWhiteSpace(rawPath)) return string.Empty;
+        string trimmed = rawPath.Trim();
+        if (!trimmed.StartsWith('{')) return trimmed;
+
+        int closeIdx = trimmed.IndexOf('}');
+        if (closeIdx <= 1) return trimmed;
+
+        if (!Guid.TryParse(trimmed.AsSpan(0, closeIdx + 1), out var folderId))
+        {
+            return trimmed;
+        }
+
+        string? resolvedRoot = resolveKnownFolder(folderId);
+        if (string.IsNullOrWhiteSpace(resolvedRoot)) return trimmed;
+
+        return resolvedRoot + trimmed[(closeIdx + 1)..];
+    }
+
+    public static bool IsIgnoredBackgroundTrayProcess(string? exeName, string? normExePath, string? windowsFolderPath = null)
+    {
+        if (string.IsNullOrWhiteSpace(exeName)) return true;
+
+        // Always allow Windows Security tray app, deny OS notification/shell/helper daemons and web browsers.
+        if (exeName.Equals("SecurityHealthSystray", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (exeName.Equals("explorer", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("DinamikAda.App", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("SearchHost", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("StartMenuExperienceHost", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("ShellExperienceHost", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("TextInputHost", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("MoNotificationUx", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("Taskmgr", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("wlrmdr", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("VSNgenRunner", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("mysqld", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("lghub_agent", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("AMDRSSrcExt", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("AMDRSServ", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("SteelSeriesEngine", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("SteelSeriesPrism", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("EpicOnlineServicesUserHelper", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("zen", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("chrome", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("msedge", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("firefox", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("brave", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("opera", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("vivaldi", StringComparison.OrdinalIgnoreCase) ||
+            exeName.StartsWith("EOSOverlayRenderer", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Contains(".Subagent.", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(windowsFolderPath) &&
+            !string.IsNullOrWhiteSpace(normExePath) &&
+            normExePath.StartsWith(windowsFolderPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
 }

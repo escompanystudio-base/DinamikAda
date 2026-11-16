@@ -442,29 +442,48 @@ public sealed unsafe class DockAppsService
             return true;
         }, 0);
 
-        // Merge any process that owns a Tray host window or hidden real UI window and isn't currently on Dock.
-        var candidatePids = new HashSet<uint>(trayCandidates.Keys);
-        foreach (uint pid in hiddenMainWindows.Keys)
-        {
-            candidatePids.Add(pid);
-        }
+        // Windows 11 registers real system-tray executables in HKCU\Control Panel\NotifyIconSettings.
+        // Matching active processes strictly against registered tray entries + explicit tray helper windows
+        // prevents non-tray daemons (mysqld, MoNotificationUx, subagent helpers) from cluttering the menu.
+        var registeredTrayMeta = ReadRegisteredTraySettings();
 
-        // Pre-resolve Steam client PID if steamwebhelper holds the tray host window.
         uint steamMainPid = 0;
         string? steamMainExe = null;
-        try
+        var runningExeToPid = new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase);
+        foreach (var proc in Process.GetProcesses())
         {
-            foreach (var p in Process.GetProcessesByName("steam"))
+            try
             {
-                steamMainPid = (uint)p.Id;
-                steamMainExe = GetExePathCached(steamMainPid);
-                p.Dispose();
-                break;
+                uint pid = (uint)proc.Id;
+                if (pid == 0 || pid == ownPid) continue;
+                string exe = GetExePathCached(pid);
+                if (string.IsNullOrWhiteSpace(exe)) continue;
+                string norm = NormalizePath(exe);
+                runningExeToPid.TryAdd(norm, pid);
+
+                if (steamMainPid == 0 && proc.ProcessName.Equals("steam", StringComparison.OrdinalIgnoreCase))
+                {
+                    steamMainPid = pid;
+                    steamMainExe = norm;
+                }
+            }
+            catch
+            {
+                // Ignore exited processes.
+            }
+            finally
+            {
+                proc.Dispose();
             }
         }
-        catch
+
+        var candidatePids = new HashSet<uint>(trayCandidates.Keys);
+        foreach (var kv in runningExeToPid)
         {
-            // Ignore process query errors.
+            if (registeredTrayMeta.ContainsKey(kv.Key))
+            {
+                candidatePids.Add(kv.Value);
+            }
         }
 
         var visibleExePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -477,6 +496,7 @@ public sealed unsafe class DockAppsService
             }
         }
 
+        string winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var results = new List<BackgroundTrayAppItem>(16);
 
@@ -489,7 +509,7 @@ public sealed unsafe class DockAppsService
 
             string normExe = NormalizePath(exePath);
             string exeName = Path.GetFileNameWithoutExtension(normExe);
-            if (IsIgnoredTrayProcess(exeName, normExe)) continue;
+            if (DockLayoutCalculator.IsIgnoredBackgroundTrayProcess(exeName, normExe, winDir)) continue;
 
             nint restoreHwnd = hiddenMainWindows.TryGetValue(pid, out var hidden) ? hidden.Hwnd : 0;
             uint effectivePid = pid;
@@ -500,7 +520,7 @@ public sealed unsafe class DockAppsService
                 !string.IsNullOrWhiteSpace(steamMainExe))
             {
                 effectivePid = steamMainPid;
-                effectiveExe = NormalizePath(steamMainExe);
+                effectiveExe = steamMainExe;
                 effectiveName = "Steam";
             }
 
@@ -510,7 +530,8 @@ public sealed unsafe class DockAppsService
             string uniqueKey = !string.IsNullOrWhiteSpace(aumid) ? aumid : effectiveExe;
             if (!seenKeys.Add(uniqueKey)) continue;
 
-            string friendly = ResolveFriendlyTrayDisplayName(effectiveName, effectiveExe, hidden.Title);
+            registeredTrayMeta.TryGetValue(effectiveExe, out string? registryTooltip);
+            string friendly = ResolveFriendlyTrayDisplayName(effectiveName, effectiveExe, hidden.Title, registryTooltip);
             ImageSource? icon = GetOrLoadBackgroundIcon(effectiveExe, restoreHwnd);
             string trayCls = trayCandidates.GetValueOrDefault(pid, hidden.Cls ?? string.Empty);
 
@@ -533,7 +554,15 @@ public sealed unsafe class DockAppsService
     {
         try
         {
-            if (string.Equals(Path.GetFileNameWithoutExtension(item.ExePath), "steam", StringComparison.OrdinalIgnoreCase))
+            string exeName = Path.GetFileNameWithoutExtension(item.ExePath) ?? string.Empty;
+
+            if (exeName.Equals("SecurityHealthSystray", StringComparison.OrdinalIgnoreCase))
+            {
+                Process.Start(new ProcessStartInfo("windowsdefender:") { UseShellExecute = true });
+                return true;
+            }
+
+            if (exeName.Equals("steam", StringComparison.OrdinalIgnoreCase))
             {
                 if (item.RestoreWindowHwnd != 0 && NativeMethods.IsWindow(item.RestoreWindowHwnd))
                 {
@@ -545,6 +574,17 @@ public sealed unsafe class DockAppsService
 
                 Process.Start(new ProcessStartInfo("steam://open/main") { UseShellExecute = true });
                 return true;
+            }
+
+            if (exeName.Equals("lghub_system_tray", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(item.ExePath))
+            {
+                string? dir = Path.GetDirectoryName(Path.GetDirectoryName(item.ExePath));
+                string? lghubExe = string.IsNullOrWhiteSpace(dir) ? null : Path.Combine(dir, "lghub.exe");
+                if (!string.IsNullOrWhiteSpace(lghubExe) && File.Exists(lghubExe))
+                {
+                    Process.Start(new ProcessStartInfo(lghubExe) { UseShellExecute = true, WorkingDirectory = dir });
+                    return true;
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(item.Aumid))
@@ -633,40 +673,79 @@ public sealed unsafe class DockAppsService
         return WindowControlMath.IsEligibleExternalWindowMetadata(className, title);
     }
 
-    private static bool IsIgnoredTrayProcess(string exeName, string normExePath)
+    private static Dictionary<string, string?> ReadRegisteredTraySettings()
     {
-        if (string.IsNullOrWhiteSpace(exeName)) return true;
-
-        if (exeName.Equals("explorer", StringComparison.OrdinalIgnoreCase) ||
-            exeName.Equals("DinamikAda.App", StringComparison.OrdinalIgnoreCase) ||
-            exeName.Equals("SearchHost", StringComparison.OrdinalIgnoreCase) ||
-            exeName.Equals("StartMenuExperienceHost", StringComparison.OrdinalIgnoreCase) ||
-            exeName.Equals("ShellExperienceHost", StringComparison.OrdinalIgnoreCase) ||
-            exeName.Equals("TextInputHost", StringComparison.OrdinalIgnoreCase) ||
-            exeName.Equals("ApplicationFrameHost", StringComparison.OrdinalIgnoreCase) ||
-            exeName.StartsWith("EOSOverlayRenderer", StringComparison.OrdinalIgnoreCase))
+        var map = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        try
         {
-            return true;
-        }
+            using var root = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Control Panel\NotifyIconSettings");
+            if (root is null) return map;
 
-        string winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-        if (!string.IsNullOrWhiteSpace(winDir) &&
-            normExePath.StartsWith(winDir, StringComparison.OrdinalIgnoreCase) &&
-            (normExePath.Contains("\\SystemApps\\", StringComparison.OrdinalIgnoreCase) ||
-             normExePath.Contains("\\System32\\", StringComparison.OrdinalIgnoreCase)))
+            var guidCache = new Dictionary<Guid, string?>();
+            foreach (string subName in root.GetSubKeyNames())
+            {
+                using var sub = root.OpenSubKey(subName);
+                if (sub is null) continue;
+                string? rawExe = sub.GetValue("ExecutablePath") as string;
+                if (string.IsNullOrWhiteSpace(rawExe)) continue;
+
+                string expanded = DockLayoutCalculator.ExpandKnownFolderPrefix(rawExe, g =>
+                {
+                    if (guidCache.TryGetValue(g, out string? cached)) return cached;
+                    var folderGuid = g;
+                    string? resolved = NativeMethods.SHGetKnownFolderPath(ref folderGuid, 0, 0, out nint ptr) == 0 && ptr != 0
+                        ? MarshalPtrToStringAndFree(ptr)
+                        : null;
+                    guidCache[g] = resolved;
+                    return resolved;
+                });
+
+                if (string.IsNullOrWhiteSpace(expanded)) continue;
+                string norm = NormalizePath(expanded);
+                string? tip = sub.GetValue("InitialTooltip") as string;
+                if (!map.ContainsKey(norm) || !string.IsNullOrWhiteSpace(tip))
+                {
+                    map[norm] = tip;
+                }
+            }
+        }
+        catch
         {
-            return true;
+            // Registry read fallback cleanly.
         }
-
-        return false;
+        return map;
     }
 
-    private static string ResolveFriendlyTrayDisplayName(string exeName, string exePath, string? hiddenTitle)
+    private static string? MarshalPtrToStringAndFree(nint ptr)
+    {
+        try
+        {
+            return Marshal.PtrToStringUni(ptr);
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(ptr);
+        }
+    }
+
+    private static string ResolveFriendlyTrayDisplayName(string exeName, string exePath, string? hiddenTitle, string? registryTooltip)
     {
         if (exeName.Equals("wallpaper32", StringComparison.OrdinalIgnoreCase)) return "Wallpaper Engine";
         if (exeName.Equals("WhatsApp.Root", StringComparison.OrdinalIgnoreCase)) return "WhatsApp";
         if (exeName.Equals("VKTablet", StringComparison.OrdinalIgnoreCase)) return "Veikk Tablet";
         if (exeName.Equals("EpicGamesLauncher", StringComparison.OrdinalIgnoreCase)) return "Epic Games";
+        if (exeName.Equals("SecurityHealthSystray", StringComparison.OrdinalIgnoreCase)) return "Windows Security";
+        if (exeName.Equals("RadeonSoftware", StringComparison.OrdinalIgnoreCase)) return "AMD Software";
+        if (exeName.Equals("lghub_system_tray", StringComparison.OrdinalIgnoreCase)) return "Logitech G HUB";
+        if (exeName.Equals("ksdeui", StringComparison.OrdinalIgnoreCase)) return "Kaspersky VPN";
+
+        if (!string.IsNullOrWhiteSpace(registryTooltip) &&
+            registryTooltip.Length <= 32 &&
+            !registryTooltip.Contains('\n') &&
+            !registryTooltip.Contains('\r'))
+        {
+            return registryTooltip.Trim();
+        }
 
         try
         {

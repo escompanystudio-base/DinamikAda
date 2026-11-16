@@ -352,21 +352,21 @@ public partial class DockWindow : Window
         RebuildTrayOverflowGrid(demoItems);
         SyncCoordinatorState(_orch.Coordinator.Current);
 
-        TrayOverflowCard.Measure(new Size(264, double.PositiveInfinity));
+        TrayOverflowCard.Measure(new Size(298, double.PositiveInfinity));
         double cardH = Math.Ceiling(TrayOverflowCard.DesiredSize.Height);
-        TrayOverflowCard.Arrange(new Rect(0, 0, 264, cardH));
+        TrayOverflowCard.Arrange(new Rect(0, 0, 298, cardH));
         TrayOverflowCard.UpdateLayout();
 
-        int finalW = Math.Max(width, 288);
+        int finalW = Math.Max(width, 322);
         int finalH = Math.Max(height, (int)cardH + 24);
         var dv = new DrawingVisual();
         using (var dc = dv.RenderOpen())
         {
             dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(8, 10, 16)), null, new Rect(0, 0, finalW, finalH));
             var vb = new VisualBrush(TrayOverflowCard) { Stretch = Stretch.None };
-            double x = Math.Round((finalW - 264) * 0.5);
+            double x = Math.Round((finalW - 298) * 0.5);
             double y = Math.Round((finalH - cardH) * 0.5);
-            dc.DrawRectangle(vb, null, new Rect(x, y, 264, cardH));
+            dc.DrawRectangle(vb, null, new Rect(x, y, 298, cardH));
         }
 
         var bmp = new RenderTargetBitmap(finalW, finalH, 96, 96, PixelFormats.Pbgra32);
@@ -1184,10 +1184,10 @@ public partial class DockWindow : Window
             var captured = item;
             var tile = new Border
             {
-                Width = 54,
-                Height = 56,
-                Margin = new Thickness(2.5),
-                Padding = new Thickness(3, 5, 3, 4),
+                Width = 51,
+                Height = 54,
+                Margin = new Thickness(2),
+                Padding = new Thickness(2, 5, 2, 4),
                 CornerRadius = new CornerRadius(10),
                 Background = tileNormalBg,
                 BorderBrush = tileBorder,

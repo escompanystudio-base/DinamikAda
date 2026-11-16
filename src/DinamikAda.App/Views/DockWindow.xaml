@@ -257,9 +257,9 @@
                Opened="OnTrayPopupOpened"
                Closed="OnTrayPopupClosed">
             <Border x:Name="TrayOverflowCard"
-                    Width="264"
+                    Width="298"
                     CornerRadius="16"
-                    Background="#F507090E"
+                    Background="#FC080A10"
                     BorderBrush="#2CFFFFFF"
                     BorderThickness="0.9">
                 <Grid>
@@ -318,9 +318,9 @@
 
                         <Border Height="1" Background="#16FFFFFF" Margin="0,0,0,8" />
 
-                        <ScrollViewer MaxHeight="204" Style="{StaticResource ObsidianScrollViewerStyle}">
+                        <ScrollViewer MaxHeight="240" Style="{StaticResource ObsidianScrollViewerStyle}">
                             <Grid>
-                                <UniformGrid x:Name="TrayOverflowGrid" Columns="4" />
+                                <UniformGrid x:Name="TrayOverflowGrid" Columns="5" />
                                 <TextBlock x:Name="TrayPopupEmptyText"
                                            Text="Arka planda çalışan gizli uygulama yok"
                                            FontFamily="{StaticResource UiTextFont}"

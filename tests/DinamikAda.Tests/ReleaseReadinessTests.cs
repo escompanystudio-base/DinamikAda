@@ -640,5 +640,20 @@ public sealed class ReleaseReadinessTests
         Assert.False(DockLayoutCalculator.IsEligibleHiddenMainWindowMetadata("IME", "Default IME"));
         Assert.False(DockLayoutCalculator.IsEligibleHiddenMainWindowMetadata("Chrome_WidgetWin_0", ""));
         Assert.False(DockLayoutCalculator.IsEligibleHiddenMainWindowMetadata("GDI+ Hook Window Class", "GDI+ Window (QuickLook.exe)"));
+
+        Guid pf = new("6D809377-6AF0-444B-8957-A3773F02200E");
+        string expanded = DockLayoutCalculator.ExpandKnownFolderPrefix(
+            "{6D809377-6AF0-444B-8957-A3773F02200E}\\LGHUB\\system_tray\\lghub_system_tray.exe",
+            g => g == pf ? @"C:\Program Files" : null);
+        Assert.Equal(@"C:\Program Files\LGHUB\system_tray\lghub_system_tray.exe", expanded);
+
+        Assert.True(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("mysqld", @"C:\xampp\mysql\bin\mysqld.exe", @"C:\WINDOWS"));
+        Assert.True(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("MoNotificationUx", @"C:\WINDOWS\UUS\amd64\MoNotificationUx.exe", @"C:\WINDOWS"));
+        Assert.True(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("lghub_agent", @"C:\Program Files\LGHUB\lghub_agent.exe", @"C:\WINDOWS"));
+        Assert.True(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("AMDRSSrcExt", @"C:\Program Files\AMD\CNext\CNext\AMDRSSrcExt.exe", @"C:\WINDOWS"));
+        Assert.True(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("DDPM.Subagent.User", @"C:\Program Files\Dell\DDPM.Subagent.User.exe", @"C:\WINDOWS"));
+        Assert.False(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("SecurityHealthSystray", @"C:\WINDOWS\system32\SecurityHealthSystray.exe", @"C:\WINDOWS"));
+        Assert.False(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("RadeonSoftware", @"C:\Program Files\AMD\CNext\CNext\RadeonSoftware.exe", @"C:\WINDOWS"));
+        Assert.False(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("lghub_system_tray", expanded, @"C:\WINDOWS"));
     }
 }

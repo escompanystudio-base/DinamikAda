@@ -891,6 +891,9 @@ public static unsafe partial class NativeMethods
     [LibraryImport("ole32.dll")]
     public static partial void CoTaskMemFree(nint pv);
 
+    [LibraryImport("shell32.dll")]
+    public static partial int SHGetKnownFolderPath(ref Guid rfid, uint dwFlags, nint hToken, out nint ppszPath);
+
     // kernel32 process query
     [LibraryImport("kernel32.dll", SetLastError = true)]
     public static partial nint OpenProcess(uint dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, uint dwProcessId);
