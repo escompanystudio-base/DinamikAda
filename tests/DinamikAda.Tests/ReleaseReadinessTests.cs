@@ -791,6 +791,7 @@ public sealed class ReleaseReadinessTests
 
         // External IDEs/editors/folders whose workspace title mentions DinamikAda/Dynamic Island must still appear on Dock with running dots!
         Assert.True(WindowControlMath.IsEligibleExternalWindowMetadata("Chrome_WidgetWin_1", "Windows 11 Dynamic Island App — Antigravity"));
+        Assert.True(WindowControlMath.IsEligibleExternalWindowMetadata("CabinetWClass", "dinamikada"));
         Assert.True(WindowControlMath.IsEligibleExternalWindowMetadata("Chrome_WidgetWin_1", "DinamikAda — Visual Studio Code"));
         Assert.False(WindowControlMath.IsEligibleExternalWindowMetadata("HwndWrapper[DinamikAda.App;;999]", "DinamikAda Dock"));
 

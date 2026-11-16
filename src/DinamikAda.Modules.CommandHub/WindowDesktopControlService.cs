@@ -44,11 +44,9 @@ public static unsafe class WindowControlMath
         "Sistem tepsisi taşma penceresi.",
         "System tray overflow window.",
         "Program Manager",
-        "DinamikAda",
         "DinamikAda — Island",
         "DinamikAda Dock",
         "DinamikAda Ayarlar",
-        "Windows 11 Dynamic Island",
         "Windows Input Experience",
         "Task Switching"
     ];
