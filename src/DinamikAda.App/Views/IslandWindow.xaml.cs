@@ -3533,7 +3533,7 @@ public partial class IslandWindow : Window
         ShelfQrHintText.Text = Strings.QrScanHint(lang);
         ShelfQrUrlText.Text = url;
         ShelfQrUrlText.ToolTip = Strings.Pick(lang, "Tarayıcıda açmak için tıklayın", "Click to open in browser");
-        BtnShelfQrCopyUrl.Content = Strings.Pick(lang, "Linki Kopyala", "Copy Link");
+        BtnShelfQrCopyUrl.Content = Strings.Pick(lang, "Kopyala", "Copy Link");
         BtnShelfQrStop.Content = Strings.Pick(lang, "Durdur", "Stop");
         ShelfItemsScroll.Visibility = Visibility.Collapsed;
         ShelfQrOverlayBorder.Visibility = Visibility.Visible;
@@ -3543,7 +3543,7 @@ public partial class IslandWindow : Window
     {
         bool[,] matrix = QrCodeEncoder.Encode(url, quietZoneModules: 4);
         int size = matrix.GetLength(0);
-        int targetPx = (int)Math.Round(126.0 * Math.Max(1.0, dpiScale));
+        int targetPx = (int)Math.Round(102.0 * Math.Max(1.0, dpiScale));
         int scale = Math.Max(2, targetPx / size);
         int pxSize = size * scale;
         byte[] pixels = new byte[pxSize * pxSize * 4];
