@@ -893,18 +893,30 @@
 
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                         <Grid Margin="0,0,0,4">
-                                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                                                <Border CornerRadius="6"
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Grid Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <Border Grid.Column="0"
+                                                                        CornerRadius="6"
                                                                         Background="#16FFFFFF"
-                                                                        Padding="6,2">
+                                                                        Padding="6,2"
+                                                                        VerticalAlignment="Center">
                                                                     <TextBlock x:Name="NowMediaAppText"
                                                                                Text="Media"
                                                                                FontFamily="{StaticResource UiTextFont}"
                                                                                FontSize="9.8"
                                                                                FontWeight="SemiBold"
-                                                                               Foreground="{StaticResource AccentCyanBrush}" />
+                                                                               Foreground="{StaticResource AccentCyanBrush}"
+                                                                               TextTrimming="CharacterEllipsis" />
                                                                 </Border>
                                                                 <Border x:Name="NowMediaQualityBadge"
+                                                                        Grid.Column="1"
                                                                         CornerRadius="6"
                                                                         Background="#180A84FF"
                                                                         BorderBrush="#360A84FF"
@@ -913,7 +925,8 @@
                                                                         Margin="5,0,0,0"
                                                                         Cursor="Hand"
                                                                         MouseLeftButtonUp="OnMediaQualityBadgeClick"
-                                                                        Visibility="Collapsed">
+                                                                        Visibility="Collapsed"
+                                                                        VerticalAlignment="Center">
                                                                     <TextBlock x:Name="NowMediaQualityText"
                                                                                Text="48 kHz"
                                                                                FontFamily="{StaticResource UiTextFont}"
@@ -921,11 +934,14 @@
                                                                                FontWeight="SemiBold"
                                                                                Foreground="{StaticResource AccentBlueBrush}" />
                                                                 </Border>
-                                                            </StackPanel>
+                                                            </Grid>
 
                                                             <StackPanel x:Name="SessionSwitcherPanel"
+                                                                        Grid.Column="1"
                                                                         Orientation="Horizontal"
                                                                         HorizontalAlignment="Right"
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="6,0,0,0"
                                                                         Visibility="Collapsed">
                                                                 <Button x:Name="BtnPrevSession"
                                                                         Style="{StaticResource IconCircleButtonStyle}"

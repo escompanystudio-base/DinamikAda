@@ -235,4 +235,15 @@ public sealed class ReleaseReadinessTests
             }
         }
     }
+
+    [Fact]
+    public void GsmtcMediaService_FormatFallbackAppName_CleansHexHashesAndKnownBrowsers()
+    {
+        Assert.Equal("Browser", GsmtcMediaService.FormatFallbackAppName("F0DC299D809B9700"));
+        Assert.Equal("Browser", GsmtcMediaService.FormatFallbackAppName("F0DC299D809B9700;PrivateBrowsingAUMID"));
+        Assert.Equal("Microsoft Edge", GsmtcMediaService.FormatFallbackAppName("MSEdge"));
+        Assert.Equal("Google Chrome", GsmtcMediaService.FormatFallbackAppName("Chrome"));
+        Assert.Equal("Spotify", GsmtcMediaService.FormatFallbackAppName("Spotify.exe"));
+        Assert.Equal("youtube-music", GsmtcMediaService.FormatFallbackAppName("com.github.th-ch.youtube-music"));
+    }
 }

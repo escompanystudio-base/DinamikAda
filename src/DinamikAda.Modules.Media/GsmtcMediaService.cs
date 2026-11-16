@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Security.Cryptography;
 using DinamikAda.Core.Abstractions;
@@ -466,17 +468,115 @@ public sealed class GsmtcMediaService : IMediaControlBackend
         }
     }
 
+    private static readonly ConcurrentDictionary<string, string> _appNameCache = new(StringComparer.OrdinalIgnoreCase);
+
     public static string FormatAppName(string aumid)
     {
         if (string.IsNullOrWhiteSpace(aumid)) return "Media";
-        string cleaned = aumid.Split('!')[0];
+        string key = aumid.Trim();
+        if (_appNameCache.TryGetValue(key, out string? cached))
+        {
+            return cached;
+        }
+
+        string resolved = TryResolveShellAppsFolderName(key)
+            ?? FormatFallbackAppName(key);
+
+        if (_appNameCache.Count > 256)
+        {
+            _appNameCache.Clear();
+        }
+        _appNameCache[key] = resolved;
+        return resolved;
+    }
+
+    public static string FormatFallbackAppName(string aumid)
+    {
+        if (string.IsNullOrWhiteSpace(aumid)) return "Media";
+        string cleaned = aumid.Split('!', ';')[0].Trim();
         if (cleaned.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
             cleaned = Path.GetFileNameWithoutExtension(cleaned);
+        }
+
         int dot = cleaned.LastIndexOf('.');
         if (dot >= 0 && dot < cleaned.Length - 1)
+        {
             cleaned = cleaned[(dot + 1)..];
-        return string.IsNullOrWhiteSpace(cleaned) ? "Media" : cleaned;
+        }
+
+        if (string.IsNullOrWhiteSpace(cleaned)) return "Media";
+        if (string.Equals(cleaned, "msedge", StringComparison.OrdinalIgnoreCase)) return "Microsoft Edge";
+        if (string.Equals(cleaned, "chrome", StringComparison.OrdinalIgnoreCase)) return "Google Chrome";
+        if (IsOpaqueHexHash(cleaned)) return "Browser";
+        return cleaned;
     }
+
+    private static bool IsOpaqueHexHash(string value)
+    {
+        if (value.Length < 10 || value.Length > 32) return false;
+        bool hasDigit = false;
+        bool hasLetter = false;
+        foreach (char c in value)
+        {
+            bool isDigit = c is >= '0' and <= '9';
+            bool isHexUpper = c is >= 'A' and <= 'F';
+            bool isHexLower = c is >= 'a' and <= 'f';
+            if (!isDigit && !isHexUpper && !isHexLower) return false;
+            hasDigit |= isDigit;
+            hasLetter |= isHexUpper || isHexLower;
+        }
+        return hasDigit && hasLetter;
+    }
+
+    private static string? TryResolveShellAppsFolderName(string aumid)
+    {
+        string primary = aumid.Split(';')[0].Trim();
+        if (string.IsNullOrWhiteSpace(primary)) return null;
+
+        IShellItem? item = null;
+        nint pName = nint.Zero;
+        try
+        {
+            Guid iid = typeof(IShellItem).GUID;
+            int hr = SHCreateItemFromParsingName("shell:AppsFolder\\" + primary, nint.Zero, ref iid, out item);
+            if (hr != 0 || item is null)
+            {
+                string beforeBang = primary.Split('!')[0].Trim();
+                if (!string.Equals(beforeBang, primary, StringComparison.OrdinalIgnoreCase) && beforeBang.Length > 0)
+                {
+                    hr = SHCreateItemFromParsingName("shell:AppsFolder\\" + beforeBang, nint.Zero, ref iid, out item);
+                }
+            }
+
+            if (hr != 0 || item is null) return null;
+            item.GetDisplayName(0, out pName);
+            string? name = pName != nint.Zero ? Marshal.PtrToStringUni(pName) : null;
+            return string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            if (pName != nint.Zero) Marshal.FreeCoTaskMem(pName);
+            if (item is not null && Marshal.IsComObject(item)) Marshal.ReleaseComObject(item);
+        }
+    }
+
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("43826d1e-e718-42ee-bc55-a1e261c37bfe")]
+    private interface IShellItem
+    {
+        void BindToHandler(nint pbc, ref Guid bhid, ref Guid riid, out nint ppv);
+        void GetParent(out IShellItem ppsi);
+        void GetDisplayName(uint sigdnName, out nint ppszName);
+        void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
+        void Compare(IShellItem psi, uint hint, out int piOrder);
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern int SHCreateItemFromParsingName(string pszPath, nint pbc, ref Guid riid, out IShellItem ppv);
 
     public async ValueTask DisposeAsync()
     {

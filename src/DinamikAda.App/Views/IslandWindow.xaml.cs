@@ -482,21 +482,54 @@ public partial class IslandWindow : Window
             }
         }
 
-        double dt;
+        bool preSpectrum = ShouldAnimateSpectrum(_lastSnapshot);
+        bool preGlow = ShouldAnimateAmbientGlow(_lastSnapshot);
+        bool settledAmbientOnly = !_burstMeasuring
+            && _motion.IsAllSettled
+            && !preSpectrum
+            && !_isDraggingNotch
+            && preGlow
+            && !HasAnyInactiveVisibleSurface(_lastSnapshot);
+
+        if (settledAmbientOnly)
+        {
+            // Slow silk aura drifts smoothly (~0.6 rad/s); 24 Hz keeps DWM layered compositing under ~0.2% CPU
+            double ambientMinTicks = Stopwatch.Frequency / 24.0;
+            if (now - _lastFrameCommittedTicks < ambientMinTicks)
+            {
+                return;
+            }
+        }
+
+        double rawDt;
         if (_resetNextFrameDt)
         {
             _resetNextFrameDt = false;
-            dt = 1.0 / 240.0;
+            rawDt = 1.0 / 240.0;
         }
         else
         {
-            dt = Math.Clamp((now - _lastRenderTicks) / (double)Stopwatch.Frequency, 0.0005, 0.025);
+            rawDt = Math.Clamp((now - _lastRenderTicks) / (double)Stopwatch.Frequency, 0.0005, 0.06);
         }
+        double springDt = Math.Min(rawDt, 0.025);
         _lastRenderTicks = now;
         _lastFrameCommittedTicks = now;
 
-        _motion.StepAll(dt);
-        ApplyMotionFrameToVisuals(_lastSnapshot, forceHitUpdate: false, dt);
+        if (settledAmbientOnly)
+        {
+            double w = Math.Max(0.0, _motion.Width.Value);
+            double h = Math.Max(0.0, _motion.Height.Value);
+            bool flush = _orch.Config.DockPlacement == DockPlacementMode.NotchFlush;
+            double earR = flush ? Math.Max(0.0, _motion.EarRadius.Value) : 0.0;
+            double topY = ResolveShellTopY(_lastSnapshot.State);
+            double centerX = ResolveNotchCenterInHost(_tierHostWidth, w, earR);
+            ApplyAmbientGlowFrame(_lastSnapshot, centerX, topY, w, h, rawDt);
+        }
+        else
+        {
+            _motion.StepAll(springDt);
+            ApplyMotionFrameToVisuals(_lastSnapshot, forceHitUpdate: false, springDt);
+        }
 
         bool spectrumRunning = ShouldAnimateSpectrum(_lastSnapshot);
         bool glowRunning = ShouldAnimateAmbientGlow(_lastSnapshot);
