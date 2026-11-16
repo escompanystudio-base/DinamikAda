@@ -14,7 +14,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 
 if ($Uninstall) {
-    Get-AppxPackage -Name "EmreAydin.DinamikAda" -ErrorAction SilentlyContinue | Remove-AppxPackage
+    Get-AppxPackage -Name "MuhammetEmreAkyuz.DinamikAda" -ErrorAction SilentlyContinue | Remove-AppxPackage
     Write-Output "DinamikAda Sparse MSIX kaydi kaldirildi."
     exit 0
 }

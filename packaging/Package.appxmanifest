@@ -8,7 +8,7 @@
   IgnorableNamespaces="uap uap3 uap10 rescap">
 
   <Identity
-    Name="EmreAydin.DinamikAda"
+    Name="MuhammetEmreAkyuz.DinamikAda"
     Publisher="CN=DinamikAdaDev"
     Version="1.0.0.0"
     ProcessorArchitecture="x64" />

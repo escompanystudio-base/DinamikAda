@@ -3,7 +3,7 @@
   <assemblyIdentity version="1.0.0.0" name="DinamikAda.App" />
   <msix xmlns="urn:schemas-microsoft-com:msix.v1"
         publisher="CN=DinamikAdaDev"
-        packageName="EmreAydin.DinamikAda"
+        packageName="MuhammetEmreAkyuz.DinamikAda"
         applicationId="DinamikAdaApp" />
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
