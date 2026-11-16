@@ -61,6 +61,46 @@ public static class WindowRestoreGeometry
         return true;
     }
 
+    public static bool ShouldLightDismissPopup(
+        bool isOpen,
+        bool waitingInitialRelease,
+        bool prevAnyButtonDown,
+        bool curAnyButtonDown,
+        bool isEscapeDown,
+        bool insideCard,
+        bool insideToggleButton,
+        bool foregroundChanged,
+        bool contextMenuOpen)
+    {
+        if (!isOpen || contextMenuOpen)
+        {
+            return false;
+        }
+
+        if (isEscapeDown)
+        {
+            return true;
+        }
+
+        if (foregroundChanged)
+        {
+            return true;
+        }
+
+        if (waitingInitialRelease)
+        {
+            return false;
+        }
+
+        bool newButtonPress = !prevAnyButtonDown && curAnyButtonDown;
+        if (!newButtonPress)
+        {
+            return false;
+        }
+
+        return !insideCard && !insideToggleButton;
+    }
+
     public static bool IsChromiumWidgetClass(string? className)
         => !string.IsNullOrWhiteSpace(className) &&
            className.StartsWith("Chrome_WidgetWin_", StringComparison.OrdinalIgnoreCase);

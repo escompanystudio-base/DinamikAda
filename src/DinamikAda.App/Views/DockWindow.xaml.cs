@@ -600,6 +600,7 @@ public partial class DockWindow : Window
 
     private void UninstallWindowEventHooks()
     {
+        UninstallPopupMouseHook();
         if (_winEventSysHook != 0) { NativeMethods.UnhookWinEvent(_winEventSysHook); _winEventSysHook = 0; }
         if (_winEventObjHook != 0) { NativeMethods.UnhookWinEvent(_winEventObjHook); _winEventObjHook = 0; }
         if (_winEventLocHook != 0) { NativeMethods.UnhookWinEvent(_winEventLocHook); _winEventLocHook = 0; }
@@ -1462,9 +1463,27 @@ public partial class DockWindow : Window
             plate.Background = new SolidColorBrush(Color.FromArgb(0x0E, 0xFF, 0xFF, 0xFF));
             plate.BorderBrush = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF));
         };
+        container.PreviewMouseLeftButtonDown += (_, ev) =>
+        {
+            if (TrayOverflowPopup.IsOpen)
+            {
+                TrayOverflowPopup.IsOpen = false;
+                _suppressNextTrayOpenOnUp = true;
+                ev.Handled = true;
+            }
+            else
+            {
+                _suppressNextTrayOpenOnUp = false;
+            }
+        };
         container.MouseLeftButtonUp += (_, ev) =>
         {
             ev.Handled = true;
+            if (_suppressNextTrayOpenOnUp)
+            {
+                _suppressNextTrayOpenOnUp = false;
+                return;
+            }
             ToggleTrayPopup();
         };
         container.MouseRightButtonUp += (_, ev) =>
@@ -1476,6 +1495,170 @@ public partial class DockWindow : Window
         _trayChevronBtn = plate;
         _slots.Add(slotVisual);
         DockItemsHost.Children.Add(container);
+    }
+
+    private System.Windows.Threading.DispatcherTimer? _popupLightDismissTimer;
+    private NativeMethods.LowLevelMouseProc? _popupMouseHookProc;
+    private nint _popupMouseHook;
+    private nint _popupOpenForegroundHwnd;
+    private long _popupOpenedTickMs;
+    private bool _suppressNextTrayOpenOnUp;
+    private bool _suppressNextClockOpenOnUp;
+
+    private static bool IsScreenPointInsideElement(FrameworkElement? el, NativeMethods.POINT pt, double padPx)
+    {
+        if (el is null || !el.IsVisible || !el.IsLoaded) return false;
+        double w = el.ActualWidth;
+        double h = el.ActualHeight;
+        if (w <= 1.0 || h <= 1.0) return false;
+        try
+        {
+            var tl = el.PointToScreen(new System.Windows.Point(0, 0));
+            var br = el.PointToScreen(new System.Windows.Point(w, h));
+            return pt.X >= tl.X - padPx && pt.X <= br.X + padPx && pt.Y >= tl.Y - padPx && pt.Y <= br.Y + padPx;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void StartPopupLightDismissWatcher()
+    {
+        _popupOpenForegroundHwnd = NativeMethods.GetForegroundWindow();
+        _popupOpenedTickMs = Environment.TickCount64;
+
+        if (_popupMouseHook == 0)
+        {
+            _popupMouseHookProc ??= OnLowLevelPopupMouseEvent;
+            _popupMouseHook = NativeMethods.SetWindowsHookExW(
+                NativeMethods.WH_MOUSE_LL,
+                _popupMouseHookProc,
+                NativeMethods.GetModuleHandleW(null),
+                0);
+        }
+
+        if (_popupLightDismissTimer is null)
+        {
+            _popupLightDismissTimer = new System.Windows.Threading.DispatcherTimer(
+                TimeSpan.FromMilliseconds(50),
+                System.Windows.Threading.DispatcherPriority.Input,
+                (_, _) => OnPopupLightDismissTick(),
+                Dispatcher);
+        }
+
+        if (!_popupLightDismissTimer.IsEnabled)
+        {
+            _popupLightDismissTimer.Start();
+        }
+    }
+
+    private void UninstallPopupMouseHook()
+    {
+        if (_popupMouseHook != 0)
+        {
+            NativeMethods.UnhookWindowsHookEx(_popupMouseHook);
+            _popupMouseHook = 0;
+        }
+    }
+
+    private void StopPopupLightDismissWatcherIfIdle()
+    {
+        if (!TrayOverflowPopup.IsOpen && !ClockCalendarPopup.IsOpen)
+        {
+            _popupLightDismissTimer?.Stop();
+            UninstallPopupMouseHook();
+        }
+    }
+
+    private unsafe nint OnLowLevelPopupMouseEvent(int nCode, nint wParam, nint lParam)
+    {
+        if (nCode >= 0 && lParam != 0)
+        {
+            int wm = unchecked((int)wParam);
+            if (wm is NativeMethods.WM_LBUTTONDOWN or NativeMethods.WM_RBUTTONDOWN or NativeMethods.WM_MBUTTONDOWN)
+            {
+                var pt = ((NativeMethods.MSLLHOOKSTRUCT*)lParam)->pt;
+                Dispatcher.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.Send,
+                    () => HandleGlobalPopupMouseDown(pt, isLeftButton: wm == NativeMethods.WM_LBUTTONDOWN));
+            }
+        }
+        return NativeMethods.CallNextHookEx(_popupMouseHook, nCode, wParam, lParam);
+    }
+
+    private void HandleGlobalPopupMouseDown(NativeMethods.POINT pt, bool isLeftButton)
+    {
+        if (_isClosed || _activeContextMenu is { IsOpen: true }) return;
+
+        if (TrayOverflowPopup.IsOpen && WindowRestoreGeometry.ShouldLightDismissPopup(
+                isOpen: true,
+                waitingInitialRelease: false,
+                prevAnyButtonDown: false,
+                curAnyButtonDown: true,
+                isEscapeDown: false,
+                insideCard: IsScreenPointInsideElement(TrayOverflowCard, pt, 4.0),
+                insideToggleButton: isLeftButton && IsScreenPointInsideElement(_trayChevronBtn, pt, 8.0),
+                foregroundChanged: false,
+                contextMenuOpen: false))
+        {
+            TrayOverflowPopup.IsOpen = false;
+        }
+
+        if (ClockCalendarPopup.IsOpen && WindowRestoreGeometry.ShouldLightDismissPopup(
+                isOpen: true,
+                waitingInitialRelease: false,
+                prevAnyButtonDown: false,
+                curAnyButtonDown: true,
+                isEscapeDown: false,
+                insideCard: IsScreenPointInsideElement(ClockCalendarCard, pt, 4.0),
+                insideToggleButton: isLeftButton && IsScreenPointInsideElement(_clockChip, pt, 8.0),
+                foregroundChanged: false,
+                contextMenuOpen: false))
+        {
+            ClockCalendarPopup.IsOpen = false;
+        }
+    }
+
+    private void OnPopupLightDismissTick()
+    {
+        if (_isClosed || (!TrayOverflowPopup.IsOpen && !ClockCalendarPopup.IsOpen))
+        {
+            StopPopupLightDismissWatcherIfIdle();
+            return;
+        }
+
+        if (_activeContextMenu is { IsOpen: true })
+        {
+            return;
+        }
+
+        bool isEscapeDown = (NativeMethods.GetAsyncKeyState(0x1B /* VK_ESCAPE */) & 0x8000) != 0;
+        nint curFg = NativeMethods.GetForegroundWindow();
+        bool fgChanged = (Environment.TickCount64 - _popupOpenedTickMs) >= 120
+            && _popupOpenForegroundHwnd != 0
+            && curFg != 0
+            && curFg != _popupOpenForegroundHwnd
+            && curFg != _hwnd;
+        if (fgChanged)
+        {
+            _popupOpenForegroundHwnd = curFg;
+        }
+
+        if (!isEscapeDown && !fgChanged)
+        {
+            return;
+        }
+
+        if (TrayOverflowPopup.IsOpen)
+        {
+            TrayOverflowPopup.IsOpen = false;
+        }
+
+        if (ClockCalendarPopup.IsOpen)
+        {
+            ClockCalendarPopup.IsOpen = false;
+        }
     }
 
     private void ToggleTrayPopup()
@@ -1504,11 +1687,16 @@ public partial class DockWindow : Window
         var items = _isSmokeOrAuditMode ? [] : _appsService.QueryBackgroundTrayApps();
         RebuildTrayOverflowGrid(items);
         SyncCoordinatorState(_orch.Coordinator.Current);
+        if (!_isSmokeOrAuditMode)
+        {
+            StartPopupLightDismissWatcher();
+        }
     }
 
     private void OnTrayPopupClosed(object? sender, EventArgs e)
     {
         _lastTrayPopupClosedTicks = Stopwatch.GetTimestamp();
+        StopPopupLightDismissWatcherIfIdle();
         ScheduleIntellihideEval();
     }
 
@@ -1849,9 +2037,27 @@ public partial class DockWindow : Window
             clockBtn.Background = new SolidColorBrush(Color.FromArgb(0x0E, 0xFF, 0xFF, 0xFF));
             clockBtn.BorderBrush = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF));
         };
+        clockBtn.PreviewMouseLeftButtonDown += (_, ev) =>
+        {
+            if (ClockCalendarPopup.IsOpen)
+            {
+                ClockCalendarPopup.IsOpen = false;
+                _suppressNextClockOpenOnUp = true;
+                ev.Handled = true;
+            }
+            else
+            {
+                _suppressNextClockOpenOnUp = false;
+            }
+        };
         clockBtn.MouseLeftButtonUp += (_, ev) =>
         {
             ev.Handled = true;
+            if (_suppressNextClockOpenOnUp)
+            {
+                _suppressNextClockOpenOnUp = false;
+                return;
+            }
             ToggleClockPopup();
         };
 
@@ -1892,6 +2098,7 @@ public partial class DockWindow : Window
         if (!_isSmokeOrAuditMode)
         {
             _popupClockTimer.Start();
+            StartPopupLightDismissWatcher();
         }
     }
 
@@ -1899,6 +2106,7 @@ public partial class DockWindow : Window
     {
         _popupClockTimer.Stop();
         _lastPopupClosedTicks = Stopwatch.GetTimestamp();
+        StopPopupLightDismissWatcherIfIdle();
         ScheduleIntellihideEval();
     }
 

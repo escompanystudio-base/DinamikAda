@@ -94,7 +94,7 @@
         <!-- Minimalist Obsidian Clock & Calendar Pop-Up -->
         <Popup x:Name="ClockCalendarPopup"
                AllowsTransparency="True"
-               StaysOpen="False"
+               StaysOpen="True"
                Placement="Top"
                VerticalOffset="-10"
                PopupAnimation="None"
@@ -250,7 +250,7 @@
         <!-- Minimalist Obsidian Background / System Tray Apps Flyout ("^" Chevron Menu) -->
         <Popup x:Name="TrayOverflowPopup"
                AllowsTransparency="True"
-               StaysOpen="False"
+               StaysOpen="True"
                Placement="Top"
                VerticalOffset="-10"
                PopupAnimation="None"

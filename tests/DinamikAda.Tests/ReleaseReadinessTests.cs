@@ -767,5 +767,26 @@ public sealed class ReleaseReadinessTests
             isVisible: true, isIconic: true, windowClassName: "Chrome_WidgetWin_1", exePath: @"C:\App\Discord.exe"));
         Assert.False(WindowRestoreGeometry.ShouldPreferExecutableActivation(
             isVisible: false, isIconic: false, windowClassName: "Qt5QWindowIcon", exePath: @"C:\App\Tool.exe"));
+
+        // Dock light-dismiss watcher should dismiss on outside click / Escape / Alt+Tab foreground switch,
+        // while staying open on clicks inside the card, on initial opening click release, or while ContextMenu is open.
+        Assert.True(WindowRestoreGeometry.ShouldLightDismissPopup(
+            isOpen: true, waitingInitialRelease: false, prevAnyButtonDown: false, curAnyButtonDown: true,
+            isEscapeDown: false, insideCard: false, insideToggleButton: false, foregroundChanged: false, contextMenuOpen: false));
+        Assert.False(WindowRestoreGeometry.ShouldLightDismissPopup(
+            isOpen: true, waitingInitialRelease: false, prevAnyButtonDown: false, curAnyButtonDown: true,
+            isEscapeDown: false, insideCard: true, insideToggleButton: false, foregroundChanged: false, contextMenuOpen: false));
+        Assert.False(WindowRestoreGeometry.ShouldLightDismissPopup(
+            isOpen: true, waitingInitialRelease: false, prevAnyButtonDown: false, curAnyButtonDown: true,
+            isEscapeDown: false, insideCard: false, insideToggleButton: true, foregroundChanged: false, contextMenuOpen: false));
+        Assert.False(WindowRestoreGeometry.ShouldLightDismissPopup(
+            isOpen: true, waitingInitialRelease: false, prevAnyButtonDown: false, curAnyButtonDown: true,
+            isEscapeDown: false, insideCard: false, insideToggleButton: false, foregroundChanged: false, contextMenuOpen: true));
+        Assert.True(WindowRestoreGeometry.ShouldLightDismissPopup(
+            isOpen: true, waitingInitialRelease: true, prevAnyButtonDown: true, curAnyButtonDown: true,
+            isEscapeDown: true, insideCard: true, insideToggleButton: false, foregroundChanged: false, contextMenuOpen: false));
+        Assert.True(WindowRestoreGeometry.ShouldLightDismissPopup(
+            isOpen: true, waitingInitialRelease: false, prevAnyButtonDown: false, curAnyButtonDown: false,
+            isEscapeDown: false, insideCard: false, insideToggleButton: false, foregroundChanged: true, contextMenuOpen: false));
     }
 }

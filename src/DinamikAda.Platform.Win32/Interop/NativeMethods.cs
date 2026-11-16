@@ -42,7 +42,11 @@ public static unsafe partial class NativeMethods
     public const int WM_CONTEXTMENU = 0x007B;
     public const int WM_DISPLAYCHANGE = 0x007E;
     public const int WM_NCDESTROY = 0x0082;
+    public const int WM_LBUTTONDOWN = 0x0201;
     public const int WM_LBUTTONUP = 0x0202;
+    public const int WM_RBUTTONDOWN = 0x0204;
+    public const int WM_MBUTTONDOWN = 0x0207;
+    public const int WH_MOUSE_LL = 14;
     public const int WM_ENTERSIZEMOVE = 0x0231;
     public const int WM_EXITSIZEMOVE = 0x0232;
     public const int WM_DPICHANGED = 0x02E0;
@@ -450,6 +454,28 @@ public static unsafe partial class NativeMethods
 
     [LibraryImport("user32.dll")]
     public static partial short GetKeyState(int nVirtKey);
+
+    public delegate nint LowLevelMouseProc(int nCode, nint wParam, nint lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSLLHOOKSTRUCT
+    {
+        public POINT pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public nuint dwExtraInfo;
+    }
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial nint SetWindowsHookExW(int idHook, LowLevelMouseProc lpfn, nint hMod, uint dwThreadId);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool UnhookWindowsHookEx(nint hhk);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint CallNextHookEx(nint hhk, int nCode, nint wParam, nint lParam);
 
     [LibraryImport("user32.dll")]
     public static partial nint SetWinEventHook(uint eventMin, uint eventMax, nint hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
