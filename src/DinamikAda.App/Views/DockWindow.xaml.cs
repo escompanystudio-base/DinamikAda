@@ -258,9 +258,7 @@ public partial class DockWindow : Window
         Color secondary = ParseAccentColor(_orch.Media.Current.SecondaryAccentHex, Color.FromRgb(94, 92, 230));
         Color highlight = ParseAccentColor(_orch.Media.Current.HighlightAccentHex, Color.FromRgb(100, 210, 255));
 
-        DockAuraStop0.Color = Color.FromArgb(0x1E, primary.R, primary.G, primary.B);
-        DockAuraStop1.Color = Color.FromArgb(0x14, secondary.R, secondary.G, secondary.B);
-        DockAuraStop2.Color = Color.FromArgb(0x1A, highlight.R, highlight.G, highlight.B);
+        UpdateDockAmbientPaletteAndState(primary, secondary, highlight);
         PopupAuraStop0.Color = Color.FromArgb(0x1C, primary.R, primary.G, primary.B);
         PopupAuraStop1.Color = Color.FromArgb(0x10, secondary.R, secondary.G, secondary.B);
         TrayPopupAuraStop0.Color = Color.FromArgb(0x1C, primary.R, primary.G, primary.B);
@@ -2625,6 +2623,135 @@ public partial class DockWindow : Window
         StartRenderLoop();
     }
 
+    private double _dockGlowPhase;
+
+    private bool ShouldAnimateDockAmbientGlow()
+    {
+        if (_isClosed || _isSmokeOrAuditMode || !_orch.Config.EnableBottomDock || _isFullscreenHidden || _isIntellihideTucked)
+        {
+            return false;
+        }
+
+        if (!_orch.Config.DynamicAlbumGlowEnabled)
+        {
+            return false;
+        }
+
+        var media = _orch.Media.Current;
+        return media.HasSession && media.IsPlaying;
+    }
+
+    private void UpdateDockAmbientPaletteAndState(Color primary, Color secondary, Color highlight)
+    {
+        var media = _orch.Media.Current;
+        bool glowAllowed = _orch.Config.DynamicAlbumGlowEnabled;
+        bool hasMediaSession = media.HasSession;
+
+        if (!glowAllowed)
+        {
+            DockAuraStop0.Color = Color.FromArgb(0x0E, 10, 132, 255);
+            DockAuraStop1.Color = Color.FromArgb(0x08, 94, 92, 230);
+            DockAuraStop2.Color = Color.FromArgb(0x0C, 100, 210, 255);
+            DockAuraOrbPrimaryBorder.Opacity = 0.0;
+            DockAuraOrbSecondaryBorder.Opacity = 0.0;
+            DockAuraOrbHighlightBorder.Opacity = 0.0;
+            DockBorderStop0.Color = Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF);
+            DockBorderStop1.Color = Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF);
+            DockBorderStop2.Color = Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF);
+            return;
+        }
+
+        byte washA = hasMediaSession ? (media.IsPlaying ? (byte)0x32 : (byte)0x22) : (byte)0x18;
+        byte washB = hasMediaSession ? (media.IsPlaying ? (byte)0x28 : (byte)0x18) : (byte)0x12;
+        byte washC = hasMediaSession ? (media.IsPlaying ? (byte)0x2E : (byte)0x1E) : (byte)0x16;
+        DockAuraStop0.Color = Color.FromArgb(washA, primary.R, primary.G, primary.B);
+        DockAuraStop1.Color = Color.FromArgb(washB, secondary.R, secondary.G, secondary.B);
+        DockAuraStop2.Color = Color.FromArgb(washC, highlight.R, highlight.G, highlight.B);
+
+        DockOrbPrim0.Color = Color.FromArgb(0x70, primary.R, primary.G, primary.B);
+        DockOrbPrim1.Color = Color.FromArgb(0x38, primary.R, primary.G, primary.B);
+        DockOrbSec0.Color = Color.FromArgb(0x64, secondary.R, secondary.G, secondary.B);
+        DockOrbSec1.Color = Color.FromArgb(0x30, secondary.R, secondary.G, secondary.B);
+        DockOrbHi0.Color = Color.FromArgb(0x58, highlight.R, highlight.G, highlight.B);
+        DockOrbHi1.Color = Color.FromArgb(0x2A, highlight.R, highlight.G, highlight.B);
+
+        if (hasMediaSession)
+        {
+            byte edgeA = media.IsPlaying ? (byte)0x6C : (byte)0x42;
+            byte edgeB = media.IsPlaying ? (byte)0x5C : (byte)0x38;
+            DockBorderStop0.Color = Color.FromArgb(edgeA, primary.R, primary.G, primary.B);
+            DockBorderStop1.Color = Color.FromArgb(edgeB, highlight.R, highlight.G, highlight.B);
+            DockBorderStop2.Color = Color.FromArgb(edgeA, secondary.R, secondary.G, secondary.B);
+        }
+        else
+        {
+            DockBorderStop0.Color = Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF);
+            DockBorderStop1.Color = Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF);
+            DockBorderStop2.Color = Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF);
+        }
+
+        if (_isSmokeOrAuditMode)
+        {
+            _dockGlowPhase = 0.95;
+            ApplyDockAmbientGlowFrame(dt: 0.0, activeMedia: true);
+        }
+        else if (ShouldAnimateDockAmbientGlow())
+        {
+            ApplyDockAmbientGlowFrame(dt: 0.0, activeMedia: true);
+            StartRenderLoop();
+        }
+        else
+        {
+            ApplyDockAmbientGlowFrame(dt: 0.0, activeMedia: hasMediaSession);
+        }
+    }
+
+    private void ApplyDockAmbientGlowFrame(double dt, bool activeMedia)
+    {
+        if (!_orch.Config.DynamicAlbumGlowEnabled || !activeMedia)
+        {
+            DockAuraOrbPrimaryBorder.Opacity = 0.0;
+            DockAuraOrbSecondaryBorder.Opacity = 0.0;
+            DockAuraOrbHighlightBorder.Opacity = 0.0;
+            return;
+        }
+
+        if (dt > 0.0 && _orch.Media.Current.IsPlaying)
+        {
+            _dockGlowPhase += dt * 0.62;
+            if (_dockGlowPhase > Math.PI * 200.0)
+            {
+                _dockGlowPhase -= Math.PI * 200.0;
+            }
+        }
+
+        double orbOpacity = _isSmokeOrAuditMode || _orch.Media.Current.IsPlaying ? 0.86 : 0.34;
+        DockAuraOrbPrimaryBorder.Opacity = orbOpacity;
+        DockAuraOrbSecondaryBorder.Opacity = orbOpacity * 0.92;
+        DockAuraOrbHighlightBorder.Opacity = orbOpacity * 0.84;
+
+        var (p1x, p1y) = DockLayoutCalculator.ComputeDockAuraOrbitPoint(_dockGlowPhase, 0.82, 1.05, 0.0, 0.36, 0.24);
+        var p1 = new Point(p1x, p1y);
+        DockAuraPrimaryBrush.Center = p1;
+        DockAuraPrimaryBrush.GradientOrigin = p1;
+
+        var (p2x, p2y) = DockLayoutCalculator.ComputeDockAuraOrbitPoint(_dockGlowPhase, 1.07, 0.88, 2.094, 0.38, 0.24);
+        var p2 = new Point(p2x, p2y);
+        DockAuraSecondaryBrush.Center = p2;
+        DockAuraSecondaryBrush.GradientOrigin = p2;
+
+        var (p3x, p3y) = DockLayoutCalculator.ComputeDockAuraOrbitPoint(_dockGlowPhase, 1.29, 1.15, 4.188, 0.35, 0.26);
+        var p3 = new Point(p3x, p3y);
+        DockAuraHighlightBrush.Center = p3;
+        DockAuraHighlightBrush.GradientOrigin = p3;
+
+        double sweep = Math.Sin(_dockGlowPhase * 0.75) * 0.25;
+        DockAuraWashBrush.StartPoint = new Point(Math.Clamp(0.0 + sweep, 0.0, 0.45), 0.15);
+        DockAuraWashBrush.EndPoint = new Point(Math.Clamp(1.0 + sweep, 0.55, 1.0), 0.85);
+        DockBorderGlowBrush.StartPoint = new Point(Math.Clamp(0.0 + sweep * 1.4, 0.0, 0.5), 0.0);
+        DockBorderGlowBrush.EndPoint = new Point(Math.Clamp(1.0 - sweep * 1.4, 0.5, 1.0), 1.0);
+    }
+
     private void StartRenderLoop()
     {
         if (_isClosed || _isSmokeOrAuditMode || _isRenderingLoopActive) return;
@@ -2737,7 +2864,13 @@ public partial class DockWindow : Window
             UpdateHoverTooltip(_hoveredSlotIndex);
         }
 
-        if (!anyMoving && (!_isHovered || _isIntellihideTucked))
+        bool glowRunning = ShouldAnimateDockAmbientGlow();
+        if (glowRunning)
+        {
+            ApplyDockAmbientGlowFrame(dt, activeMedia: true);
+        }
+
+        if (!anyMoving && !glowRunning && (!_isHovered || _isIntellihideTucked))
         {
             StopRenderLoop();
         }

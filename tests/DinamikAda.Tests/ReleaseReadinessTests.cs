@@ -814,5 +814,13 @@ public sealed class ReleaseReadinessTests
             displayName: "Antigravity",
             windowExePath: @"C:\Users\emrea\AppData\Local\Programs\Antigravity\Antigravity.exe",
             windowTitle: "Windows 11 Dynamic Island App"));
+
+        // Dock flowing aurora orbit stays smoothly bounded inside the pill regardless of phase
+        foreach (double ph in new[] { 0.0, 0.95, 3.14159, 25.0, double.NaN })
+        {
+            var (ox, oy) = DockLayoutCalculator.ComputeDockAuraOrbitPoint(ph, 0.82, 1.05, 2.094);
+            Assert.InRange(ox, 0.05, 0.95);
+            Assert.InRange(oy, 0.10, 0.90);
+        }
     }
 }

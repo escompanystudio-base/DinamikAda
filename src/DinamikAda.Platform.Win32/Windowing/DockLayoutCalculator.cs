@@ -369,4 +369,18 @@ public static class DockLayoutCalculator
             || cls.Equals("#32768", StringComparison.OrdinalIgnoreCase)
             || cls.Equals("DinamikAdaPureDimmerOverlay", StringComparison.OrdinalIgnoreCase);
     }
+
+    public static (double CenterX, double CenterY) ComputeDockAuraOrbitPoint(
+        double phase,
+        double freqX,
+        double freqY,
+        double phaseOffset,
+        double ampX = 0.34,
+        double ampY = 0.24)
+    {
+        if (!double.IsFinite(phase)) phase = 0.0;
+        double x = 0.5 + Math.Cos(phase * freqX + phaseOffset) * ampX;
+        double y = 0.5 + Math.Sin(phase * freqY + phaseOffset * 0.7) * ampY;
+        return (Math.Clamp(x, 0.05, 0.95), Math.Clamp(y, 0.10, 0.90));
+    }
 }

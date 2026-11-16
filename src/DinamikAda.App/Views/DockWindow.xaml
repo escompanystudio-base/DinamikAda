@@ -54,31 +54,66 @@
                 Margin="0,0,0,6"
                 CornerRadius="18"
                 Background="#EF06080E"
-                BorderBrush="#32FFFFFF"
-                BorderThickness="0.9"
+                BorderThickness="0.95"
                 ClipToBounds="False"
                 MouseEnter="OnDockMouseEnter"
                 MouseMove="OnDockMouseMove"
                 MouseLeave="OnDockMouseLeave">
+            <Border.BorderBrush>
+                <LinearGradientBrush x:Name="DockBorderGlowBrush" StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop x:Name="DockBorderStop0" Color="#32FFFFFF" Offset="0.0" />
+                    <GradientStop x:Name="DockBorderStop1" Color="#32FFFFFF" Offset="0.5" />
+                    <GradientStop x:Name="DockBorderStop2" Color="#32FFFFFF" Offset="1.0" />
+                </LinearGradientBrush>
+            </Border.BorderBrush>
             <Border.RenderTransform>
                 <TranslateTransform x:Name="DockCapsuleOffsetTransform" X="0" Y="0" />
             </Border.RenderTransform>
             <Grid ClipToBounds="False">
-                <!-- Synced Ambient Glow rendered directly via rounded Border.Background (never leaks corners) -->
+                <!-- Synced Multi-Layer Ambient Glow rendered directly via rounded Border.Background (never leaks corners) -->
                 <Border x:Name="DockAmbientOverlay" CornerRadius="17" IsHitTestVisible="False">
                     <Border.Background>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <LinearGradientBrush x:Name="DockAuraWashBrush" StartPoint="0,0.2" EndPoint="1,0.8">
                             <GradientStop x:Name="DockAuraStop0" Color="#1E0A84FF" Offset="0.0" />
                             <GradientStop x:Name="DockAuraStop1" Color="#145E5CE6" Offset="0.5" />
                             <GradientStop x:Name="DockAuraStop2" Color="#1A64D2FF" Offset="1.0" />
                         </LinearGradientBrush>
                     </Border.Background>
-                    <Border Height="1"
-                            Margin="14,0"
-                            VerticalAlignment="Top"
-                            Background="{StaticResource ObsidianTopSpecularBrush}"
-                            Opacity="0.35"
-                            IsHitTestVisible="False" />
+                    <Grid IsHitTestVisible="False">
+                        <Border x:Name="DockAuraOrbPrimaryBorder" CornerRadius="17" IsHitTestVisible="False" Opacity="0">
+                            <Border.Background>
+                                <RadialGradientBrush x:Name="DockAuraPrimaryBrush" Center="0.30,0.50" GradientOrigin="0.30,0.50" RadiusX="0.34" RadiusY="0.95">
+                                    <GradientStop x:Name="DockOrbPrim0" Color="#600A84FF" Offset="0.0" />
+                                    <GradientStop x:Name="DockOrbPrim1" Color="#320A84FF" Offset="0.48" />
+                                    <GradientStop Color="#00000000" Offset="1.0" />
+                                </RadialGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Border x:Name="DockAuraOrbSecondaryBorder" CornerRadius="17" IsHitTestVisible="False" Opacity="0">
+                            <Border.Background>
+                                <RadialGradientBrush x:Name="DockAuraSecondaryBrush" Center="0.65,0.45" GradientOrigin="0.65,0.45" RadiusX="0.32" RadiusY="0.95">
+                                    <GradientStop x:Name="DockOrbSec0" Color="#565E5CE6" Offset="0.0" />
+                                    <GradientStop x:Name="DockOrbSec1" Color="#2C5E5CE6" Offset="0.48" />
+                                    <GradientStop Color="#00000000" Offset="1.0" />
+                                </RadialGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Border x:Name="DockAuraOrbHighlightBorder" CornerRadius="17" IsHitTestVisible="False" Opacity="0">
+                            <Border.Background>
+                                <RadialGradientBrush x:Name="DockAuraHighlightBrush" Center="0.50,0.55" GradientOrigin="0.50,0.55" RadiusX="0.28" RadiusY="0.90">
+                                    <GradientStop x:Name="DockOrbHi0" Color="#4E64D2FF" Offset="0.0" />
+                                    <GradientStop x:Name="DockOrbHi1" Color="#2664D2FF" Offset="0.48" />
+                                    <GradientStop Color="#00000000" Offset="1.0" />
+                                </RadialGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Border Height="1"
+                                Margin="14,0"
+                                VerticalAlignment="Top"
+                                Background="{StaticResource ObsidianTopSpecularBrush}"
+                                Opacity="0.35"
+                                IsHitTestVisible="False" />
+                    </Grid>
                 </Border>
 
                 <!-- Dynamic App Slots + Separator + Island Sync + Trash + Clock -->
