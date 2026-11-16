@@ -569,10 +569,22 @@ public partial class IslandWindow : Window
             _motion.ResetSpectrum(0.0);
         }
 
-        if (_motion.IsAllSettled && !spectrumRunning && !glowRunning && !_isDraggingNotch && !HasAnyInactiveVisibleSurface(_lastSnapshot))
+        if (_motion.IsAllSettled && !_isDraggingNotch && !HasAnyInactiveVisibleSurface(_lastSnapshot))
         {
-            OnRenderSettled();
-            StopRenderLoop();
+            if (!_settledHandledForState || _settledState != _lastSnapshot.State)
+            {
+                _settledHandledForState = true;
+                _settledState = _lastSnapshot.State;
+                OnRenderSettled();
+            }
+            if (!spectrumRunning && !glowRunning)
+            {
+                StopRenderLoop();
+            }
+        }
+        else
+        {
+            _settledHandledForState = false;
         }
     }
 
@@ -1055,12 +1067,20 @@ public partial class IslandWindow : Window
         }
 
         // Strictly scope DragCatcherBand: NEVER cover 720x424 empty space when S6DragShelf or collapsed idle
-        DragCatcherBand.Visibility = (snap.IsDragCatcherArmed &&
-                                      !_isInternalDragOut &&
-                                      snap.State != IslandPresentationState.S6DragShelf &&
-                                      !RequiresExpandedTier(snap.State))
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        bool armDragCatcher = snap.IsDragCatcherArmed &&
+                              !_isInternalDragOut &&
+                              snap.State != IslandPresentationState.S6DragShelf &&
+                              !RequiresExpandedTier(snap.State);
+        if (armDragCatcher)
+        {
+            DragCatcherBand.Width = Math.Clamp(Math.Max(260.0, MainNotchAssembly.ActualWidth + 48.0), 260.0, 380.0);
+            DragCatcherBand.Height = Math.Clamp(Math.Max(48.0, MainNotchAssembly.ActualHeight + 14.0), 48.0, 64.0);
+            DragCatcherBand.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            DragCatcherBand.Visibility = Visibility.Collapsed;
+        }
 
         // Motion targets
         _motion.ApplyTarget(snap.Layout, expanding);
@@ -5513,9 +5533,44 @@ public partial class IslandWindow : Window
         Dispatcher.BeginInvoke(() => OpenContextMenu(atCursor: true));
     }
 
+    private bool _settledHandledForState;
+    private IslandPresentationState _settledState;
+
     private void OnShiftDodgeTick(object? sender, EventArgs e)
     {
         if (_isClosed || _isRenderAuditMode || _isSmokeMode) return;
+
+        if (_isDraggingNotch && !IslandWindowController.IsAnyMouseButtonDown())
+        {
+            _isDraggingNotch = false;
+            if (MainNotchAssembly.IsMouseCaptured)
+            {
+                MainNotchAssembly.ReleaseMouseCapture();
+            }
+        }
+
+        if (_controller.HasPendingOrActiveExternalCapture && MainNotchAssembly.IsLoaded)
+        {
+            try
+            {
+                var topLeft = MainNotchAssembly.PointToScreen(new System.Windows.Point(0, 0));
+                var bottomRight = MainNotchAssembly.PointToScreen(
+                    new System.Windows.Point(
+                        Math.Max(180.0, MainNotchAssembly.ActualWidth),
+                        Math.Max(36.0, MainNotchAssembly.ActualHeight)));
+                _controller.SyncExternalDragCapture(new NativeMethods.RECT
+                {
+                    Left = (int)Math.Round(topLeft.X) - 24,
+                    Top = (int)Math.Round(topLeft.Y) - 8,
+                    Right = (int)Math.Round(bottomRight.X) + 24,
+                    Bottom = (int)Math.Round(bottomRight.Y) + 14
+                });
+            }
+            catch
+            {
+                _controller.SyncExternalDragCapture(default);
+            }
+        }
 
         bool wantDodge = _orch.Config.AutoDodgeEnabled &&
                          _lastSnapshot.State != IslandPresentationState.S5Command &&

@@ -428,4 +428,41 @@ public sealed class SystemControlAndSafetyTests
         Assert.NotEmpty(resumedSnap.TopOrHungProcesses);
         Assert.True(resumedSnap.CpuPercent >= 0.0 && resumedSnap.CpuPercent <= 100.0);
     }
+
+    [Fact]
+    public void FullscreenDetector_FramelessMaximizedThickFrameApp_IsNotClassifiedFullscreen()
+    {
+        var monRect = new NativeMethods.RECT { Left = 0, Top = 0, Right = 1920, Bottom = 1080 };
+
+        // Maximized custom-chrome desktop app (e.g., ChatGPT / Discord / Electron) has WS_THICKFRAME | WS_MAXIMIZE without WS_CAPTION.
+        var chatGptMax = FullscreenDetector.EvaluatePure(
+            2,
+            "chatgpt",
+            "Chrome_WidgetWin_1",
+            0x15070000,
+            0x00000100,
+            monRect,
+            monRect,
+            1,
+            isZoomed: true,
+            workRect: monRect);
+
+        Assert.False(chatGptMax.IsFullscreen);
+        Assert.Equal("MaximizedWorkArea", chatGptMax.Reason);
+
+        // True exclusive D3D fullscreen MUST still hide overlays.
+        var d3dMax = FullscreenDetector.EvaluatePure(
+            3,
+            "game",
+            "GameWindow",
+            0x15070000,
+            0,
+            monRect,
+            monRect,
+            1,
+            isZoomed: true,
+            workRect: monRect);
+
+        Assert.True(d3dMax.IsFullscreen);
+    }
 }

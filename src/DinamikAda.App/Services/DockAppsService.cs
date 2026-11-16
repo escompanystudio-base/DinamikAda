@@ -309,14 +309,49 @@ public sealed unsafe class DockAppsService
         }
     }
 
+    public static void RestoreShowAndFocusWindow(nint hwnd)
+    {
+        if (hwnd == 0 || !NativeMethods.IsWindow(hwnd)) return;
+
+        bool isIconic = NativeMethods.IsIconic(hwnd);
+        uint style = (uint)NativeMethods.GetWindowLongPtrW(hwnd, NativeMethods.GWL_STYLE).ToInt64();
+        bool isMaximized = NativeMethods.IsZoomed(hwnd) || (style & NativeMethods.WS_MAXIMIZE) != 0;
+
+        if (!NativeMethods.IsWindowVisible(hwnd) || isIconic)
+        {
+            NativeMethods.ShowWindow(hwnd, WindowRestoreGeometry.DetermineRestoreShowCommand(isIconic, isMaximized));
+        }
+
+        WindowRestoreGeometry.EnsureChromiumRenderChildrenVisible(hwnd);
+        WindowRestoreGeometry.EnsureWindowWorkAreaVisible(hwnd);
+        ForceForeground(hwnd);
+    }
+
+    private static bool StartExecutableCleanly(string exePath)
+    {
+        try
+        {
+            string? workDir = Path.GetDirectoryName(exePath);
+            Process.Start(new ProcessStartInfo(exePath)
+            {
+                UseShellExecute = true,
+                WorkingDirectory = !string.IsNullOrWhiteSpace(workDir) && Directory.Exists(workDir) ? workDir : string.Empty
+            });
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public static void FocusOrToggleWindow(DockWindowRef targetWindow, nint currentForegroundHwnd)
     {
         if (targetWindow.Hwnd == 0 || !NativeMethods.IsWindow(targetWindow.Hwnd)) return;
 
         if (NativeMethods.IsIconic(targetWindow.Hwnd))
         {
-            NativeMethods.ShowWindow(targetWindow.Hwnd, NativeMethods.SW_RESTORE);
-            ForceForeground(targetWindow.Hwnd);
+            RestoreShowAndFocusWindow(targetWindow.Hwnd);
             return;
         }
 
@@ -326,17 +361,12 @@ public sealed unsafe class DockAppsService
             return;
         }
 
-        ForceForeground(targetWindow.Hwnd);
+        RestoreShowAndFocusWindow(targetWindow.Hwnd);
     }
 
     public static void FocusWindow(nint hwnd)
     {
-        if (hwnd == 0 || !NativeMethods.IsWindow(hwnd)) return;
-        if (NativeMethods.IsIconic(hwnd))
-        {
-            NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
-        }
-        ForceForeground(hwnd);
+        RestoreShowAndFocusWindow(hwnd);
     }
 
     public static void CloseWindow(nint hwnd)
@@ -564,11 +594,11 @@ public sealed unsafe class DockAppsService
 
             if (exeName.Equals("steam", StringComparison.OrdinalIgnoreCase))
             {
-                if (item.RestoreWindowHwnd != 0 && NativeMethods.IsWindow(item.RestoreWindowHwnd))
+                if (item.RestoreWindowHwnd != 0 &&
+                    NativeMethods.IsWindow(item.RestoreWindowHwnd) &&
+                    NativeMethods.IsWindowVisible(item.RestoreWindowHwnd))
                 {
-                    NativeMethods.ShowWindow(item.RestoreWindowHwnd, NativeMethods.SW_SHOW);
-                    NativeMethods.ShowWindow(item.RestoreWindowHwnd, NativeMethods.SW_RESTORE);
-                    ForceForeground(item.RestoreWindowHwnd);
+                    RestoreShowAndFocusWindow(item.RestoreWindowHwnd);
                     return true;
                 }
 
@@ -598,21 +628,39 @@ public sealed unsafe class DockAppsService
 
             if (item.RestoreWindowHwnd != 0 && NativeMethods.IsWindow(item.RestoreWindowHwnd))
             {
-                NativeMethods.ShowWindow(item.RestoreWindowHwnd, NativeMethods.SW_SHOW);
-                NativeMethods.ShowWindow(item.RestoreWindowHwnd, NativeMethods.SW_RESTORE);
-                ForceForeground(item.RestoreWindowHwnd);
+                nint hwnd = item.RestoreWindowHwnd;
+                string cls = WindowRestoreGeometry.ReadWindowClassSafe(hwnd);
+                bool preferSingleInstanceExe =
+                    WindowRestoreGeometry.ShouldPreferExecutableActivation(
+                        NativeMethods.IsWindowVisible(hwnd),
+                        NativeMethods.IsIconic(hwnd),
+                        cls,
+                        item.ExePath) &&
+                    File.Exists(item.ExePath);
+
+                if (preferSingleInstanceExe && StartExecutableCleanly(item.ExePath!))
+                {
+                    _ = Task.Delay(550).ContinueWith(_ =>
+                    {
+                        if (!NativeMethods.IsWindow(hwnd)) return;
+                        if (!NativeMethods.IsWindowVisible(hwnd))
+                        {
+                            RestoreShowAndFocusWindow(hwnd);
+                            return;
+                        }
+                        WindowRestoreGeometry.EnsureChromiumRenderChildrenVisible(hwnd);
+                        WindowRestoreGeometry.EnsureWindowWorkAreaVisible(hwnd);
+                    }, TaskScheduler.Default);
+                    return true;
+                }
+
+                RestoreShowAndFocusWindow(hwnd);
                 return true;
             }
 
             if (!string.IsNullOrWhiteSpace(item.ExePath) && File.Exists(item.ExePath))
             {
-                string? workDir = Path.GetDirectoryName(item.ExePath);
-                Process.Start(new ProcessStartInfo(item.ExePath)
-                {
-                    UseShellExecute = true,
-                    WorkingDirectory = !string.IsNullOrWhiteSpace(workDir) && Directory.Exists(workDir) ? workDir : string.Empty
-                });
-                return true;
+                return StartExecutableCleanly(item.ExePath);
             }
         }
         catch

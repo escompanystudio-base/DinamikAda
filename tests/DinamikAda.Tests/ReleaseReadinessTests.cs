@@ -710,4 +710,62 @@ public sealed class ReleaseReadinessTests
         Assert.False(DockLayoutCalculator.IsNonBlockingShellOrWallpaperClass("Chrome_WidgetWin_1", "Antigravity"));
         Assert.False(DockLayoutCalculator.IsNonBlockingShellOrWallpaperClass("MozillaWindowClass", "zen"));
     }
+
+    [Fact]
+    public void IslandWindowController_EvaluateExternalDragArmed_IgnoresClicksAndDisarmsOnRelease()
+    {
+        // Simple click (even inside notch top strip) with zero/tiny movement must NEVER arm DragCatcherBand.
+        Assert.False(IslandWindowController.EvaluateExternalDragArmed(
+            externalCaptureObserved: true, isMouseDown: true,
+            startX: 960, startY: 20, curX: 962, curY: 22,
+            dropLeft: 780, dropTop: 0, dropRight: 1140, dropBottom: 56));
+
+        // Dragging a button/slider elsewhere on screen (outside notch drop zone) must stay transparent.
+        Assert.False(IslandWindowController.EvaluateExternalDragArmed(
+            externalCaptureObserved: true, isMouseDown: true,
+            startX: 300, startY: 500, curX: 1900, curY: 16,
+            dropLeft: 780, dropTop: 0, dropRight: 1140, dropBottom: 56));
+
+        // Dragging >= 14px from Explorer into the notch drop zone while button held DOES arm DragCatcherBand.
+        Assert.True(IslandWindowController.EvaluateExternalDragArmed(
+            externalCaptureObserved: true, isMouseDown: true,
+            startX: 400, startY: 420, curX: 960, curY: 24,
+            dropLeft: 780, dropTop: 0, dropRight: 1140, dropBottom: 56));
+
+        // Releasing mouse button (even if EVENT_SYSTEM_CAPTUREEND was missed) immediately disarms.
+        Assert.False(IslandWindowController.EvaluateExternalDragArmed(
+            externalCaptureObserved: true, isMouseDown: false,
+            startX: 400, startY: 420, curX: 960, curY: 24,
+            dropLeft: 780, dropTop: 0, dropRight: 1140, dropBottom: 56));
+    }
+
+    [Fact]
+    public void WindowRestoreGeometry_PreservesMaximizeAndClampsOffscreenNormalRect()
+    {
+        // Maximized hidden tray window (e.g., Discord): keep SW_SHOWMAXIMIZED instead of SW_RESTORE.
+        Assert.Equal(NativeMethods.SW_SHOWMAXIMIZED, WindowRestoreGeometry.DetermineRestoreShowCommand(isIconic: false, isMaximized: true));
+        Assert.Equal(NativeMethods.SW_RESTORE, WindowRestoreGeometry.DetermineRestoreShowCommand(isIconic: true, isMaximized: true));
+        Assert.Equal(NativeMethods.SW_SHOW, WindowRestoreGeometry.DetermineRestoreShowCommand(isIconic: false, isMaximized: false));
+
+        // Off-screen stale rcNormalPosition (top = -24, right = 1978 on 1920x1080) must clamp cleanly onto monitor work area.
+        var staleOffscreen = new NativeMethods.RECT { Left = 60, Top = -24, Right = 1978, Bottom = 1006 };
+        var workArea = new NativeMethods.RECT { Left = 0, Top = 0, Right = 1920, Bottom = 1080 };
+        Assert.True(WindowRestoreGeometry.TryComputeClampedWorkAreaRect(staleOffscreen, workArea, out var clamped));
+        Assert.True(clamped.Top >= workArea.Top);
+        Assert.True(clamped.Right <= workArea.Right);
+        Assert.True(clamped.Left >= workArea.Left);
+        Assert.True(clamped.Bottom <= workArea.Bottom);
+
+        // Already within work area should not move unnecessarily.
+        var normalOnscreen = new NativeMethods.RECT { Left = 100, Top = 80, Right = 1500, Bottom = 950 };
+        Assert.False(WindowRestoreGeometry.TryComputeClampedWorkAreaRect(normalOnscreen, workArea, out _));
+
+        // Hidden Chromium/Electron tray windows (e.g. Discord, YouTube Music) should prefer single-instance EXE wake so Chrome_RenderWidgetHostHWND becomes visible/clickable.
+        Assert.True(WindowRestoreGeometry.ShouldPreferExecutableActivation(
+            isVisible: false, isIconic: false, windowClassName: "Chrome_WidgetWin_1", exePath: @"C:\App\Discord.exe"));
+        Assert.False(WindowRestoreGeometry.ShouldPreferExecutableActivation(
+            isVisible: true, isIconic: true, windowClassName: "Chrome_WidgetWin_1", exePath: @"C:\App\Discord.exe"));
+        Assert.False(WindowRestoreGeometry.ShouldPreferExecutableActivation(
+            isVisible: false, isIconic: false, windowClassName: "Qt5QWindowIcon", exePath: @"C:\App\Tool.exe"));
+    }
 }

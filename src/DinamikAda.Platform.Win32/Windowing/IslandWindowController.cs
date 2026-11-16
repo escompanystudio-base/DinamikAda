@@ -452,6 +452,83 @@ public sealed class IslandWindowController : IWindowStyleHost, IDisposable
         IsCaptureActive = false;
     }
 
+    private bool _externalCaptureObserved;
+    private NativeMethods.POINT _captureStartCursor;
+    private const int DragCaptureDistanceSquaredThreshold = 14 * 14;
+
+    public bool HasPendingOrActiveExternalCapture => _externalCaptureObserved || IsCaptureActive;
+
+    public static bool EvaluateExternalDragArmed(
+        bool externalCaptureObserved,
+        bool isMouseDown,
+        int startX,
+        int startY,
+        int curX,
+        int curY,
+        int dropLeft,
+        int dropTop,
+        int dropRight,
+        int dropBottom)
+    {
+        if (!externalCaptureObserved || !isMouseDown)
+        {
+            return false;
+        }
+
+        long dx = (long)curX - startX;
+        long dy = (long)curY - startY;
+        if ((dx * dx) + (dy * dy) < DragCaptureDistanceSquaredThreshold)
+        {
+            return false;
+        }
+
+        return curX >= dropLeft && curX <= dropRight && curY >= dropTop && curY <= dropBottom;
+    }
+
+    public void SyncExternalDragCapture(NativeMethods.RECT dropZoneScreenRect)
+    {
+        if (!_externalCaptureObserved && !IsCaptureActive)
+        {
+            return;
+        }
+
+        bool isMouseDown = IsAnyMouseButtonDown();
+        if (!isMouseDown)
+        {
+            _externalCaptureObserved = false;
+            SetCaptureActive(false);
+            return;
+        }
+
+        if (!NativeMethods.GetCursorPos(out var cursor))
+        {
+            return;
+        }
+
+        bool active = EvaluateExternalDragArmed(
+            _externalCaptureObserved,
+            isMouseDown,
+            _captureStartCursor.X,
+            _captureStartCursor.Y,
+            cursor.X,
+            cursor.Y,
+            dropZoneScreenRect.Left,
+            dropZoneScreenRect.Top,
+            dropZoneScreenRect.Right,
+            dropZoneScreenRect.Bottom);
+
+        SetCaptureActive(active);
+    }
+
+    private void SetCaptureActive(bool active)
+    {
+        if (IsCaptureActive != active)
+        {
+            IsCaptureActive = active;
+            CaptureStateChanged?.Invoke(this, active);
+        }
+    }
+
     private void OnCaptureWinEvent(nint hHook, uint eventType, nint hwnd, int idObject, int idChild, uint threadId, uint time)
     {
         bool isCaptureStart = eventType == NativeMethods.EVENT_SYSTEM_CAPTURESTART;
@@ -461,12 +538,17 @@ public sealed class IslandWindowController : IWindowStyleHost, IDisposable
             if (pid == _ownProcessId) return;
         }
 
-        bool active = isCaptureStart && IsAnyMouseButtonDown();
-        if (IsCaptureActive != active)
+        if (isCaptureStart && IsAnyMouseButtonDown())
         {
-            IsCaptureActive = active;
-            CaptureStateChanged?.Invoke(this, active);
+            // Do NOT arm DragCatcherBand on simple button clicks (e.g. window Close/Min/Max or tabs);
+            // record origin and let SyncExternalDragCapture arm ONLY after genuine drag movement into the notch zone.
+            _externalCaptureObserved = true;
+            _ = NativeMethods.GetCursorPos(out _captureStartCursor);
+            return;
         }
+
+        _externalCaptureObserved = false;
+        SetCaptureActive(false);
     }
 
     public static bool TryFocusExternalWindow(nint targetHwnd) => ForceForeground(targetHwnd);

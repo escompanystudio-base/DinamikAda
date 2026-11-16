@@ -833,6 +833,18 @@ public partial class DockWindow : Window
         if (next != val)
         {
             NativeMethods.SetWindowLongPtrW(_hwnd, NativeMethods.GWL_EXSTYLE, new nint(next));
+            NativeMethods.SetWindowPos(
+                _hwnd,
+                0,
+                0,
+                0,
+                0,
+                0,
+                NativeMethods.SWP_NOMOVE |
+                NativeMethods.SWP_NOSIZE |
+                NativeMethods.SWP_NOZORDER |
+                NativeMethods.SWP_NOACTIVATE |
+                NativeMethods.SWP_FRAMECHANGED);
         }
     }
 
@@ -909,6 +921,12 @@ public partial class DockWindow : Window
 
     private nint OnDockWndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
+        if (msg == NativeMethods.WM_MOUSEACTIVATE)
+        {
+            handled = true;
+            return new nint(NativeMethods.MA_NOACTIVATE);
+        }
+
         if (msg is NativeMethods.WM_DISPLAYCHANGE or NativeMethods.WM_DPICHANGED)
         {
             (_orch.MonitorLayout as Win32MonitorLayoutService)?.InvalidateCache();
@@ -1600,11 +1618,7 @@ public partial class DockWindow : Window
             tile.MouseLeftButtonUp += (_, ev) =>
             {
                 ev.Handled = true;
-                TrayOverflowPopup.IsOpen = false;
-                if (!_isSmokeOrAuditMode)
-                {
-                    DockAppsService.ActivateBackgroundTrayApp(captured);
-                }
+                DismissPopupsAndActivateTrayApp(captured);
             };
             tile.MouseRightButtonUp += (_, ev) =>
             {
@@ -1616,17 +1630,51 @@ public partial class DockWindow : Window
         }
     }
 
+    private void DismissPopupsAndActivateTrayApp(BackgroundTrayAppItem item)
+    {
+        if (_activeContextMenu is not null)
+        {
+            _activeContextMenu.IsOpen = false;
+            _activeContextMenu = null;
+        }
+        ClockCalendarPopup.IsOpen = false;
+        TrayOverflowPopup.IsOpen = false;
+        if (Mouse.Captured is not null)
+        {
+            Mouse.Capture(null);
+        }
+
+        if (_isSmokeOrAuditMode) return;
+
+        // Defer Win32 ShowWindow/ForceForeground until WPF finishes closing PopupRoot and releasing mouse capture.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+        {
+            if (Mouse.Captured is not null)
+            {
+                Mouse.Capture(null);
+            }
+            DockAppsService.ActivateBackgroundTrayApp(item);
+        });
+    }
+
     private void ShowTrayItemContextMenu(FrameworkElement anchor, BackgroundTrayAppItem item, string lang)
     {
         var menu = new ContextMenu();
         _activeContextMenu = menu;
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_activeContextMenu, menu))
+            {
+                _activeContextMenu = null;
+            }
+            if (Mouse.Captured is not null)
+            {
+                Mouse.Capture(null);
+            }
+        };
 
         var openItem = new MenuItem { Header = Strings.TrayOpenApp(lang) };
-        openItem.Click += (_, _) =>
-        {
-            TrayOverflowPopup.IsOpen = false;
-            DockAppsService.ActivateBackgroundTrayApp(item);
-        };
+        openItem.Click += (_, _) => DismissPopupsAndActivateTrayApp(item);
         menu.Items.Add(openItem);
 
         if (!string.IsNullOrWhiteSpace(item.ExePath))

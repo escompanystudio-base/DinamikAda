@@ -97,7 +97,7 @@
                StaysOpen="False"
                Placement="Top"
                VerticalOffset="-10"
-               PopupAnimation="Fade"
+               PopupAnimation="None"
                Opened="OnClockPopupOpened"
                Closed="OnClockPopupClosed">
             <Border x:Name="ClockCalendarCard"
@@ -253,7 +253,7 @@
                StaysOpen="False"
                Placement="Top"
                VerticalOffset="-10"
-               PopupAnimation="Fade"
+               PopupAnimation="None"
                Opened="OnTrayPopupOpened"
                Closed="OnTrayPopupClosed">
             <Border x:Name="TrayOverflowCard"

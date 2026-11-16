@@ -59,6 +59,7 @@ public static unsafe partial class NativeMethods
     public const uint SMTO_ABORTIFHUNG = 0x0002;
     public const int SW_HIDE = 0;
     public const int SW_SHOWNORMAL = 1;
+    public const int SW_SHOWMAXIMIZED = 3;
     public const int SW_SHOWNOACTIVATE = 4;
     public const int SW_SHOW = 5;
     public const int SW_RESTORE = 9;
@@ -516,6 +517,10 @@ public static unsafe partial class NativeMethods
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetWindowPlacement(nint hWnd, ref WINDOWPLACEMENT lpwndpl);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SetWindowPlacement(nint hWnd, in WINDOWPLACEMENT lpwndpl);
 
     [LibraryImport("user32.dll", StringMarshalling = StringMarshalling.Utf16)]
     [return: MarshalAs(UnmanagedType.Bool)]
