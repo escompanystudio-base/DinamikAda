@@ -156,6 +156,8 @@ public partial class IslandWindow : Window
     private bool _isSeekingMedia;
     private bool _suppressAudioUiEvents;
     private bool _suppressBrightnessUiEvents;
+    private bool _s5CommandActivatedOnce;
+    private long _s5CommandOpenedMs;
     private bool _isCapturingOcr;
     private bool _isCapturingColor;
     private int _openAppRouteCombos;
@@ -1094,7 +1096,13 @@ public partial class IslandWindow : Window
             CloseExpandedOverlays();
             if (snap.State == IslandPresentationState.S5Command && stateChanged)
             {
+                _s5CommandActivatedOnce = false;
+                _s5CommandOpenedMs = Environment.TickCount64;
                 FocusCommandPalette();
+            }
+            else if (snap.State != IslandPresentationState.S5Command)
+            {
+                _s5CommandActivatedOnce = false;
             }
         }
 
@@ -4941,17 +4949,25 @@ public partial class IslandWindow : Window
 
     private void OnControllerActivationChanged(object? sender, bool activated)
     {
-        if (!activated)
+        if (activated)
         {
-            Dispatcher.BeginInvoke(() =>
-            {
-                if (_isClosed) return;
-                if (_lastSnapshot.State == IslandPresentationState.S5Command)
-                {
-                    _orch.Coordinator.CloseCommandPalette();
-                }
-            });
+            _s5CommandActivatedOnce = true;
+            return;
         }
+
+        if (_isSmokeMode || !_s5CommandActivatedOnce || (Environment.TickCount64 - _s5CommandOpenedMs) < 180)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_isClosed || _isSmokeMode) return;
+            if (_lastSnapshot.State == IslandPresentationState.S5Command)
+            {
+                _orch.Coordinator.CloseCommandPalette();
+            }
+        });
     }
 
     private void OnOrchestratorOpenSettingsRequested(object? sender, EventArgs e)
