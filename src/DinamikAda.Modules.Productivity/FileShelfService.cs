@@ -58,6 +58,28 @@ public sealed class FileShelfService
         [MarshalAs(UnmanagedType.LPArray)] nint[] apidl,
         uint dwFlags);
 
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    private static extern int GetCurrentPackageFullName(ref uint packageFullNameLength, nint packageFullName);
+
+    /// <summary>
+    /// Returns true only when the running process has MSIX/sparse package identity;
+    /// WinRT DataTransferManager.ShowShareUIForWindow silently no-ops when unpackaged.
+    /// </summary>
+    public static bool HasPackageIdentity()
+    {
+        try
+        {
+            uint len = 0;
+            int rc = GetCurrentPackageFullName(ref len, 0);
+            const int APPMODEL_ERROR_NO_PACKAGE = 15700;
+            return rc != APPMODEL_ERROR_NO_PACKAGE;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public event EventHandler<IReadOnlyList<ShelfItem>>? ItemsChanged;
 
     public FileShelfService(string? shelfDir = null)
@@ -416,12 +438,19 @@ public sealed class FileShelfService
 
     public bool TryShowShareUi(nint hwnd)
     {
-        if (hwnd == 0 || !NativeMethods.IsWindow(hwnd))
+        bool hasExisting = GetItems().Any(i => File.Exists(i.FullPath) || Directory.Exists(i.FullPath));
+        if (!hasExisting)
+        {
+            return false;
+        }
+
+        if (!HasPackageIdentity() || hwnd == 0 || !NativeMethods.IsWindow(hwnd))
         {
             ClearShareWindow();
             return TryOpenExplorerShareFallback();
         }
 
+        bool invokedShareUi = false;
         try
         {
             var interop = DataTransferManager.As<IDataTransferManagerInterop>();
@@ -466,17 +495,22 @@ public sealed class FileShelfService
             if (_shareManager is not null)
             {
                 int showHr = interop.ShowShareUIForWindow(hwnd);
-                if (showHr == 0) return true;
-                ClearShareWindow(hwnd);
+                if (showHr == 0)
+                {
+                    invokedShareUi = true;
+                }
+                else
+                {
+                    ClearShareWindow(hwnd);
+                }
             }
         }
         catch
         {
             ClearShareWindow(hwnd);
-            // Fall through to Explorer selection fallback when unpackaged/Share contract is unavailable.
         }
 
-        return TryOpenExplorerShareFallback();
+        return invokedShareUi || TryOpenExplorerShareFallback();
     }
 
     public static bool TryShowWindowsShareUi(nint hwnd)

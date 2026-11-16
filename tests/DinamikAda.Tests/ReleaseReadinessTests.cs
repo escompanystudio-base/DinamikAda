@@ -408,4 +408,67 @@ public sealed class ReleaseReadinessTests
         Assert.Equal((byte)0, invPixels[mappedCenter + 1]);
         Assert.Equal((byte)0, invPixels[mappedCenter + 2]);
     }
+
+    [Fact]
+    public async Task FileShelfAndLanDrop_EndToEnd_QrZipClearAndEmptyShareGuardWorkAccurately()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), $"dinamikada-shelf-e2e-{Guid.NewGuid():N}");
+        string shelfDir = Path.Combine(tempRoot, "shelf");
+        string inboxDir = Path.Combine(tempRoot, "inbox");
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            string sampleFile = Path.Combine(tempRoot, "sample.txt");
+            await File.WriteAllTextAsync(sampleFile, "DinamikAda shelf test content");
+
+            var shelf = new FileShelfService(shelfDir);
+            Assert.Empty(shelf.GetItems());
+            Assert.False(shelf.TryShowShareUi(0));
+            Assert.Null(await shelf.CreateZipArchiveAsync());
+
+            Assert.Equal(1, shelf.AddPaths([sampleFile]));
+            string? zipPath = await shelf.CreateZipArchiveAsync();
+            Assert.NotNull(zipPath);
+            Assert.True(File.Exists(zipPath));
+            using (var zip = System.IO.Compression.ZipFile.OpenRead(zipPath!))
+            {
+                Assert.Contains(zip.Entries, e => e.Name == "sample.txt");
+            }
+
+            shelf.Clear();
+            Assert.Empty(shelf.GetItems());
+
+            using var lanDrop = new LanDropServer(inboxDir);
+            var share = lanDrop.StartShare([sampleFile], "Merhaba LAN");
+            Assert.Equal(1, share.FileCount);
+            Assert.True(share.HasSharedText);
+            Assert.StartsWith("http://", share.LoopbackUrl);
+
+            bool[,] qr = QrCodeEncoder.Encode(share.ShareUrl, quietZoneModules: 4);
+            Assert.True(qr.GetLength(0) >= 37);
+            Assert.Equal(qr.GetLength(0), qr.GetLength(1));
+
+            using var http = new System.Net.Http.HttpClient();
+            string html = await http.GetStringAsync(share.LoopbackUrl);
+            Assert.Contains("sample.txt", html);
+            Assert.Contains("Merhaba LAN", html);
+
+            byte[] dlBytes = await http.GetByteArrayAsync(share.LoopbackUrl + "/dl/0");
+            Assert.Equal("DinamikAda shelf test content", System.Text.Encoding.UTF8.GetString(dlBytes));
+
+            using var multipart = new System.Net.Http.MultipartFormDataContent();
+            using var content = new System.Net.Http.ByteArrayContent("Uploaded payload"u8.ToArray());
+            multipart.Add(content, "files", "from_phone.txt");
+            var upResp = await http.PostAsync(share.LoopbackUrl + "/upload", multipart);
+            Assert.True(upResp.IsSuccessStatusCode);
+            Assert.True(File.Exists(Path.Combine(inboxDir, "from_phone.txt")));
+
+            lanDrop.StopShare();
+            Assert.Null(lanDrop.CurrentShare);
+        }
+        finally
+        {
+            try { if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true); } catch { }
+        }
+    }
 }

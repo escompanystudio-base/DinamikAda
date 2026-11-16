@@ -1759,10 +1759,15 @@
                                                                     CornerRadius="8"
                                                                     Background="#FFFFFFFF"
                                                                     Padding="4"
-                                                                    VerticalAlignment="Center">
+                                                                    VerticalAlignment="Center"
+                                                                    UseLayoutRounding="True"
+                                                                    SnapsToDevicePixels="True">
                                                                 <Image x:Name="ShelfQrImage"
-                                                                       Width="84"
-                                                                       Height="84"
+                                                                       Width="123"
+                                                                       Height="123"
+                                                                       Stretch="Uniform"
+                                                                       SnapsToDevicePixels="True"
+                                                                       UseLayoutRounding="True"
                                                                        RenderOptions.BitmapScalingMode="NearestNeighbor" />
                                                             </Border>
                                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0">
@@ -1785,9 +1790,11 @@
                                                                            FontSize="9.2"
                                                                            Foreground="{StaticResource AccentCyanBrush}"
                                                                            TextTrimming="CharacterEllipsis"
+                                                                           Cursor="Hand"
+                                                                           MouseLeftButtonUp="OnShelfQrUrlClick"
                                                                            Margin="0,0,0,6" />
                                                                 <StackPanel Orientation="Horizontal">
-                                                                    <Button x:Name="BtnShelfQrCopyUrl" Style="{StaticResource PillTabButtonStyle}" Padding="7,2" FontSize="9.5" Content="URL" Click="OnShelfQrCopyClick" />
+                                                                    <Button x:Name="BtnShelfQrCopyUrl" Style="{StaticResource PillTabButtonStyle}" Padding="7,2" FontSize="9.5" Content="Linki Kopyala" Click="OnShelfQrCopyClick" />
                                                                     <Button x:Name="BtnShelfQrStop" Style="{StaticResource PillTabButtonStyle}" Padding="7,2" FontSize="9.5" Margin="5,0,0,0" Content="Kapat" Click="OnShelfQrStopClick" />
                                                                 </StackPanel>
                                                             </StackPanel>

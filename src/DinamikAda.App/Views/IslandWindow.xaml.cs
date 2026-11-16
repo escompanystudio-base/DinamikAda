@@ -3515,25 +3515,36 @@ public partial class IslandWindow : Window
         if (!string.Equals(_renderedQrUrl, url, StringComparison.Ordinal))
         {
             _renderedQrUrl = url;
-            ShelfQrImage.Source = BuildQrBitmap(url);
+            double dpiScale = Math.Max(1.0, VisualTreeHelper.GetDpi(this).DpiScaleX);
+            BitmapSource qrBitmap = BuildQrBitmap(url, dpiScale);
+            ShelfQrImage.Source = qrBitmap;
+            // Size image 1:1 to physical pixels so NearestNeighbor never drops modules
+            ShelfQrImage.Width = qrBitmap.PixelWidth / dpiScale;
+            ShelfQrImage.Height = qrBitmap.PixelHeight / dpiScale;
         }
 
-        ShelfQrTitleText.Text = share.HasLanAddress
-            ? Strings.Pick(lang, $"LAN AirDrop ({share.FileCount} dosya)", $"LAN AirDrop ({share.FileCount} files)")
-            : Strings.QrNoLocalNetwork(lang);
+        ShelfQrTitleText.Text = !share.HasLanAddress
+            ? Strings.QrNoLocalNetwork(lang)
+            : share.FileCount > 0
+                ? Strings.Pick(lang, $"LAN Paylaşım ({share.FileCount} dosya)", $"LAN Drop ({share.FileCount} files)")
+                : share.HasSharedText
+                    ? Strings.Pick(lang, "LAN Paylaşım (Pano Metni)", "LAN Drop (Clipboard Text)")
+                    : Strings.Pick(lang, "LAN Paylaşım (Dosya Al)", "LAN Drop (Receive Files)");
         ShelfQrHintText.Text = Strings.QrScanHint(lang);
         ShelfQrUrlText.Text = url;
-        BtnShelfQrCopyUrl.Content = "URL";
+        ShelfQrUrlText.ToolTip = Strings.Pick(lang, "Tarayıcıda açmak için tıklayın", "Click to open in browser");
+        BtnShelfQrCopyUrl.Content = Strings.Pick(lang, "Linki Kopyala", "Copy Link");
         BtnShelfQrStop.Content = Strings.Pick(lang, "Durdur", "Stop");
         ShelfItemsScroll.Visibility = Visibility.Collapsed;
         ShelfQrOverlayBorder.Visibility = Visibility.Visible;
     }
 
-    private static BitmapSource BuildQrBitmap(string url)
+    private static BitmapSource BuildQrBitmap(string url, double dpiScale = 1.0)
     {
         bool[,] matrix = QrCodeEncoder.Encode(url, quietZoneModules: 4);
         int size = matrix.GetLength(0);
-        const int scale = 4;
+        int targetPx = (int)Math.Round(126.0 * Math.Max(1.0, dpiScale));
+        int scale = Math.Max(2, targetPx / size);
         int pxSize = size * scale;
         byte[] pixels = new byte[pxSize * pxSize * 4];
         int stride = pxSize * 4;
@@ -5502,35 +5513,79 @@ public partial class IslandWindow : Window
 
     private void OnShelfShareClick(object sender, RoutedEventArgs e)
     {
-        if (!_isRenderAuditMode) _orch.Shelf.TryShowShareUi(_hwnd);
+        if (_isRenderAuditMode) return;
+        string lang = _orch.Config.Language;
+        if (_orch.Shelf.TryShowShareUi(_hwnd))
+        {
+            if (!FileShelfService.HasPackageIdentity())
+            {
+                _orch.Coordinator.Publish(new TransientHudEvent(
+                    "hud:share",
+                    HudKind.FileStashed,
+                    Strings.Pick(lang, "Gezginde Seçildi", "Selected in Explorer"),
+                    Strings.Pick(lang, "Paylaşım menüsü için Dosya Gezgini açıldı", "Opened File Explorer for Share menu"),
+                    AccentHex: "#64D2FF",
+                    DurationMs: 2200,
+                    IconGlyph: "\uE72D"));
+            }
+        }
+        else
+        {
+            _orch.Coordinator.Publish(new TransientHudEvent(
+                "hud:share",
+                HudKind.FileStashed,
+                Strings.Pick(lang, "Paylaşılacak Dosya Yok", "Nothing to Share"),
+                Strings.Pick(lang, "Önce Dosya Rafına dosya sürükleyin", "Drop a file into File Shelf first"),
+                AccentHex: "#FF9F0A",
+                DurationMs: 2200,
+                IconGlyph: "\uE72D"));
+        }
     }
 
     private async void OnShelfZipClick(object sender, RoutedEventArgs e)
     {
         if (_isRenderAuditMode) return;
+        string lang = _orch.Config.Language;
         try
         {
             string? zip = await _orch.Shelf.CreateZipArchiveAsync();
             if (!string.IsNullOrWhiteSpace(zip))
             {
+                _orch.Shelf.AddPaths([zip]);
                 _orch.Coordinator.Publish(new TransientHudEvent(
                     "hud:zip",
                     HudKind.FileStashed,
-                    Strings.Pick(_orch.Config.Language, "ZIP Oluşturuldu", "ZIP Created"),
+                    Strings.Pick(lang, "ZIP Rafa Eklendi", "ZIP Added to Shelf"),
                     Path.GetFileName(zip),
                     AccentHex: "#30D158",
+                    IconGlyph: "\uE8F1"));
+            }
+            else
+            {
+                _orch.Coordinator.Publish(new TransientHudEvent(
+                    "hud:zip",
+                    HudKind.FileStashed,
+                    Strings.Pick(lang, "ZIP İçin Dosya Yok", "Shelf Is Empty"),
+                    Strings.Pick(lang, "Önce Dosya Rafına dosya ekleyin", "Add files to the shelf first"),
+                    AccentHex: "#FF9F0A",
+                    DurationMs: 2000,
                     IconGlyph: "\uE8F1"));
             }
         }
         catch (Exception ex)
         {
-            _orch.Notifications.AddInternalAlert("DinamikAda", Strings.Pick(_orch.Config.Language, "ZIP oluşturulamadı", "Could not create ZIP"), ex.Message);
+            _orch.Notifications.AddInternalAlert("DinamikAda", Strings.Pick(lang, "ZIP oluşturulamadı", "Could not create ZIP"), ex.Message);
         }
     }
 
     private void OnShelfClearClick(object sender, RoutedEventArgs e)
     {
-        if (!_isRenderAuditMode) _orch.Shelf.Clear();
+        if (_isRenderAuditMode) return;
+        _qrOverlayVisible = false;
+        _renderedQrUrl = null;
+        _orch.LanDrop.StopShare();
+        _orch.Shelf.Clear();
+        RenderShelfQrOverlay();
     }
 
     private Task OnOrchestratorRegionColorPickRequested()
@@ -5577,6 +5632,12 @@ public partial class IslandWindow : Window
     private void OnShelfQrClick(object sender, RoutedEventArgs e)
     {
         if (_isRenderAuditMode) return;
+        if (_qrOverlayVisible)
+        {
+            _qrOverlayVisible = false;
+            RenderShelfQrOverlay();
+            return;
+        }
         StartQrShareFlow();
     }
 
@@ -5585,6 +5646,7 @@ public partial class IslandWindow : Window
         if (_isClosed) return;
         try
         {
+            _renderedQrUrl = null;
             _orch.ToggleOrStartLanQrShare(forceStart: true);
             _qrOverlayVisible = true;
             _orch.Coordinator.SetDragShelfActive(false);
@@ -5597,20 +5659,46 @@ public partial class IslandWindow : Window
         }
     }
 
+    private void OnShelfQrUrlClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        var share = _orch.LanDrop.CurrentShare;
+        if (share is null || _isRenderAuditMode) return;
+        string url = string.IsNullOrWhiteSpace(share.ShareUrl) ? share.LoopbackUrl : share.ShareUrl;
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch { }
+    }
+
     private void OnShelfQrCopyClick(object sender, RoutedEventArgs e)
     {
         var share = _orch.LanDrop.CurrentShare;
         if (share is null || _isRenderAuditMode) return;
         string url = string.IsNullOrWhiteSpace(share.ShareUrl) ? share.LoopbackUrl : share.ShareUrl;
-        _orch.Clipboard.CopyTextToClipboard(url);
-        BtnShelfQrCopyUrl.Content = Strings.Pick(_orch.Config.Language, "Kopyalandı", "Copied");
+        bool ok = _orch.Clipboard.CopyTextToClipboard(url);
+        if (!ok)
+        {
+            try
+            {
+                System.Windows.Clipboard.SetText(url);
+                ok = true;
+            }
+            catch { }
+        }
+        if (ok)
+        {
+            BtnShelfQrCopyUrl.Content = Strings.Pick(_orch.Config.Language, "Kopyalandı", "Copied");
+        }
     }
 
     private void OnShelfQrStopClick(object sender, RoutedEventArgs e)
     {
         _qrOverlayVisible = false;
+        _renderedQrUrl = null;
         _orch.LanDrop.StopShare();
-        ShelfQrOverlayBorder.Visibility = Visibility.Collapsed;
+        RenderShelfQrOverlay();
     }
 
     private async Task ExecuteColorPickerAsync()
