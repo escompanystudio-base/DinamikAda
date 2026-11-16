@@ -1987,10 +1987,9 @@
                                     <Grid x:Name="TabWidgetsPanel" Visibility="Collapsed">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
                                         </Grid.RowDefinitions>
-                                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                                        <Grid Grid.Row="0" Margin="0,0,0,8">
                                             <TextBlock x:Name="WidgetsHeaderTitle"
                                                        Text="Widget Cards"
                                                        FontFamily="{StaticResource UiTextFont}"
@@ -1999,20 +1998,12 @@
                                                        Foreground="{StaticResource TextPrimaryBrush}"
                                                        VerticalAlignment="Center" />
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <Button x:Name="BtnToolColorPicker" Style="{StaticResource PillTabButtonStyle}" Foreground="{StaticResource AccentCyanBrush}" Padding="8,3" FontSize="10" Margin="0,0,6,0" Content="Color Picker" Click="OnToolColorPickerClick" />
                                                 <Button x:Name="BtnOpenWidgetsFolder" Style="{StaticResource PillTabButtonStyle}" Padding="8,3" FontSize="10" Content="Plugins Folder" Click="OnOpenWidgetsFolderClick" />
                                                 <Button x:Name="BtnReloadWidgets" Style="{StaticResource PillTabButtonStyle}" Padding="8,3" FontSize="10" Margin="6,0,0,0" Content="Reload" Click="OnReloadWidgetsClick" />
                                             </StackPanel>
                                         </Grid>
-                                        <Border Grid.Row="1" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="12" Padding="6,5" Margin="0,0,0,8">
-                                            <UniformGrid Columns="5">
-                                                <Button x:Name="BtnToolColorPicker" Style="{StaticResource DarkActionButtonStyle}" Foreground="{StaticResource AccentCyanBrush}" Padding="5,3" FontSize="9.8" Margin="0,0,2,0" Content="Color Picker" Click="OnToolColorPickerClick" />
-                                                <Button x:Name="BtnToolSnapLeft" Style="{StaticResource DarkActionButtonStyle}" Padding="5,3" FontSize="9.8" Margin="2,0" Content="Left 50%" Click="OnToolSnapLeftClick" />
-                                                <Button x:Name="BtnToolSnapRight" Style="{StaticResource DarkActionButtonStyle}" Padding="5,3" FontSize="9.8" Margin="2,0" Content="Right 50%" Click="OnToolSnapRightClick" />
-                                                <Button x:Name="BtnToolSnapCenter" Style="{StaticResource DarkActionButtonStyle}" Padding="5,3" FontSize="9.8" Margin="2,0" Content="Center 70%" Click="OnToolSnapCenterClick" />
-                                                <Button x:Name="BtnToolNextMonitor" Style="{StaticResource DarkActionButtonStyle}" Padding="5,3" FontSize="9.8" Margin="4,0,0,0" Content="Next Monitor" Click="OnToolNextMonitorClick" />
-                                            </UniformGrid>
-                                        </Border>
-                                        <ScrollViewer Grid.Row="2" Style="{StaticResource ObsidianScrollViewerStyle}">
+                                        <ScrollViewer Grid.Row="1" Style="{StaticResource ObsidianScrollViewerStyle}">
                                             <Grid>
                                                 <WrapPanel x:Name="WidgetsWrapPanel" Orientation="Horizontal" />
                                                 <TextBlock x:Name="WidgetsEmptyText"

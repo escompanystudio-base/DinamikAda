@@ -5895,26 +5895,6 @@ public partial class IslandWindow : Window
         await ExecuteColorPickerAsync();
     }
 
-    private void OnToolSnapLeftClick(object sender, RoutedEventArgs e)
-    {
-        if (!_isRenderAuditMode) _orch.SnapForegroundWindow(WindowSnapPreset.LeftHalf);
-    }
-
-    private void OnToolSnapRightClick(object sender, RoutedEventArgs e)
-    {
-        if (!_isRenderAuditMode) _orch.SnapForegroundWindow(WindowSnapPreset.RightHalf);
-    }
-
-    private void OnToolSnapCenterClick(object sender, RoutedEventArgs e)
-    {
-        if (!_isRenderAuditMode) _orch.SnapForegroundWindow(WindowSnapPreset.CenterFocus70);
-    }
-
-    private void OnToolNextMonitorClick(object sender, RoutedEventArgs e)
-    {
-        if (!_isRenderAuditMode) _orch.SnapForegroundWindow(WindowSnapPreset.MoveToNextMonitor);
-    }
-
     // -------------------------------------------------------------------------
     // Localization, Theme, Smoke & Render Audit Helpers
     // -------------------------------------------------------------------------
@@ -6070,10 +6050,6 @@ public partial class IslandWindow : Window
         BtnReloadWidgets.Content = Strings.Pick(lang, "Yenile", "Reload");
         WidgetsEmptyText.Text = Strings.Pick(lang, "Etkin araç eklentisi yok.", "No active widget plugins.");
         BtnToolColorPicker.Content = Strings.ColorPickerTitle(lang);
-        BtnToolSnapLeft.Content = Strings.SnapLeftBtn(lang);
-        BtnToolSnapRight.Content = Strings.SnapRightBtn(lang);
-        BtnToolSnapCenter.Content = Strings.SnapCenterBtn(lang);
-        BtnToolNextMonitor.Content = Strings.MoveNextMonitorBtn(lang);
 
         SysGpuDetailLabel.Text = Strings.Pick(lang, "GPU VRAM & Sıcaklık", "GPU VRAM & Temp");
         SysDiskDetailLabel.Text = Strings.Pick(lang, $"{Strings.DiskUsageLabel(lang)} & I/O", $"{Strings.DiskUsageLabel(lang)} & I/O");
