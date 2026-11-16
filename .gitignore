@@ -1,0 +1,17 @@
+bin/
+obj/
+publish/
+artifacts/
+artifacts_verify/
+*.user
+*.suo
+.vs/
+*.pfx
+*.cer
+*.msix
+*.appx
+TestResults/
+.codex/
+render_audit/
+GEMINI.md
+HATA_GIDERME_RAPORU.md

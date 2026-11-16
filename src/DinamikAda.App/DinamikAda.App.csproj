@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.26100.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <StartupObject>DinamikAda.App.Program</StartupObject>
+    <AssemblyName>DinamikAda.App</AssemblyName>
+    <RootNamespace>DinamikAda.App</RootNamespace>
+    <TieredCompilation>false</TieredCompilation>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Update="app.manifest" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\scripts\*.ps1" Link="scripts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\packaging\Package.appxmanifest" Link="packaging\Package.appxmanifest" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\packaging\Assets\*.png" Link="packaging\Assets\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DinamikAda.Core\DinamikAda.Core.csproj" />
+    <ProjectReference Include="..\DinamikAda.Platform.Win32\DinamikAda.Platform.Win32.csproj" />
+    <ProjectReference Include="..\DinamikAda.Modules.Media\DinamikAda.Modules.Media.csproj" />
+    <ProjectReference Include="..\DinamikAda.Modules.SystemControl\DinamikAda.Modules.SystemControl.csproj" />
+    <ProjectReference Include="..\DinamikAda.Modules.Notifications\DinamikAda.Modules.Notifications.csproj" />
+    <ProjectReference Include="..\DinamikAda.Modules.Productivity\DinamikAda.Modules.Productivity.csproj" />
+    <ProjectReference Include="..\DinamikAda.Modules.CommandHub\DinamikAda.Modules.CommandHub.csproj" />
+    <ProjectReference Include="..\DinamikAda.Modules.Telemetry\DinamikAda.Modules.Telemetry.csproj" />
+    <ProjectReference Include="..\DinamikAda.Modules.Widgets\DinamikAda.Modules.Widgets.csproj" />
+  </ItemGroup>
+</Project>

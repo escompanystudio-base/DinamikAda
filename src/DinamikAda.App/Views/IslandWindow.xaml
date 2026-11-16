@@ -1,0 +1,2306 @@
+<Window x:Class="DinamikAda.App.Views.IslandWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        ShowActivated="False"
+        SizeToContent="Manual"
+        AllowDrop="True"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        RenderOptions.BitmapScalingMode="HighQuality"
+        DragEnter="OnWindowDragEnter"
+        DragOver="OnWindowDragOver"
+        DragLeave="OnWindowDragLeave"
+        Drop="OnWindowDrop"
+        PreviewKeyDown="OnWindowPreviewKeyDown">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Themes/ObsidianGlassTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid x:Name="RootSurface" Background="{x:Null}" Margin="0">
+        <!-- Fixed host sized strictly at expanded tier interactively (720x424) so HWND never resizes/jumps on hover. -->
+        <Canvas x:Name="TierHostCanvas"
+                Width="720"
+                Height="424"
+                Margin="0"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                ClipToBounds="False">
+
+            <!-- Narrow top drag-catcher band, visible ONLY while an external OS drag is armed and capsule is collapsed -->
+            <Border x:Name="DragCatcherBand"
+                    Canvas.Left="0"
+                    Canvas.Top="0"
+                    Width="720"
+                    Height="96"
+                    Background="#01000000"
+                    Visibility="Collapsed"
+                    AllowDrop="True" />
+
+            <!-- Primary MacBook Notch / Floating Capsule Assembly -->
+            <Grid x:Name="MainNotchAssembly"
+                  Canvas.Left="0"
+                  Canvas.Top="0"
+                  Width="720"
+                  Height="424"
+                  RenderTransformOrigin="0,0"
+                  MouseEnter="OnMainAssemblyMouseEnter"
+                  MouseLeave="OnMainAssemblyMouseLeave"
+                  MouseLeftButtonDown="OnMainAssemblyMouseLeftButtonDown"
+                  MouseMove="OnMainAssemblyMouseMove"
+                  MouseLeftButtonUp="OnMainAssemblyMouseLeftButtonUp"
+                  MouseRightButtonUp="OnMainAssemblyMouseRightButtonUp"
+                  MouseWheel="OnMainAssemblyMouseWheel"
+                  LostMouseCapture="OnExpandedSurfaceLostMouseCapture">
+                <Grid.RenderTransform>
+                    <TranslateTransform x:Name="MainOffsetTransform" X="0" Y="0" />
+                </Grid.RenderTransform>
+
+                <!-- Unscaled hit surface updated ONLY on motion settle to eliminate hover-edge flicker -->
+                <Path x:Name="NotchHitPath"
+                      Fill="#01000000"
+                      IsHitTestVisible="True"
+                      Stretch="None" />
+
+                <!-- Visual shell scaled smoothly on hover/press without altering hit-test bounds -->
+                <Grid x:Name="NotchVisualRoot" IsHitTestVisible="True">
+                    <Grid.RenderTransform>
+                        <ScaleTransform x:Name="MainHoverScaleTransform"
+                                        ScaleX="1"
+                                        ScaleY="1"
+                                        CenterX="360"
+                                        CenterY="0" />
+                    </Grid.RenderTransform>
+
+                    <!-- Pure OLED Pitch-Black Shell -->
+                    <Path x:Name="NotchShellPath"
+                          Fill="{StaticResource NotchOledShellBrush}"
+                          IsHitTestVisible="False"
+                          Stretch="None" />
+
+                    <!-- Content clipped directly to dynamic PathGeometry contour -->
+                    <Grid x:Name="NotchContentClipHost" IsHitTestVisible="True">
+                        <Canvas x:Name="NotchContentCanvas"
+                                Width="720"
+                                Height="424"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top">
+
+                            <!-- Dynamic Multi-Layer Album / State Ambient Glow inside OLED contour -->
+                            <Canvas x:Name="AccentGlowHost"
+                                    Canvas.Left="0"
+                                    Canvas.Top="0"
+                                    Width="720"
+                                    Height="424"
+                                    Opacity="0"
+                                    IsHitTestVisible="False">
+                                <Rectangle x:Name="AccentGlowWash" Width="640" Height="300" IsHitTestVisible="False">
+                                    <Rectangle.RenderTransform>
+                                        <TransformGroup>
+                                            <ScaleTransform x:Name="AccentGlowWashScale" ScaleX="1" ScaleY="1" CenterX="0" CenterY="0" />
+                                            <TranslateTransform x:Name="AccentGlowWashTransform" X="0" Y="0" />
+                                        </TransformGroup>
+                                    </Rectangle.RenderTransform>
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0,0.2" EndPoint="1,0.8">
+                                            <GradientStop x:Name="AuraWashStop0" Color="#2C0A84FF" Offset="0.0" />
+                                            <GradientStop x:Name="AuraWashStop1" Color="#225E5CE6" Offset="0.52" />
+                                            <GradientStop x:Name="AuraWashStop2" Color="#1A64D2FF" Offset="1.0" />
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Rectangle x:Name="AccentGlowPrimary" Width="520" Height="340" IsHitTestVisible="False">
+                                    <Rectangle.RenderTransform>
+                                        <TransformGroup>
+                                            <ScaleTransform x:Name="AccentGlowPrimaryScale" ScaleX="1" ScaleY="1" CenterX="260" CenterY="170" />
+                                            <TranslateTransform x:Name="AccentGlowPrimaryTransform" X="0" Y="0" />
+                                        </TransformGroup>
+                                    </Rectangle.RenderTransform>
+                                    <Rectangle.Fill>
+                                        <RadialGradientBrush Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.5" RadiusY="0.5">
+                                            <GradientStop x:Name="AuraStop0" Color="#580A84FF" Offset="0.0" />
+                                            <GradientStop x:Name="AuraStop1" Color="#4C0A84FF" Offset="0.24" />
+                                            <GradientStop x:Name="AuraStop2" Color="#2E0A84FF" Offset="0.50" />
+                                            <GradientStop x:Name="AuraStop3" Color="#100A84FF" Offset="0.76" />
+                                            <GradientStop Color="#00000000" Offset="1.0" />
+                                        </RadialGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Rectangle x:Name="AccentGlowSecondary" Width="480" Height="320" IsHitTestVisible="False">
+                                    <Rectangle.RenderTransform>
+                                        <TransformGroup>
+                                            <ScaleTransform x:Name="AccentGlowSecondaryScale" ScaleX="1" ScaleY="1" CenterX="240" CenterY="160" />
+                                            <TranslateTransform x:Name="AccentGlowSecondaryTransform" X="0" Y="0" />
+                                        </TransformGroup>
+                                    </Rectangle.RenderTransform>
+                                    <Rectangle.Fill>
+                                        <RadialGradientBrush Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.5" RadiusY="0.5">
+                                            <GradientStop x:Name="AuraSecStop0" Color="#4E5E5CE6" Offset="0.0" />
+                                            <GradientStop x:Name="AuraSecStop1" Color="#425E5CE6" Offset="0.24" />
+                                            <GradientStop x:Name="AuraSecStop2" Color="#285E5CE6" Offset="0.50" />
+                                            <GradientStop x:Name="AuraSecStop3" Color="#0E5E5CE6" Offset="0.76" />
+                                            <GradientStop Color="#00000000" Offset="1.0" />
+                                        </RadialGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Rectangle x:Name="AccentGlowHighlight" Width="440" Height="300" IsHitTestVisible="False">
+                                    <Rectangle.RenderTransform>
+                                        <TransformGroup>
+                                            <ScaleTransform x:Name="AccentGlowHighlightScale" ScaleX="1" ScaleY="1" CenterX="220" CenterY="150" />
+                                            <TranslateTransform x:Name="AccentGlowHighlightTransform" X="0" Y="0" />
+                                        </TransformGroup>
+                                    </Rectangle.RenderTransform>
+                                    <Rectangle.Fill>
+                                        <RadialGradientBrush Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.5" RadiusY="0.5">
+                                            <GradientStop x:Name="AuraHiStop0" Color="#4264D2FF" Offset="0.0" />
+                                            <GradientStop x:Name="AuraHiStop1" Color="#3864D2FF" Offset="0.24" />
+                                            <GradientStop x:Name="AuraHiStop2" Color="#2264D2FF" Offset="0.50" />
+                                            <GradientStop x:Name="AuraHiStop3" Color="#0C64D2FF" Offset="0.76" />
+                                            <GradientStop Color="#00000000" Offset="1.0" />
+                                        </RadialGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                            </Canvas>
+
+                            <!-- Fullscreen Edge-Peek Hairline Surface (68x4) -->
+                            <Border x:Name="HairlineSurface"
+                                    Width="68"
+                                    Height="4"
+                                    CornerRadius="2"
+                                    Background="#7012151C"
+                                    BorderBrush="#38FFFFFF"
+                                    BorderThickness="0.6"
+                                    Visibility="Collapsed"
+                                    IsHitTestVisible="False">
+                                <Border.RenderTransform>
+                                    <TranslateTransform x:Name="HairlineSurfaceTransform" X="0" Y="0" />
+                                </Border.RenderTransform>
+                                <Ellipse Width="3"
+                                         Height="3"
+                                         Fill="{StaticResource AccentBlueBrush}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center" />
+                            </Border>
+
+                            <!-- S1 Dormant MacBook Hardware Notch -->
+                            <Grid x:Name="DormantNotchSurface"
+                                  Width="164"
+                                  Height="24"
+                                  Visibility="Collapsed"
+                                  IsHitTestVisible="False">
+                                <Grid.RenderTransform>
+                                    <TranslateTransform x:Name="DormantSurfaceTransform" X="0" Y="0" />
+                                </Grid.RenderTransform>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0"
+                                            Orientation="Horizontal"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center"
+                                            Margin="4,0,0,0">
+                                    <Ellipse x:Name="DormantStatusDot"
+                                             Width="4"
+                                             Height="4"
+                                             Fill="#FF30D158"
+                                             Opacity="0.0"
+                                             VerticalAlignment="Center"
+                                             Margin="0,0,5,0" />
+                                    <TextBlock x:Name="DormantAppTag"
+                                               Text=""
+                                               FontFamily="{StaticResource UiTextFont}"
+                                               FontSize="9.5"
+                                               FontWeight="Medium"
+                                               Foreground="#70FFFFFF"
+                                               VerticalAlignment="Center"
+                                               Visibility="Collapsed" />
+                                </StackPanel>
+
+                                <!-- Centered MacBook Sapphire Camera Lens Detail -->
+                                <Grid x:Name="DormantCameraLensHost"
+                                      Grid.Column="1"
+                                      Width="12"
+                                      Height="12"
+                                      VerticalAlignment="Center"
+                                      HorizontalAlignment="Center">
+                                    <Ellipse Width="11"
+                                             Height="11"
+                                             Fill="#FF080A0F"
+                                             Stroke="#FF181D29"
+                                             StrokeThickness="1" />
+                                    <Ellipse Width="6.2"
+                                             Height="6.2"
+                                             Fill="#FF050811"
+                                             Stroke="#FF1E3A8A"
+                                             StrokeThickness="0.7" />
+                                    <Ellipse Width="2.2"
+                                             Height="2.2"
+                                             Margin="2.2,2.2,0,0"
+                                             HorizontalAlignment="Left"
+                                             VerticalAlignment="Top"
+                                             Fill="#8860A5FA" />
+                                </Grid>
+
+                                <!-- Optional Compact Live Telemetry -->
+                                <TextBlock x:Name="DormantTelemetryText"
+                                           Grid.Column="2"
+                                           Text=""
+                                           FontFamily="{StaticResource UiTextFont}"
+                                           FontSize="9.5"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,4,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           Visibility="Collapsed" />
+                            </Grid>
+
+                            <!-- S2 Compact / Split Primary Pill -->
+                            <Grid x:Name="CompactSurface"
+                                  Width="256"
+                                  Height="30"
+                                  Visibility="Collapsed">
+                                <Grid.RenderTransform>
+                                    <TranslateTransform x:Name="CompactSurfaceTransform" X="0" Y="0" />
+                                </Grid.RenderTransform>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Concentric 22x22 R=5 outer / 20x20 R=4 inner album or icon box -->
+                                <Border x:Name="CompactThumbBorder"
+                                        Grid.Column="0"
+                                        Width="22"
+                                        Height="22"
+                                        CornerRadius="5"
+                                        Background="#1AFFFFFF"
+                                        BorderBrush="#24FFFFFF"
+                                        BorderThickness="0.6"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,8,0">
+                                    <Grid>
+                                        <Image x:Name="CompactAlbumImage"
+                                               Width="20"
+                                               Height="20"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Stretch="UniformToFill">
+                                            <Image.Clip>
+                                                <RectangleGeometry Rect="0,0,20,20" RadiusX="4" RadiusY="4" />
+                                            </Image.Clip>
+                                        </Image>
+                                        <TextBlock x:Name="CompactLeadingGlyph"
+                                                   Text="&#xE8D6;"
+                                                   FontFamily="{StaticResource IconFont}"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                        <Ellipse x:Name="CompactSensorDot"
+                                                 Width="5"
+                                                 Height="5"
+                                                 Fill="{StaticResource AccentAmberBrush}"
+                                                 HorizontalAlignment="Right"
+                                                 VerticalAlignment="Top"
+                                                 Margin="0,1,1,0"
+                                                 Visibility="Collapsed" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- Compact Title + Artist / Subtitle -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,6,0">
+                                    <TextBlock x:Name="CompactPrimaryText"
+                                               Style="{StaticResource NotchTitleTextStyle}"
+                                               FontSize="11.5"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock x:Name="CompactSecondaryText"
+                                               Style="{StaticResource NotchSubtitleTextStyle}"
+                                               FontSize="9.8"
+                                               TextTrimming="CharacterEllipsis"
+                                               Margin="0,-1,0,0" />
+                                </StackPanel>
+
+                                <!-- Right Live Visualizer / Badge -->
+                                <Grid Grid.Column="2" VerticalAlignment="Center">
+                                    <Canvas x:Name="CompactSpectrumCanvas"
+                                            Width="32"
+                                            Height="16"
+                                            VerticalAlignment="Center"
+                                            Visibility="Visible">
+                                        <Border x:Name="SpecBar0" Canvas.Left="1" Canvas.Top="1" Width="2.3" Height="14" CornerRadius="1.15" Background="{StaticResource AccentBlueBrush}">
+                                            <Border.RenderTransform><ScaleTransform x:Name="SpecScale0" ScaleX="1" ScaleY="0.2" CenterX="1.15" CenterY="14" /></Border.RenderTransform>
+                                        </Border>
+                                        <Border x:Name="SpecBar1" Canvas.Left="5" Canvas.Top="1" Width="2.3" Height="14" CornerRadius="1.15" Background="{StaticResource AccentBlueBrush}">
+                                            <Border.RenderTransform><ScaleTransform x:Name="SpecScale1" ScaleX="1" ScaleY="0.2" CenterX="1.15" CenterY="14" /></Border.RenderTransform>
+                                        </Border>
+                                        <Border x:Name="SpecBar2" Canvas.Left="9" Canvas.Top="1" Width="2.3" Height="14" CornerRadius="1.15" Background="{StaticResource AccentCyanBrush}">
+                                            <Border.RenderTransform><ScaleTransform x:Name="SpecScale2" ScaleX="1" ScaleY="0.2" CenterX="1.15" CenterY="14" /></Border.RenderTransform>
+                                        </Border>
+                                        <Border x:Name="SpecBar3" Canvas.Left="13" Canvas.Top="1" Width="2.3" Height="14" CornerRadius="1.15" Background="{StaticResource AccentCyanBrush}">
+                                            <Border.RenderTransform><ScaleTransform x:Name="SpecScale3" ScaleX="1" ScaleY="0.2" CenterX="1.15" CenterY="14" /></Border.RenderTransform>
+                                        </Border>
+                                        <Border x:Name="SpecBar4" Canvas.Left="17" Canvas.Top="1" Width="2.3" Height="14" CornerRadius="1.15" Background="{StaticResource AccentCyanBrush}">
+                                            <Border.RenderTransform><ScaleTransform x:Name="SpecScale4" ScaleX="1" ScaleY="0.2" CenterX="1.15" CenterY="14" /></Border.RenderTransform>
+                                        </Border>
+                                        <Border x:Name="SpecBar5" Canvas.Left="21" Canvas.Top="1" Width="2.3" Height="14" CornerRadius="1.15" Background="{StaticResource AccentBlueBrush}">
+                                            <Border.RenderTransform><ScaleTransform x:Name="SpecScale5" ScaleX="1" ScaleY="0.2" CenterX="1.15" CenterY="14" /></Border.RenderTransform>
+                                        </Border>
+                                        <Border x:Name="SpecBar6" Canvas.Left="25" Canvas.Top="1" Width="2.3" Height="14" CornerRadius="1.15" Background="{StaticResource AccentBlueBrush}">
+                                            <Border.RenderTransform><ScaleTransform x:Name="SpecScale6" ScaleX="1" ScaleY="0.2" CenterX="1.15" CenterY="14" /></Border.RenderTransform>
+                                        </Border>
+                                        <Border x:Name="SpecBar7" Canvas.Left="29" Canvas.Top="1" Width="2.3" Height="14" CornerRadius="1.15" Background="{StaticResource AccentBlueBrush}">
+                                            <Border.RenderTransform><ScaleTransform x:Name="SpecScale7" ScaleX="1" ScaleY="0.2" CenterX="1.15" CenterY="14" /></Border.RenderTransform>
+                                        </Border>
+                                    </Canvas>
+
+                                    <TextBlock x:Name="CompactBadgeText"
+                                               FontFamily="{StaticResource UiTextFont}"
+                                               FontSize="10.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource AccentCyanBrush}"
+                                               VerticalAlignment="Center"
+                                               Visibility="Collapsed" />
+                                </Grid>
+                            </Grid>
+
+                            <!-- S3 Transient HUD Banner -->
+                            <Grid x:Name="TransientHudSurface"
+                                  Width="284"
+                                  Height="34"
+                                  Visibility="Collapsed">
+                                <Grid.RenderTransform>
+                                    <TranslateTransform x:Name="TransientHudTransform" X="0" Y="0" />
+                                </Grid.RenderTransform>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border x:Name="HudIconWell"
+                                        Grid.Column="0"
+                                        Width="24"
+                                        Height="24"
+                                        CornerRadius="7"
+                                        Background="#20FFFFFF"
+                                        BorderBrush="#2AFFFFFF"
+                                        BorderThickness="0.6"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,9,0">
+                                    <TextBlock x:Name="HudIconGlyph"
+                                               Text="&#xE767;"
+                                               FontFamily="{StaticResource IconFont}"
+                                               FontSize="11.5"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="HudTitleText"
+                                               Style="{StaticResource NotchTitleTextStyle}"
+                                               FontSize="11.5"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock x:Name="HudSubtitleText"
+                                               Style="{StaticResource NotchSubtitleTextStyle}"
+                                               FontSize="9.8"
+                                               TextTrimming="CharacterEllipsis"
+                                               Visibility="Collapsed" />
+                                    <ProgressBar x:Name="HudProgressBar"
+                                                 Style="{StaticResource ObsidianProgressBarStyle}"
+                                                 Height="4"
+                                                 Minimum="0"
+                                                 Maximum="1"
+                                                 Value="0.5"
+                                                 Margin="0,4,0,0"
+                                                 Visibility="Collapsed" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                                    <TextBlock x:Name="HudPercentText"
+                                               FontFamily="{StaticResource UiTextFont}"
+                                               FontSize="11.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               VerticalAlignment="Center" />
+                                    <Button x:Name="HudActionButton"
+                                            Style="{StaticResource PillTabButtonStyle}"
+                                            Padding="9,3"
+                                            FontSize="10.5"
+                                            Margin="8,0,0,0"
+                                            Visibility="Collapsed"
+                                            Click="OnHudActionClick" />
+                                    <Button x:Name="HudSecondaryActionButton"
+                                            Style="{StaticResource PillTabButtonStyle}"
+                                            Padding="9,3"
+                                            FontSize="10.5"
+                                            Margin="5,0,0,0"
+                                            Visibility="Collapsed"
+                                            Click="OnHudSecondaryActionClick" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- S6 Drag & AirDrop Shelf Drop Zone -->
+                            <Grid x:Name="DragShelfSurface"
+                                  Width="384"
+                                  Height="138"
+                                  Visibility="Collapsed">
+                                <Grid.RenderTransform>
+                                    <TranslateTransform x:Name="DragShelfTransform" X="0" Y="0" />
+                                </Grid.RenderTransform>
+
+                                <Border x:Name="DragDropWell"
+                                        CornerRadius="16"
+                                        Background="#0E64D2FF"
+                                        BorderBrush="#4864D2FF"
+                                        BorderThickness="1"
+                                        Padding="14,12">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <Border Width="34"
+                                                    Height="34"
+                                                    CornerRadius="17"
+                                                    Background="#2464D2FF"
+                                                    BorderBrush="#4064D2FF"
+                                                    BorderThickness="1"
+                                                    HorizontalAlignment="Center"
+                                                    Margin="0,0,0,6">
+                                                <TextBlock Text="&#xE896;"
+                                                           FontFamily="{StaticResource IconFont}"
+                                                           FontSize="15"
+                                                           Foreground="{StaticResource AccentCyanBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                            </Border>
+                                            <TextBlock x:Name="DragHintTitle"
+                                                       Text="Drop files or text onto the island"
+                                                       Style="{StaticResource NotchTitleTextStyle}"
+                                                       FontSize="12.5"
+                                                       HorizontalAlignment="Center" />
+                                            <TextBlock x:Name="DragHintSub"
+                                                       Text="AirDrop Shelf Pocket • Instant stash &amp; share"
+                                                       Style="{StaticResource NotchSubtitleTextStyle}"
+                                                       FontSize="10.2"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,2,0,0" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,0">
+                                            <Button x:Name="DragOpenShelfButton"
+                                                    Style="{StaticResource DarkActionButtonStyle}"
+                                                    Padding="12,5"
+                                                    FontSize="11"
+                                                    Content="Open Shelf"
+                                                    Click="OnDragOpenShelfClick" />
+                                            <Button x:Name="DragQrShareButton"
+                                                    Style="{StaticResource DarkActionButtonStyle}"
+                                                    Padding="12,5"
+                                                    FontSize="11"
+                                                    Margin="8,0,0,0"
+                                                    Content="QR AirDrop"
+                                                    Click="OnShelfQrClick" />
+                                            <Button x:Name="DragCancelButton"
+                                                    Style="{StaticResource DarkActionButtonStyle}"
+                                                    Padding="12,5"
+                                                    FontSize="11"
+                                                    Margin="8,0,0,0"
+                                                    Content="Close"
+                                                    Click="OnDragCancelClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <!-- S5 Spotlight Command Palette -->
+                            <Grid x:Name="CommandSurface"
+                                  Width="536"
+                                  Height="342"
+                                  Visibility="Collapsed">
+                                <Grid.RenderTransform>
+                                    <TranslateTransform x:Name="CommandSurfaceTransform" X="0" Y="0" />
+                                </Grid.RenderTransform>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Spotlight Search Bar -->
+                                <Border Grid.Row="0"
+                                        Height="46"
+                                        CornerRadius="14"
+                                        Background="#14FFFFFF"
+                                        BorderBrush="#26FFFFFF"
+                                        BorderThickness="0.8"
+                                        Padding="14,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0"
+                                                   Text="&#xE721;"
+                                                   FontFamily="{StaticResource IconFont}"
+                                                   FontSize="14"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,10,0" />
+
+                                        <Grid Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Name="CommandPlaceholderText"
+                                                       Text="Search apps, windows, commands (= math, > shell, @ win)..."
+                                                       FontFamily="{StaticResource UiTextFont}"
+                                                       FontSize="13.5"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       VerticalAlignment="Center"
+                                                       IsHitTestVisible="False" />
+                                            <TextBox x:Name="CommandSearchBox"
+                                                     Background="Transparent"
+                                                     BorderThickness="0"
+                                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                                     CaretBrush="{StaticResource AccentBlueBrush}"
+                                                     SelectionBrush="{StaticResource AccentBlueBrush}"
+                                                     FontFamily="{StaticResource UiTextFont}"
+                                                     FontSize="13.5"
+                                                     VerticalAlignment="Center"
+                                                     TextChanged="OnCommandQueryChanged"
+                                                     PreviewKeyDown="OnCommandSearchPreviewKeyDown" />
+                                        </Grid>
+
+                                        <Border Grid.Column="2"
+                                                CornerRadius="7"
+                                                Background="#18FFFFFF"
+                                                BorderBrush="#24FFFFFF"
+                                                BorderThickness="0.6"
+                                                Padding="8,3"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="ESC"
+                                                       FontFamily="{StaticResource UiTextFont}"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Spotlight Result Rows (Single-Click Execution + Keyboard Navigation) -->
+                                <ListBox x:Name="CommandResultsList"
+                                         Grid.Row="1"
+                                         Margin="0,10,0,8"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                         PreviewMouseLeftButtonUp="OnCommandResultPreviewMouseLeftButtonUp">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Padding" Value="0" />
+                                            <Setter Property="Margin" Value="0,0,0,4" />
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <Border x:Name="RowBd"
+                                                                Height="44"
+                                                                CornerRadius="11"
+                                                                Background="Transparent"
+                                                                BorderBrush="Transparent"
+                                                                BorderThickness="0.8"
+                                                                Padding="10,6"
+                                                                Cursor="Hand">
+                                                            <ContentPresenter VerticalAlignment="Center" />
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="RowBd" Property="Background" Value="#14FFFFFF" />
+                                                                <Setter TargetName="RowBd" Property="BorderBrush" Value="#24FFFFFF" />
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter TargetName="RowBd" Property="Background" Value="#220A84FF" />
+                                                                <Setter TargetName="RowBd" Property="BorderBrush" Value="#550A84FF" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0"
+                                                        Width="28"
+                                                        Height="28"
+                                                        CornerRadius="8"
+                                                        Background="#16FFFFFF"
+                                                        Margin="0,0,10,0">
+                                                    <TextBlock Text="{Binding IconGlyph}"
+                                                               FontFamily="{StaticResource IconFont}"
+                                                               FontSize="13"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Title}"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="12.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding Subtitle}"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="10.2"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                                                    <Border CornerRadius="6"
+                                                            Background="#14FFFFFF"
+                                                            Padding="7,2">
+                                                        <TextBlock Text="{Binding Category}"
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="9.8"
+                                                                   FontWeight="Medium"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                                    </Border>
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+
+                                <!-- Footer Keycap Hints -->
+                                <TextBlock x:Name="CommandStatusText"
+                                           Visibility="Collapsed"
+                                           Grid.Row="2"
+                                           Background="#FF101014"
+                                           Foreground="#FFFF766E"
+                                           FontSize="10.5"
+                                           MaxHeight="42"
+                                           TextWrapping="Wrap"
+                                           IsHitTestVisible="False" />
+                                <Border Grid.Row="3"
+                                        CornerRadius="10"
+                                        Background="#0AFFFFFF"
+                                        BorderBrush="#14FFFFFF"
+                                        BorderThickness="0.6"
+                                        Padding="10,5">
+                                    <Grid>
+                                        <TextBlock x:Name="CmdSyntaxHintsText"
+                                                   Text="@ Windows   # Clipboard   = Calculator   &gt; Shell"
+                                                   FontFamily="{StaticResource UiTextFont}"
+                                                   FontSize="10.2"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock x:Name="CmdKeyHintsText"
+                                                   Text="↑↓ Navigate   ↵ Run   Esc Close"
+                                                   FontFamily="{StaticResource UiTextFont}"
+                                                   FontSize="10.2"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   HorizontalAlignment="Right"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <!-- S4 Expanded MacBook Nook Bento Hub -->
+                            <Grid x:Name="ExpandedSurface"
+                                  Width="588"
+                                  Height="256"
+                                  Visibility="Collapsed">
+                                <Grid.RenderTransform>
+                                    <TransformGroup>
+                                        <ScaleTransform x:Name="ExpandedSurfaceScaleTransform" ScaleX="1" ScaleY="1" CenterX="294" CenterY="0" />
+                                        <TranslateTransform x:Name="ExpandedSurfaceTransform" X="0" Y="0" />
+                                    </TransformGroup>
+                                </Grid.RenderTransform>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="32" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Top Tab Strip & Utility Chrome -->
+                                <Grid Grid.Row="0" Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Grid x:Name="TabStripHost" Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                        <!-- Sliding active pill inside isolated Canvas so indicator motion triggers ZERO layout -->
+                                        <Canvas x:Name="TabIndicatorCanvas" Height="26" VerticalAlignment="Center" IsHitTestVisible="False">
+                                            <Border x:Name="TabIndicatorPill"
+                                                    Canvas.Left="0"
+                                                    Canvas.Top="0"
+                                                    Width="56"
+                                                    Height="26"
+                                                    CornerRadius="13"
+                                                    Background="#24FFFFFF"
+                                                    BorderBrush="#36FFFFFF"
+                                                    BorderThickness="0.8">
+                                                <Border.RenderTransform>
+                                                    <TranslateTransform x:Name="TabIndicatorTransform" X="0" Y="0" />
+                                                </Border.RenderTransform>
+                                            </Border>
+                                        </Canvas>
+
+                                        <StackPanel x:Name="TabButtonsPanel" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button x:Name="TabBtnNow" Style="{StaticResource PillTabButtonStyle}" Content="Feed" Tag="Now" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            <Button x:Name="TabBtnAudio" Style="{StaticResource PillTabButtonStyle}" Content="Audio" Tag="Audio" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            <Button x:Name="TabBtnControl" Style="{StaticResource PillTabButtonStyle}" Content="Control" Tag="Control" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            <Button x:Name="TabBtnShelf" Style="{StaticResource PillTabButtonStyle}" Content="Shelf" Tag="Shelf" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            <Button x:Name="TabBtnSystem" Style="{StaticResource PillTabButtonStyle}" Content="System" Tag="System" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            <Button x:Name="TabBtnWidgets" Style="{StaticResource PillTabButtonStyle}" Content="Widgets" Tag="Widgets" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Right Utility Buttons -->
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button x:Name="QuietIslandBtn"
+                                                Style="{StaticResource IconCircleButtonStyle}"
+                                                Content="&#xE708;"
+                                                FontFamily="{StaticResource IconFont}"
+                                                FontSize="11.5"
+                                                Margin="0,0,4,0"
+                                                Click="OnQuietIslandClick" />
+                                        <Button x:Name="OpenCommandBtn"
+                                                Style="{StaticResource IconCircleButtonStyle}"
+                                                Content="&#xE721;"
+                                                FontFamily="{StaticResource IconFont}"
+                                                FontSize="11.5"
+                                                Margin="0,0,4,0"
+                                                Click="OnOpenCommandClick" />
+                                        <Button x:Name="PinToggleBtn"
+                                                Style="{StaticResource IconCircleButtonStyle}"
+                                                Content="&#xE718;"
+                                                FontFamily="{StaticResource IconFont}"
+                                                FontSize="11.5"
+                                                Margin="0,0,4,0"
+                                                Click="OnPinToggleClick" />
+                                        <Button x:Name="SettingsHeaderBtn"
+                                                Style="{StaticResource IconCircleButtonStyle}"
+                                                Content="&#xE713;"
+                                                FontFamily="{StaticResource IconFont}"
+                                                FontSize="11.5"
+                                                Margin="0,0,4,0"
+                                                Click="OnOpenSettingsClick" />
+                                        <Button x:Name="CollapseHeaderBtn"
+                                                Style="{StaticResource IconCircleButtonStyle}"
+                                                Content="&#xE70E;"
+                                                FontFamily="{StaticResource IconFont}"
+                                                FontSize="11.5"
+                                                Click="OnCollapseHeaderClick" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Tab Content Area with Pure RenderTransform Slide/Scale -->
+                                <Grid x:Name="TabContentHost" Grid.Row="1">
+                                    <Grid.RenderTransform>
+                                        <TransformGroup>
+                                            <ScaleTransform x:Name="TabContentScaleTransform" ScaleX="1" ScaleY="1" CenterX="294" CenterY="100" />
+                                            <TranslateTransform x:Name="TabContentSlideTransform" X="0" Y="0" />
+                                        </TransformGroup>
+                                    </Grid.RenderTransform>
+
+                                    <!-- 1. NOW TAB (2 Horizontal Bento Cards) -->
+                                    <Grid x:Name="TabNowPanel" Visibility="Visible">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.38*" />
+                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="1*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Hero Media Player Bento Card -->
+                                        <Border Grid.Column="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="*" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+
+                                                <Grid Grid.Row="0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- Concentric 76x76 R=14 outer / 74x74 R=13 inner album art -->
+                                                    <Border x:Name="ExpandedArtBorder"
+                                                            Grid.Column="0"
+                                                            Width="74"
+                                                            Height="74"
+                                                            CornerRadius="14"
+                                                            Background="#18FFFFFF"
+                                                            BorderBrush="#24FFFFFF"
+                                                            BorderThickness="0.8"
+                                                            Margin="0,0,12,0">
+                                                        <Grid>
+                                                            <Image x:Name="ExpandedAlbumArt"
+                                                                   Width="72"
+                                                                   Height="72"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   Stretch="UniformToFill">
+                                                                <Image.Clip>
+                                                                    <RectangleGeometry Rect="0,0,72,72" RadiusX="13" RadiusY="13" />
+                                                                </Image.Clip>
+                                                            </Image>
+                                                            <TextBlock x:Name="ExpandedArtFallback"
+                                                                       Text="&#xE8D6;"
+                                                                       FontFamily="{StaticResource IconFont}"
+                                                                       FontSize="24"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </Border>
+
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <Grid Margin="0,0,0,4">
+                                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                                <Border CornerRadius="6"
+                                                                        Background="#16FFFFFF"
+                                                                        Padding="6,2">
+                                                                    <TextBlock x:Name="NowMediaAppText"
+                                                                               Text="Media"
+                                                                               FontFamily="{StaticResource UiTextFont}"
+                                                                               FontSize="9.8"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="{StaticResource AccentCyanBrush}" />
+                                                                </Border>
+                                                                <Border x:Name="NowMediaQualityBadge"
+                                                                        CornerRadius="6"
+                                                                        Background="#180A84FF"
+                                                                        BorderBrush="#360A84FF"
+                                                                        BorderThickness="0.6"
+                                                                        Padding="6,2"
+                                                                        Margin="5,0,0,0"
+                                                                        Cursor="Hand"
+                                                                        MouseLeftButtonUp="OnMediaQualityBadgeClick"
+                                                                        Visibility="Collapsed">
+                                                                    <TextBlock x:Name="NowMediaQualityText"
+                                                                               Text="48 kHz"
+                                                                               FontFamily="{StaticResource UiTextFont}"
+                                                                               FontSize="9.2"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="{StaticResource AccentBlueBrush}" />
+                                                                </Border>
+                                                            </StackPanel>
+
+                                                            <StackPanel x:Name="SessionSwitcherPanel"
+                                                                        Orientation="Horizontal"
+                                                                        HorizontalAlignment="Right"
+                                                                        Visibility="Collapsed">
+                                                                <Button x:Name="BtnPrevSession"
+                                                                        Style="{StaticResource IconCircleButtonStyle}"
+                                                                        Width="20" Height="20" FontSize="9"
+                                                                        Content="&#xE76B;" FontFamily="{StaticResource IconFont}"
+                                                                        Click="OnPrevMediaSessionClick" />
+                                                                <TextBlock x:Name="NowSessionIndexText"
+                                                                           Text="1/2"
+                                                                           FontFamily="{StaticResource UiTextFont}"
+                                                                           FontSize="9.5"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                                           VerticalAlignment="Center"
+                                                                           Margin="4,0" />
+                                                                <Button x:Name="BtnNextSession"
+                                                                        Style="{StaticResource IconCircleButtonStyle}"
+                                                                        Width="20" Height="20" FontSize="9"
+                                                                        Content="&#xE76C;" FontFamily="{StaticResource IconFont}"
+                                                                        Click="OnNextMediaSessionClick" />
+                                                            </StackPanel>
+                                                        </Grid>
+
+                                                        <TextBlock x:Name="NowMediaTitle"
+                                                                   Text="No active media"
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="13.5"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock x:Name="NowMediaArtist"
+                                                                   Text=""
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="11.2"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Margin="0,1,0,0" />
+                                                        <TextBlock x:Name="NowMediaLyricLine"
+                                                                   Text=""
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="10.2"
+                                                                   FontWeight="Medium"
+                                                                   Foreground="{StaticResource AccentCyanBrush}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Margin="0,2,0,0"
+                                                                   Visibility="Collapsed" />
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <!-- Scrubber Timeline -->
+                                                <Grid Grid.Row="2" Margin="0,8,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock x:Name="NowElapsedText"
+                                                               Grid.Column="0"
+                                                               Text="0:00"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,0,8,0" />
+                                                    <Slider x:Name="MediaSeekSlider"
+                                                            Grid.Column="1"
+                                                            Style="{StaticResource ObsidianSliderStyle}"
+                                                            Minimum="0"
+                                                            Maximum="100"
+                                                            Value="0"
+                                                            IsMoveToPointEnabled="True"
+                                                            Thumb.DragStarted="OnMediaSeekDragStarted"
+                                                            Thumb.DragCompleted="OnMediaSeekDragCompleted"
+                                                            PreviewMouseLeftButtonUp="OnMediaSeekPreviewMouseLeftButtonUp"
+                                                            PreviewKeyUp="OnMediaSeekPreviewKeyUp" />
+                                                    <TextBlock x:Name="NowDurationText"
+                                                               Grid.Column="2"
+                                                               Text="0:00"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               VerticalAlignment="Center"
+                                                               Margin="8,0,0,0" />
+                                                </Grid>
+
+                                                <!-- Hero Playback Controls -->
+                                                <StackPanel Grid.Row="3"
+                                                            Orientation="Horizontal"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center">
+                                                    <Button x:Name="BtnPrevTrack"
+                                                            Style="{StaticResource IconCircleButtonStyle}"
+                                                            Width="30"
+                                                            Height="30"
+                                                            FontFamily="{StaticResource IconFont}"
+                                                            FontSize="12"
+                                                            Content="&#xE892;"
+                                                            Click="OnPrevTrackClick" />
+                                                    <Button x:Name="BtnPlayPause"
+                                                            Style="{StaticResource MediaHeroPlayButtonStyle}"
+                                                            Width="38"
+                                                            Height="38"
+                                                            Margin="14,0"
+                                                            FontFamily="{StaticResource IconFont}"
+                                                            FontSize="14"
+                                                            Content="&#xE768;"
+                                                            Click="OnPlayPauseClick" />
+                                                    <Button x:Name="BtnNextTrack"
+                                                            Style="{StaticResource IconCircleButtonStyle}"
+                                                            Width="30"
+                                                            Height="30"
+                                                            FontFamily="{StaticResource IconFont}"
+                                                            FontSize="12"
+                                                            Content="&#xE893;"
+                                                            Click="OnNextTrackClick" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Right Column: Focus Timers & Notifications -->
+                                        <Grid Grid.Column="2">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="1*" />
+                                                <RowDefinition Height="6" />
+                                                <RowDefinition Height="1*" />
+                                            </Grid.RowDefinitions>
+
+                                            <!-- Focus Timers Bento Card -->
+                                            <Border Grid.Row="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="9,6">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="*" />
+                                                    </Grid.RowDefinitions>
+                                                    <Grid Grid.Row="0" Margin="0,0,0,4">
+                                                        <TextBlock x:Name="NowTimersHeaderText"
+                                                                   Text="Focus Timer"
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                                   VerticalAlignment="Center" />
+                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                            <Button Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.8" Content="+5m" Click="OnAdd5MinTimerClick" />
+                                                            <Button Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.8" Margin="3,0,0,0" Content="+25m" Click="OnAddPomodoroTimerClick" />
+                                                            <Button Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.8" Margin="3,0,0,0" Content="&#xE916;" FontFamily="{StaticResource IconFont}" Click="OnAddStopwatchClick" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <Grid Grid.Row="1">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="*" />
+                                                        </Grid.RowDefinitions>
+                                                        <Border x:Name="NowMeetingBanner"
+                                                                Grid.Row="0"
+                                                                CornerRadius="9"
+                                                                Background="#1C30D158"
+                                                                BorderBrush="#4230D158"
+                                                                BorderThickness="0.7"
+                                                                Padding="7,4"
+                                                                Margin="0,0,0,4"
+                                                                Visibility="Collapsed">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,6,0">
+                                                                    <TextBlock x:Name="NowMeetingCountdownText"
+                                                                               Text="Toplantı • 4:12"
+                                                                               FontFamily="{StaticResource UiTextFont}"
+                                                                               FontSize="10.2"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="{StaticResource AccentGreenBrush}"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock x:Name="NowMeetingTitleText"
+                                                                               Text=""
+                                                                               FontFamily="{StaticResource UiTextFont}"
+                                                                               FontSize="9.4"
+                                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                </StackPanel>
+                                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                                    <Button x:Name="BtnMeetingMicToggle"
+                                                                            Style="{StaticResource IconCircleButtonStyle}"
+                                                                            Width="22" Height="22" FontSize="10"
+                                                                            FontFamily="{StaticResource IconFont}"
+                                                                            Content="&#xE720;"
+                                                                            Margin="0,0,4,0"
+                                                                            Click="OnMeetingMicToggleClick" />
+                                                                    <Button x:Name="BtnMeetingJoin"
+                                                                            Style="{StaticResource PillTabButtonStyle}"
+                                                                            Padding="7,2" FontSize="9.5"
+                                                                            Content="Katıl"
+                                                                            Click="OnMeetingJoinClick" />
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </Border>
+                                                        <ScrollViewer Grid.Row="1" Style="{StaticResource ObsidianScrollViewerStyle}">
+                                                            <StackPanel x:Name="NowTimersStack" />
+                                                        </ScrollViewer>
+                                                    </Grid>
+                                                </Grid>
+                                            </Border>
+
+                                            <!-- Notifications Bento Card -->
+                                            <Border Grid.Row="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="9,6">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="*" />
+                                                    </Grid.RowDefinitions>
+                                                    <Grid Grid.Row="0" Margin="0,0,0,4">
+                                                        <TextBlock x:Name="NowNotificationsHeaderText"
+                                                                   Text="Notifications"
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                                   VerticalAlignment="Center" />
+                                                        <Button x:Name="BtnClearNotifications"
+                                                                Style="{StaticResource PillTabButtonStyle}"
+                                                                Padding="7,2"
+                                                                FontSize="9.8"
+                                                                Content="Clear"
+                                                                HorizontalAlignment="Right"
+                                                                Click="OnClearNotificationsClick" />
+                                                    </Grid>
+                                                    <ScrollViewer Grid.Row="1" Style="{StaticResource ObsidianScrollViewerStyle}">
+                                                        <Grid>
+                                                            <StackPanel x:Name="NowNotificationsStack" />
+                                                            <TextBlock x:Name="NowNoNotificationsText"
+                                                                       Text="No unread notifications"
+                                                                       FontFamily="{StaticResource UiTextFont}"
+                                                                       FontSize="10.5"
+                                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                                       VerticalAlignment="Center"
+                                                                       HorizontalAlignment="Center"
+                                                                       TextWrapping="Wrap"
+                                                                       Visibility="Collapsed" />
+                                                        </Grid>
+                                                    </ScrollViewer>
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
+
+                                    <!-- 2. AUDIO TAB (Device Endpoints, Sliders, Mini Spectrum + Per-App Mixer) -->
+                                    <Grid x:Name="TabAudioPanel" Visibility="Collapsed">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1*" />
+                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="1*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Grid.Column="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,6">
+                                                    <TextBlock x:Name="AudioDevicesHeaderText"
+                                                               Text="Audio &amp; Devices"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="11.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}" />
+                                                    <Canvas x:Name="AudioSpectrumCanvas"
+                                                            Width="32"
+                                                            Height="14"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Center">
+                                                        <Border Canvas.Left="1" Canvas.Top="0" Width="2.2" Height="14" CornerRadius="1.1" Background="{StaticResource AccentBlueBrush}">
+                                                            <Border.RenderTransform><ScaleTransform x:Name="AudioSpecScale0" ScaleX="1" ScaleY="0.2" CenterX="1.1" CenterY="14" /></Border.RenderTransform>
+                                                        </Border>
+                                                        <Border Canvas.Left="5" Canvas.Top="0" Width="2.2" Height="14" CornerRadius="1.1" Background="{StaticResource AccentBlueBrush}">
+                                                            <Border.RenderTransform><ScaleTransform x:Name="AudioSpecScale1" ScaleX="1" ScaleY="0.2" CenterX="1.1" CenterY="14" /></Border.RenderTransform>
+                                                        </Border>
+                                                        <Border Canvas.Left="9" Canvas.Top="0" Width="2.2" Height="14" CornerRadius="1.1" Background="{StaticResource AccentCyanBrush}">
+                                                            <Border.RenderTransform><ScaleTransform x:Name="AudioSpecScale2" ScaleX="1" ScaleY="0.2" CenterX="1.1" CenterY="14" /></Border.RenderTransform>
+                                                        </Border>
+                                                        <Border Canvas.Left="13" Canvas.Top="0" Width="2.2" Height="14" CornerRadius="1.1" Background="{StaticResource AccentCyanBrush}">
+                                                            <Border.RenderTransform><ScaleTransform x:Name="AudioSpecScale3" ScaleX="1" ScaleY="0.2" CenterX="1.1" CenterY="14" /></Border.RenderTransform>
+                                                        </Border>
+                                                        <Border Canvas.Left="17" Canvas.Top="0" Width="2.2" Height="14" CornerRadius="1.1" Background="{StaticResource AccentCyanBrush}">
+                                                            <Border.RenderTransform><ScaleTransform x:Name="AudioSpecScale4" ScaleX="1" ScaleY="0.2" CenterX="1.1" CenterY="14" /></Border.RenderTransform>
+                                                        </Border>
+                                                        <Border Canvas.Left="21" Canvas.Top="0" Width="2.2" Height="14" CornerRadius="1.1" Background="{StaticResource AccentBlueBrush}">
+                                                            <Border.RenderTransform><ScaleTransform x:Name="AudioSpecScale5" ScaleX="1" ScaleY="0.2" CenterX="1.1" CenterY="14" /></Border.RenderTransform>
+                                                        </Border>
+                                                        <Border Canvas.Left="25" Canvas.Top="0" Width="2.2" Height="14" CornerRadius="1.1" Background="{StaticResource AccentBlueBrush}">
+                                                            <Border.RenderTransform><ScaleTransform x:Name="AudioSpecScale6" ScaleX="1" ScaleY="0.2" CenterX="1.1" CenterY="14" /></Border.RenderTransform>
+                                                        </Border>
+                                                        <Border Canvas.Left="29" Canvas.Top="0" Width="2.2" Height="14" CornerRadius="1.1" Background="{StaticResource AccentBlueBrush}">
+                                                            <Border.RenderTransform><ScaleTransform x:Name="AudioSpecScale7" ScaleX="1" ScaleY="0.2" CenterX="1.1" CenterY="14" /></Border.RenderTransform>
+                                                        </Border>
+                                                    </Canvas>
+                                                </Grid>
+
+                                                <ComboBox x:Name="OutputDeviceCombo"
+                                                          Height="30"
+                                                          Margin="0,0,0,6"
+                                                          DisplayMemberPath="FriendlyName"
+                                                          SelectedValuePath="Id"
+                                                          SelectionChanged="OnOutputDeviceSelectionChanged"
+                                                          DropDownOpened="OnAudioComboDropDownOpened"
+                                                          DropDownClosed="OnAudioComboDropDownClosed" />
+
+                                                <Grid Margin="0,2,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="34" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button x:Name="MasterMuteBtn"
+                                                            Grid.Column="0"
+                                                            Style="{StaticResource IconCircleButtonStyle}"
+                                                            Width="24"
+                                                            Height="24"
+                                                            FontFamily="{StaticResource IconFont}"
+                                                            FontSize="11"
+                                                            Content="&#xE767;"
+                                                            Margin="0,0,8,0"
+                                                            Click="OnMasterMuteClick" />
+                                                    <Slider x:Name="MasterVolumeSlider"
+                                                            Grid.Column="1"
+                                                            Minimum="0"
+                                                            Maximum="100"
+                                                            ValueChanged="OnMasterVolumeSliderChanged" />
+                                                    <TextBlock x:Name="MasterVolPctText"
+                                                               Grid.Column="2"
+                                                               Text="50%"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="10.5"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               HorizontalAlignment="Right"
+                                                               VerticalAlignment="Center" />
+                                                </Grid>
+
+                                                <ComboBox x:Name="InputDeviceCombo"
+                                                          Height="30"
+                                                          Margin="0,0,0,6"
+                                                          DisplayMemberPath="FriendlyName"
+                                                          SelectedValuePath="Id"
+                                                          SelectionChanged="OnInputDeviceSelectionChanged"
+                                                          DropDownOpened="OnAudioComboDropDownOpened"
+                                                          DropDownClosed="OnAudioComboDropDownClosed" />
+
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="34" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button x:Name="MicMuteBtn"
+                                                            Grid.Column="0"
+                                                            Style="{StaticResource IconCircleButtonStyle}"
+                                                            Width="24"
+                                                            Height="24"
+                                                            FontFamily="{StaticResource IconFont}"
+                                                            FontSize="11"
+                                                            Content="&#xE720;"
+                                                            Margin="0,0,8,0"
+                                                            Click="OnMicMuteClick" />
+                                                    <Slider x:Name="MicVolumeSlider"
+                                                            Grid.Column="1"
+                                                            Minimum="0"
+                                                            Maximum="100"
+                                                            ValueChanged="OnMicVolumeSliderChanged" />
+                                                    <TextBlock x:Name="MicVolPctText"
+                                                               Grid.Column="2"
+                                                               Text="80%"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="10.5"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               HorizontalAlignment="Right"
+                                                               VerticalAlignment="Center" />
+                                                </Grid>
+
+                                                <!-- Instant Voice Note Recorder with Live 8-Bar Waveform -->
+                                                <Border CornerRadius="10"
+                                                        Background="#12FFFFFF"
+                                                        BorderBrush="#1EFFFFFF"
+                                                        BorderThickness="0.6"
+                                                        Padding="8,5"
+                                                        Margin="0,8,0,0">
+                                                    <StackPanel>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button x:Name="BtnVoiceNoteToggle"
+                                                                    Grid.Column="0"
+                                                                    Style="{StaticResource PillTabButtonStyle}"
+                                                                    Padding="8,3"
+                                                                    FontSize="10"
+                                                                    Click="OnVoiceNoteToggleClick">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock x:Name="VoiceNoteGlyphText"
+                                                                               Text="&#xE720;"
+                                                                               FontFamily="{StaticResource IconFont}"
+                                                                               FontSize="10"
+                                                                               VerticalAlignment="Center"
+                                                                               Margin="0,0,5,0" />
+                                                                    <TextBlock x:Name="VoiceNoteLabelText"
+                                                                               Text="Sesli Not"
+                                                                               VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Canvas x:Name="VoiceNoteWaveCanvas"
+                                                                    Grid.Column="1"
+                                                                    Width="52" Height="16"
+                                                                    HorizontalAlignment="Center"
+                                                                    VerticalAlignment="Center">
+                                                                <Border Canvas.Left="2" Width="3" Height="16" CornerRadius="1.5" Background="{StaticResource AccentAmberBrush}"><Border.RenderTransform><ScaleTransform x:Name="VoiceWaveScale0" ScaleX="1" ScaleY="0.18" CenterX="1.5" CenterY="16" /></Border.RenderTransform></Border>
+                                                                <Border Canvas.Left="8" Width="3" Height="16" CornerRadius="1.5" Background="{StaticResource AccentAmberBrush}"><Border.RenderTransform><ScaleTransform x:Name="VoiceWaveScale1" ScaleX="1" ScaleY="0.18" CenterX="1.5" CenterY="16" /></Border.RenderTransform></Border>
+                                                                <Border Canvas.Left="14" Width="3" Height="16" CornerRadius="1.5" Background="{StaticResource AccentCyanBrush}"><Border.RenderTransform><ScaleTransform x:Name="VoiceWaveScale2" ScaleX="1" ScaleY="0.18" CenterX="1.5" CenterY="16" /></Border.RenderTransform></Border>
+                                                                <Border Canvas.Left="20" Width="3" Height="16" CornerRadius="1.5" Background="{StaticResource AccentCyanBrush}"><Border.RenderTransform><ScaleTransform x:Name="VoiceWaveScale3" ScaleX="1" ScaleY="0.18" CenterX="1.5" CenterY="16" /></Border.RenderTransform></Border>
+                                                                <Border Canvas.Left="26" Width="3" Height="16" CornerRadius="1.5" Background="{StaticResource AccentCyanBrush}"><Border.RenderTransform><ScaleTransform x:Name="VoiceWaveScale4" ScaleX="1" ScaleY="0.18" CenterX="1.5" CenterY="16" /></Border.RenderTransform></Border>
+                                                                <Border Canvas.Left="32" Width="3" Height="16" CornerRadius="1.5" Background="{StaticResource AccentBlueBrush}"><Border.RenderTransform><ScaleTransform x:Name="VoiceWaveScale5" ScaleX="1" ScaleY="0.18" CenterX="1.5" CenterY="16" /></Border.RenderTransform></Border>
+                                                                <Border Canvas.Left="38" Width="3" Height="16" CornerRadius="1.5" Background="{StaticResource AccentBlueBrush}"><Border.RenderTransform><ScaleTransform x:Name="VoiceWaveScale6" ScaleX="1" ScaleY="0.18" CenterX="1.5" CenterY="16" /></Border.RenderTransform></Border>
+                                                                <Border Canvas.Left="44" Width="3" Height="16" CornerRadius="1.5" Background="{StaticResource AccentBlueBrush}"><Border.RenderTransform><ScaleTransform x:Name="VoiceWaveScale7" ScaleX="1" ScaleY="0.18" CenterX="1.5" CenterY="16" /></Border.RenderTransform></Border>
+                                                            </Canvas>
+                                                            <Border x:Name="AudioFormatBadgeBorder"
+                                                                    Grid.Column="2"
+                                                                    CornerRadius="6"
+                                                                    Background="#180A84FF"
+                                                                    BorderBrush="#360A84FF"
+                                                                    BorderThickness="0.6"
+                                                                    Padding="6,2"
+                                                                    Cursor="Hand"
+                                                                    MouseLeftButtonUp="OnMediaQualityBadgeClick"
+                                                                    VerticalAlignment="Center">
+                                                                <TextBlock x:Name="AudioFormatBadgeText"
+                                                                           Text="48 kHz"
+                                                                           FontFamily="{StaticResource UiTextFont}"
+                                                                           FontSize="9.2"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource AccentBlueBrush}"
+                                                                           VerticalAlignment="Center" />
+                                                            </Border>
+                                                        </Grid>
+                                                        <Grid Margin="0,4,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock x:Name="VoiceNotePathText"
+                                                                       Grid.Column="0"
+                                                                       Text=""
+                                                                       FontFamily="{StaticResource UiTextFont}"
+                                                                       FontSize="8.8"
+                                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,6,0" />
+                                                            <Button x:Name="BtnVoiceNoteOpenFolder"
+                                                                    Grid.Column="1"
+                                                                    Style="{StaticResource PillTabButtonStyle}"
+                                                                    Padding="6,1"
+                                                                    FontSize="8.8"
+                                                                    Content="Klasörü Aç"
+                                                                    Click="OnVoiceNoteOpenFolderClick" />
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Grid.Column="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="*" />
+                                                </Grid.RowDefinitions>
+                                                <TextBlock x:Name="AudioAppsHeaderText"
+                                                           Grid.Row="0"
+                                                           Text="App Mixer"
+                                                           FontFamily="{StaticResource UiTextFont}"
+                                                           FontSize="11.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           Margin="0,0,0,6" />
+                                                <ScrollViewer Grid.Row="1" Style="{StaticResource ObsidianScrollViewerStyle}">
+                                                    <StackPanel x:Name="AudioAppMixerStack" />
+                                                </ScrollViewer>
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+
+                                    <!-- 3. CONTROL CENTER TAB -->
+                                    <Grid x:Name="TabControlPanel" Visibility="Collapsed">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <UniformGrid Grid.Row="0" Columns="5" Margin="0,0,0,4">
+                                            <Button x:Name="TileWifi" Style="{StaticResource ControlCenterTileStyle}" Padding="8,4" Margin="0,0,5,0" Click="OnTileWifiClick">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="TileWifiIcon" Text="&#xE701;" FontFamily="{StaticResource IconFont}" FontSize="12.5" Foreground="{StaticResource AccentBlueBrush}" />
+                                                    <TextBlock x:Name="TileWifiLabel" Text="Wi-Fi" FontFamily="{StaticResource UiTextFont}" FontSize="10.2" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock x:Name="TileWifiSub" Text="Off" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button x:Name="TileBluetooth" Style="{StaticResource ControlCenterTileStyle}" Padding="8,4" Margin="0,0,5,0" Click="OnTileBluetoothClick">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="TileBtIcon" Text="&#xE702;" FontFamily="{StaticResource IconFont}" FontSize="12.5" Foreground="{StaticResource AccentBlueBrush}" />
+                                                    <TextBlock x:Name="TileBtLabel" Text="Bluetooth" FontFamily="{StaticResource UiTextFont}" FontSize="10.2" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock x:Name="TileBtSub" Text="Off" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button x:Name="TileTheme" Style="{StaticResource ControlCenterTileStyle}" Padding="8,4" Margin="0,0,5,0" Click="OnTileThemeClick">
+                                                <StackPanel>
+                                                    <TextBlock Text="&#xE793;" FontFamily="{StaticResource IconFont}" FontSize="12.5" Foreground="{StaticResource AccentPurpleBrush}" />
+                                                    <TextBlock x:Name="TileThemeLabel" Text="Theme" FontFamily="{StaticResource UiTextFont}" FontSize="10.2" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock x:Name="TileThemeSub" Text="Dark" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button x:Name="TileCaffeine" Style="{StaticResource ControlCenterTileStyle}" Padding="8,4" Margin="0,0,5,0" Click="OnTileCaffeineClick">
+                                                <StackPanel>
+                                                    <TextBlock Text="&#xEC32;" FontFamily="{StaticResource IconFont}" FontSize="12.5" Foreground="{StaticResource AccentAmberBrush}" />
+                                                    <TextBlock x:Name="TileCaffeineLabel" Text="Caffeine" FontFamily="{StaticResource UiTextFont}" FontSize="10.2" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock x:Name="TileCaffeineSub" Text="Off" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button x:Name="TileSnip" Style="{StaticResource ControlCenterTileStyle}" Padding="8,4" Click="OnTileSnipClick">
+                                                <StackPanel>
+                                                    <TextBlock Text="&#xF407;" FontFamily="{StaticResource IconFont}" FontSize="12.5" Foreground="{StaticResource AccentCyanBrush}" />
+                                                    <TextBlock x:Name="TileSnipLabel" Text="Snip" FontFamily="{StaticResource UiTextFont}" FontSize="10.2" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="Win+Shift+S" FontFamily="{StaticResource UiTextFont}" FontSize="8.8" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Button>
+                                        </UniformGrid>
+
+                                        <!-- Middle: Brightness Sliders + Power/Session -->
+                                        <Grid Grid.Row="1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="10" />
+                                                <ColumnDefinition Width="236" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <Border Grid.Column="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="8,5">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="*" />
+                                                    </Grid.RowDefinitions>
+                                                    <Grid Grid.Row="0" Margin="0,0,0,3">
+                                                        <TextBlock x:Name="ControlBrightnessHeader"
+                                                                   Text="Display Brightness &amp; Dimmer"
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="10.8"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                                   VerticalAlignment="Center" />
+                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                            <Button x:Name="BtnRegionOcr" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9" Content="OCR" Click="OnRegionOcrClick" />
+                                                            <Button x:Name="BtnNightLightSettings" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9" Margin="3,0,0,0" Content="Night Light" Click="OnNightLightSettingsClick" />
+                                                            <Button x:Name="BtnDisplaySettings" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9" Margin="3,0,0,0" Content="Display" Click="OnDisplaySettingsClick" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <ScrollViewer Grid.Row="1" Style="{StaticResource ObsidianScrollViewerStyle}">
+                                                        <StackPanel x:Name="BrightnessDisplaysStack" />
+                                                    </ScrollViewer>
+                                                </Grid>
+                                            </Border>
+
+                                            <Border Grid.Column="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="8,4">
+                                                <StackPanel>
+                                                    <Grid Margin="0,0,0,2">
+                                                        <TextBlock x:Name="ControlPowerHeader"
+                                                                   Text="Power &amp; Session"
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="10.4"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock x:Name="ControlPowerPlanText"
+                                                                   Text="Balanced"
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="8.8"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   HorizontalAlignment="Right"
+                                                                   VerticalAlignment="Center"
+                                                                   MaxWidth="96" />
+                                                    </Grid>
+                                                    <UniformGrid Columns="3" Margin="0,0,0,3">
+                                                        <Button x:Name="PowerEffBtn" Style="{StaticResource PillTabButtonStyle}" Padding="4,2" FontSize="9" Content="Eco" Click="OnPowerEffClick" />
+                                                        <Button x:Name="PowerBalBtn" Style="{StaticResource PillTabButtonStyle}" Padding="4,2" FontSize="9" Margin="3,0" Content="Bal" Click="OnPowerBalClick" />
+                                                        <Button x:Name="PowerPerfBtn" Style="{StaticResource PillTabButtonStyle}" Padding="4,2" FontSize="9" Content="Perf" Click="OnPowerPerfClick" />
+                                                    </UniformGrid>
+                                                    <UniformGrid Columns="4" Margin="0,0,0,5">
+                                                        <Button x:Name="BtnLockPc" Style="{StaticResource DarkActionButtonStyle}" Padding="2,2" FontSize="8.8" Margin="0,0,2,0" Content="Lock" Click="OnLockPcClick" />
+                                                        <Button x:Name="BtnSleepPc" Style="{StaticResource DarkActionButtonStyle}" Padding="2,2" FontSize="8.8" Margin="1,0" Content="Sleep" Click="OnSleepPcClick" />
+                                                        <Button x:Name="BtnDisplayOffPc" Style="{StaticResource DarkActionButtonStyle}" Padding="2,2" FontSize="8.8" Margin="1,0" Content="Screen" Click="OnDisplayOffPcClick" />
+                                                        <Button x:Name="BtnPowerSettings" Style="{StaticResource DarkActionButtonStyle}" Padding="2,2" FontSize="8.8" Margin="2,0,0,0" Content="Plans" Click="OnPowerSettingsClick" />
+                                                    </UniformGrid>
+                                                    <Border CornerRadius="8" Background="#12FFFFFF" BorderBrush="#1CFFFFFF" BorderThickness="0.5" Padding="5,3">
+                                                        <StackPanel>
+                                                            <TextBlock x:Name="SchedPowerHeaderText"
+                                                                       Text="Scheduled Action"
+                                                                       FontFamily="{StaticResource UiTextFont}"
+                                                                       FontSize="8.8"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       Margin="0,0,0,2" />
+                                                            <Grid x:Name="SchedSetupGrid">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="64" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <ComboBox x:Name="ComboSchedAction"
+                                                                          Grid.Column="0"
+                                                                          Height="23"
+                                                                          FontSize="9.2"
+                                                                          Margin="0,0,4,0"
+                                                                          DropDownOpened="OnAudioComboDropDownOpened"
+                                                                          DropDownClosed="OnAudioComboDropDownClosed" />
+                                                                <ComboBox x:Name="ComboSchedMinutes"
+                                                                          Grid.Column="1"
+                                                                          Height="23"
+                                                                          FontSize="9.2"
+                                                                          Margin="0,0,4,0"
+                                                                          DropDownOpened="OnAudioComboDropDownOpened"
+                                                                          DropDownClosed="OnAudioComboDropDownClosed" />
+                                                                <Button x:Name="BtnSchedStart"
+                                                                        Grid.Column="2"
+                                                                        Style="{StaticResource PillTabButtonStyle}"
+                                                                        Padding="7,2"
+                                                                        FontSize="9.2"
+                                                                        Content="Start"
+                                                                        Click="OnSchedPowerStartClick" />
+                                                            </Grid>
+                                                            <Grid x:Name="SchedActiveGrid" Visibility="Collapsed">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock x:Name="TxtSchedCountdown"
+                                                                           Grid.Column="0"
+                                                                           Text="Uyku • 29:59"
+                                                                           FontFamily="{StaticResource UiTextFont}"
+                                                                           FontSize="10"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource AccentAmberBrush}"
+                                                                           VerticalAlignment="Center"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                                <Button x:Name="BtnSchedSnooze"
+                                                                        Grid.Column="1"
+                                                                        Style="{StaticResource PillTabButtonStyle}"
+                                                                        Padding="6,2"
+                                                                        FontSize="8.8"
+                                                                        Margin="4,0,4,0"
+                                                                        Content="+10m"
+                                                                        Click="OnSchedPowerSnoozeClick" />
+                                                                <Button x:Name="BtnSchedCancel"
+                                                                        Grid.Column="2"
+                                                                        Style="{StaticResource DarkActionButtonStyle}"
+                                                                        Padding="6,2"
+                                                                        FontSize="8.8"
+                                                                        Content="Cancel"
+                                                                        Click="OnSchedPowerCancelClick" />
+                                                            </Grid>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+
+                                        <!-- Bottom Window Pin/Opacity + Desktop + Privacy / BT Strip -->
+                                        <Border Grid.Row="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="10" Padding="8,4" Margin="0,4,0,0">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button x:Name="BtnPinActiveWindow"
+                                                            Grid.Column="0"
+                                                            Style="{StaticResource PillTabButtonStyle}"
+                                                            Padding="7,2"
+                                                            FontSize="9.2"
+                                                            Click="OnPinActiveWindowClick">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock x:Name="PinActiveWindowGlyphText"
+                                                                       Text="&#xE718;"
+                                                                       FontFamily="{StaticResource IconFont}"
+                                                                       FontSize="9.5"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,4,0" />
+                                                            <TextBlock x:Name="PinActiveWindowLabelText"
+                                                                       Text="Üstte Tut"
+                                                                       VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <TextBlock x:Name="ActiveWindowTargetLabel"
+                                                               Grid.Column="1"
+                                                               Text=""
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="9.6"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Margin="6,0" />
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                                        <Slider x:Name="ActiveWindowOpacitySlider"
+                                                                Width="78"
+                                                                Minimum="30"
+                                                                Maximum="100"
+                                                                Value="100"
+                                                                ValueChanged="OnActiveWindowOpacitySliderChanged" />
+                                                        <TextBlock x:Name="ActiveWindowOpacityPctText"
+                                                                   Text="100%"
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="9.2"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="4,0,0,0" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Button x:Name="BtnDesktopPrev"
+                                                                Style="{StaticResource IconCircleButtonStyle}"
+                                                                Width="20" Height="20" FontSize="9"
+                                                                FontFamily="{StaticResource IconFont}"
+                                                                Content="&#xE76B;"
+                                                                Click="OnDesktopPrevClick" />
+                                                        <TextBlock x:Name="DesktopSwitchLabel"
+                                                                   Text="Masaüstü"
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="9.2"
+                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="4,0" />
+                                                        <Button x:Name="BtnDesktopNext"
+                                                                Style="{StaticResource IconCircleButtonStyle}"
+                                                                Width="20" Height="20" FontSize="9"
+                                                                FontFamily="{StaticResource IconFont}"
+                                                                Content="&#xE76C;"
+                                                                Click="OnDesktopNextClick" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <!-- 4. SHELF & CLIPBOARD TAB -->
+                                    <Grid x:Name="TabShelfPanel" Visibility="Collapsed">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1*" />
+                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="1*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Grid.Column="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="10,9">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="*" />
+                                                </Grid.RowDefinitions>
+                                                <Grid Grid.Row="0" Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock x:Name="ShelfHeaderTitle"
+                                                               Grid.Column="0"
+                                                               Text="File Shelf"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="11.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Margin="0,0,6,0"
+                                                               VerticalAlignment="Center" />
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                                        <Button x:Name="BtnShelfOcr" Style="{StaticResource PillTabButtonStyle}" Padding="5,2" FontSize="9.2" Content="OCR" Click="OnRegionOcrClick" />
+                                                        <Button x:Name="BtnShelfQr" Style="{StaticResource PillTabButtonStyle}" Padding="5,2" FontSize="9.2" Margin="3,0,0,0" Content="QR" Click="OnShelfQrClick" />
+                                                        <Button x:Name="BtnShelfShare" Style="{StaticResource PillTabButtonStyle}" Padding="5,2" FontSize="9.2" Margin="3,0,0,0" Content="Share" Click="OnShelfShareClick" />
+                                                        <Button x:Name="BtnShelfZip" Style="{StaticResource PillTabButtonStyle}" Padding="5,2" FontSize="9.2" Margin="3,0,0,0" Content="ZIP" Click="OnShelfZipClick" />
+                                                        <Button x:Name="BtnShelfClear" Style="{StaticResource PillTabButtonStyle}" Padding="5,2" FontSize="9.2" Margin="3,0,0,0" Content="Clear" Click="OnShelfClearClick" />
+                                                    </StackPanel>
+                                                </Grid>
+                                                <Grid Grid.Row="1">
+                                                    <ScrollViewer x:Name="ShelfItemsScroll" Style="{StaticResource ObsidianScrollViewerStyle}">
+                                                        <Grid>
+                                                            <StackPanel x:Name="ShelfItemsStack" />
+                                                            <TextBlock x:Name="ShelfEmptyText"
+                                                                       Text="Shelf is empty"
+                                                                       FontFamily="{StaticResource UiTextFont}"
+                                                                       FontSize="10.5"
+                                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       TextWrapping="Wrap"
+                                                                       Visibility="Collapsed" />
+                                                        </Grid>
+                                                    </ScrollViewer>
+                                                    <Border x:Name="ShelfQrOverlayBorder"
+                                                            CornerRadius="12"
+                                                            Background="#FF0E1117"
+                                                            BorderBrush="#480A84FF"
+                                                            BorderThickness="1"
+                                                            Padding="10,8"
+                                                            Visibility="Collapsed">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.Column="0"
+                                                                    CornerRadius="8"
+                                                                    Background="#FFFFFFFF"
+                                                                    Padding="4"
+                                                                    VerticalAlignment="Center">
+                                                                <Image x:Name="ShelfQrImage"
+                                                                       Width="84"
+                                                                       Height="84"
+                                                                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                            </Border>
+                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0">
+                                                                <TextBlock x:Name="ShelfQrTitleText"
+                                                                           Text="LAN AirDrop QR"
+                                                                           FontFamily="{StaticResource UiTextFont}"
+                                                                           FontSize="11.5"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                                                <TextBlock x:Name="ShelfQrHintText"
+                                                                           Text="Telefon kamerasıyla okut"
+                                                                           FontFamily="{StaticResource UiTextFont}"
+                                                                           FontSize="9.5"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                                           TextWrapping="Wrap"
+                                                                           Margin="0,2,0,3" />
+                                                                <TextBlock x:Name="ShelfQrUrlText"
+                                                                           Text="http://..."
+                                                                           FontFamily="{StaticResource UiTextFont}"
+                                                                           FontSize="9.2"
+                                                                           Foreground="{StaticResource AccentCyanBrush}"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           Margin="0,0,0,6" />
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Button x:Name="BtnShelfQrCopyUrl" Style="{StaticResource PillTabButtonStyle}" Padding="7,2" FontSize="9.5" Content="URL" Click="OnShelfQrCopyClick" />
+                                                                    <Button x:Name="BtnShelfQrStop" Style="{StaticResource PillTabButtonStyle}" Padding="7,2" FontSize="9.5" Margin="5,0,0,0" Content="Kapat" Click="OnShelfQrStopClick" />
+                                                                </StackPanel>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </Grid>
+                                            </Grid>
+                                        </Border>
+
+                                        <Border Grid.Column="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="10,9">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="*" />
+                                                </Grid.RowDefinitions>
+                                                <Grid Grid.Row="0" Margin="0,0,0,6">
+                                                    <TextBlock x:Name="ClipboardHeaderTitle"
+                                                               Text="Clipboard Vault"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="11.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center" />
+                                                    <Button x:Name="BtnClipClearUnpinned"
+                                                            Style="{StaticResource PillTabButtonStyle}"
+                                                            Padding="7,2"
+                                                            FontSize="9.8"
+                                                            Content="Clear Unpinned"
+                                                            HorizontalAlignment="Right"
+                                                            Click="OnClipboardClearUnpinnedClick" />
+                                                </Grid>
+                                                <ScrollViewer Grid.Row="1" Style="{StaticResource ObsidianScrollViewerStyle}">
+                                                    <Grid>
+                                                        <StackPanel x:Name="ClipboardItemsStack" />
+                                                        <TextBlock x:Name="ClipboardEmptyText"
+                                                                   Text="No clipboard history"
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="10.5"
+                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   Visibility="Collapsed" />
+                                                    </Grid>
+                                                </ScrollViewer>
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+
+                                    <!-- 5. SYSTEM TELEMETRY TAB -->
+                                    <Grid x:Name="TabSystemPanel" Visibility="Collapsed">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+
+                                        <UniformGrid Grid.Row="0" Columns="4" Margin="0,0,0,6">
+                                            <Border Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="10,7" Margin="0,0,8,0">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="SysCpuLabel" Text="CPU" FontFamily="{StaticResource UiTextFont}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                    <TextBlock x:Name="SysCpuVal" Text="0%" FontFamily="{StaticResource UiTextFont}" FontSize="15.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2,0,4" />
+                                                    <ProgressBar x:Name="SysCpuBar" Style="{StaticResource ObsidianProgressBarStyle}" Height="4" Minimum="0" Maximum="100" Value="0" />
+                                                    <TextBlock x:Name="SysGpuSub" Text="GPU 0%" FontFamily="{StaticResource UiTextFont}" FontSize="9.5" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="10,7" Margin="0,0,8,0">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="SysMemLabel" Text="Memory" FontFamily="{StaticResource UiTextFont}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                    <TextBlock x:Name="SysMemVal" Text="0%" FontFamily="{StaticResource UiTextFont}" FontSize="15.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2,0,4" />
+                                                    <ProgressBar x:Name="SysMemBar" Style="{StaticResource ObsidianProgressBarStyle}" Height="4" Minimum="0" Maximum="100" Value="0" />
+                                                    <TextBlock x:Name="SysMemSub" Text="0 / 0 GB" FontFamily="{StaticResource UiTextFont}" FontSize="9.5" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="10,7" Margin="0,0,8,0">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="SysNetLabel" Text="Network" FontFamily="{StaticResource UiTextFont}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                    <TextBlock x:Name="SysNetDownVal" Text="0.0 Mb/s" FontFamily="{StaticResource UiTextFont}" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource AccentCyanBrush}" Margin="0,2,0,5" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock x:Name="SysNetUpSub" Text="Up 0.0 Mb/s" FontFamily="{StaticResource UiTextFont}" FontSize="9.8" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="10,7">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="SysBatLabel" Text="Battery" FontFamily="{StaticResource UiTextFont}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                    <TextBlock x:Name="SysBatVal" Text="AC" FontFamily="{StaticResource UiTextFont}" FontSize="15.5" FontWeight="SemiBold" Foreground="{StaticResource AccentGreenBrush}" Margin="0,2,0,4" />
+                                                    <ProgressBar x:Name="SysBatBar" Style="{StaticResource ObsidianProgressBarStyle}" Height="4" Minimum="0" Maximum="100" Value="100" />
+                                                    <TextBlock x:Name="SysBatSub" Text="Plugged In" FontFamily="{StaticResource UiTextFont}" FontSize="9.5" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Border>
+                                        </UniformGrid>
+
+                                        <Border Grid.Row="1" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="12" Padding="10,5" Margin="0,0,0,6">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="1.2*" />
+                                                    <ColumnDefinition Width="1.5*" />
+                                                    <ColumnDefinition Width="0.7*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                    <TextBlock x:Name="SysGpuDetailLabel" Text="GPU VRAM &amp; Sıcaklık" FontFamily="{StaticResource UiTextFont}" FontSize="9.2" Foreground="{StaticResource TextMutedBrush}" />
+                                                    <TextBlock x:Name="SysGpuDetailText" Text="--" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                                    <TextBlock x:Name="SysDiskDetailLabel" Text="Disk &amp; I/O" FontFamily="{StaticResource UiTextFont}" FontSize="9.2" Foreground="{StaticResource TextMutedBrush}" />
+                                                    <TextBlock x:Name="SysDiskDetailText" Text="--" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                                    <TextBlock x:Name="SysPingDetailLabel" Text="Gecikme" FontFamily="{StaticResource UiTextFont}" FontSize="9.2" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right" />
+                                                    <TextBlock x:Name="SysPingDetailText" Text="--" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" FontWeight="SemiBold" Foreground="{StaticResource AccentGreenBrush}" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+
+                                        <Border Grid.Row="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="11" Padding="7,4" Margin="0,0,0,6">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Button x:Name="BtnSysCleanDisk" Style="{StaticResource DarkActionButtonStyle}" Padding="9,2.5" FontSize="9.8" Margin="0,0,6,0" Content="Disk Temizle" Click="OnSysCleanDiskClick" />
+                                                    <Button x:Name="BtnSysTrimRam" Style="{StaticResource DarkActionButtonStyle}" Padding="9,2.5" FontSize="9.8" Margin="0,0,6,0" Content="RAM Boşalt" Click="OnSysTrimRamClick" />
+                                                    <Button x:Name="BtnSysCloseIdleApps" Style="{StaticResource DarkActionButtonStyle}" Padding="9,2.5" FontSize="9.8" Content="Boşta Uygulamalar" Click="OnSysScanIdleAppsClick" />
+                                                </StackPanel>
+                                                <TextBlock x:Name="SysMaintStatusText"
+                                                           Grid.Column="1"
+                                                           Text=""
+                                                           FontFamily="{StaticResource UiTextFont}"
+                                                           FontSize="9.6"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource AccentCyanBrush}"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Margin="8,0,0,0" />
+                                            </Grid>
+                                        </Border>
+
+                                        <Border Grid.Row="3" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="10,7">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="*" />
+                                                </Grid.RowDefinitions>
+                                                <Grid Grid.Row="0" Margin="0,0,0,5">
+                                                    <TextBlock x:Name="SysProcHeaderText"
+                                                               Text="Process Watchdog &amp; Hung Detector"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="11"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock x:Name="SysLiveBadgeText"
+                                                               Text="● Live • 1s"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="9.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource AccentGreenBrush}"
+                                                               HorizontalAlignment="Right"
+                                                               VerticalAlignment="Center" />
+                                                </Grid>
+                                                <Grid Grid.Row="1">
+                                                    <ScrollViewer x:Name="SystemProcessScrollViewer" Style="{StaticResource ObsidianScrollViewerStyle}">
+                                                        <StackPanel x:Name="SystemProcessStack" />
+                                                    </ScrollViewer>
+                                                    <Grid x:Name="SysIdleAppsConfirmPanel" Visibility="Collapsed">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="*" />
+                                                        </Grid.RowDefinitions>
+                                                        <Grid Grid.Row="0" Margin="0,0,0,4">
+                                                            <TextBlock x:Name="SysIdleConfirmTitleText"
+                                                                       Text="Kapatılacak boşta arka plan uygulamaları"
+                                                                       FontFamily="{StaticResource UiTextFont}"
+                                                                       FontSize="10.2"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource AccentAmberBrush}"
+                                                                       VerticalAlignment="Center" />
+                                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                                <Button x:Name="BtnSysCancelIdleApps" Style="{StaticResource PillTabButtonStyle}" Padding="7,1.5" FontSize="9.4" Margin="0,0,5,0" Content="İptal" Click="OnSysCancelIdleAppsClick" />
+                                                                <Button x:Name="BtnSysConfirmCloseIdle" Style="{StaticResource DarkActionButtonStyle}" Foreground="{StaticResource AccentAmberBrush}" Padding="8,1.5" FontSize="9.4" Content="Seçilenleri Kapat" Click="OnSysConfirmCloseIdleAppsClick" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                        <ScrollViewer Grid.Row="1" Style="{StaticResource ObsidianScrollViewerStyle}">
+                                                            <StackPanel x:Name="SysIdleAppsCheckStack" />
+                                                        </ScrollViewer>
+                                                    </Grid>
+                                                </Grid>
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+
+                                    <!-- 6. WIDGETS TAB -->
+                                    <Grid x:Name="TabWidgetsPanel" Visibility="Collapsed">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                                            <TextBlock x:Name="WidgetsHeaderTitle"
+                                                       Text="Widget Cards"
+                                                       FontFamily="{StaticResource UiTextFont}"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       VerticalAlignment="Center" />
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <Button x:Name="BtnOpenWidgetsFolder" Style="{StaticResource PillTabButtonStyle}" Padding="8,3" FontSize="10" Content="Plugins Folder" Click="OnOpenWidgetsFolderClick" />
+                                                <Button x:Name="BtnReloadWidgets" Style="{StaticResource PillTabButtonStyle}" Padding="8,3" FontSize="10" Margin="6,0,0,0" Content="Reload" Click="OnReloadWidgetsClick" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Border Grid.Row="1" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="12" Padding="6,5" Margin="0,0,0,8">
+                                            <UniformGrid Columns="5">
+                                                <Button x:Name="BtnToolColorPicker" Style="{StaticResource DarkActionButtonStyle}" Foreground="{StaticResource AccentCyanBrush}" Padding="5,3" FontSize="9.8" Margin="0,0,2,0" Content="Color Picker" Click="OnToolColorPickerClick" />
+                                                <Button x:Name="BtnToolSnapLeft" Style="{StaticResource DarkActionButtonStyle}" Padding="5,3" FontSize="9.8" Margin="2,0" Content="Left 50%" Click="OnToolSnapLeftClick" />
+                                                <Button x:Name="BtnToolSnapRight" Style="{StaticResource DarkActionButtonStyle}" Padding="5,3" FontSize="9.8" Margin="2,0" Content="Right 50%" Click="OnToolSnapRightClick" />
+                                                <Button x:Name="BtnToolSnapCenter" Style="{StaticResource DarkActionButtonStyle}" Padding="5,3" FontSize="9.8" Margin="2,0" Content="Center 70%" Click="OnToolSnapCenterClick" />
+                                                <Button x:Name="BtnToolNextMonitor" Style="{StaticResource DarkActionButtonStyle}" Padding="5,3" FontSize="9.8" Margin="4,0,0,0" Content="Next Monitor" Click="OnToolNextMonitorClick" />
+                                            </UniformGrid>
+                                        </Border>
+                                        <ScrollViewer Grid.Row="2" Style="{StaticResource ObsidianScrollViewerStyle}">
+                                            <Grid>
+                                                <WrapPanel x:Name="WidgetsWrapPanel" Orientation="Horizontal" />
+                                                <TextBlock x:Name="WidgetsEmptyText"
+                                                           Text="No active widget plugins."
+                                                           FontFamily="{StaticResource UiTextFont}"
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Visibility="Collapsed" />
+                                            </Grid>
+                                        </ScrollViewer>
+                                    </Grid>
+                                </Grid>
+
+                                <!-- In-Island Non-Activating Glass Overlay: Notification Detail -->
+                                <Border x:Name="NotifDetailOverlay"
+                                        Grid.Row="0"
+                                        Grid.RowSpan="2"
+                                        Background="#EC050609"
+                                        CornerRadius="16"
+                                        Visibility="Collapsed"
+                                        MouseLeftButtonDown="OnOverlayBackdropMouseDown">
+                                    <Border Width="420"
+                                            MaxHeight="214"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            CornerRadius="16"
+                                            Background="#FF141822"
+                                            BorderBrush="#42FFFFFF"
+                                            BorderThickness="1"
+                                            Padding="14,12"
+                                            MouseLeftButtonDown="OnOverlayCardSwallowMouseDown">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="*" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Grid Grid.Row="0" Margin="0,0,0,6">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border x:Name="NotifDetailIconWell"
+                                                            Width="28" Height="28"
+                                                            CornerRadius="8"
+                                                            Background="#FF162842"
+                                                            BorderBrush="#3DFFFFFF"
+                                                            BorderThickness="0.6"
+                                                            Margin="0,0,8,0">
+                                                        <Grid>
+                                                            <Image x:Name="NotifDetailIconImg" Width="20" Height="20" Stretch="UniformToFill" />
+                                                            <TextBlock x:Name="NotifDetailIconGlyph"
+                                                                       Text="&#xEA8F;"
+                                                                       FontFamily="{StaticResource IconFont}"
+                                                                       FontSize="12"
+                                                                       Foreground="{StaticResource AccentCyanBrush}"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </Border>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock x:Name="NotifDetailAppText"
+                                                                   Text="App"
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="11.2"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource AccentCyanBrush}" />
+                                                        <TextBlock x:Name="NotifDetailTimeText"
+                                                                   Text=""
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="9.2"
+                                                                   Foreground="{StaticResource TextMutedBrush}" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <Button x:Name="BtnNotifDetailClose"
+                                                        Style="{StaticResource IconCircleButtonStyle}"
+                                                        Background="#FF232836"
+                                                        Width="24" Height="24"
+                                                        FontFamily="{StaticResource IconFont}"
+                                                        FontSize="10"
+                                                        Content="&#xE711;"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Center"
+                                                        Click="OnNotifDetailCloseClick" />
+                                            </Grid>
+                                            <TextBlock x:Name="NotifDetailTitleText"
+                                                       Grid.Row="1"
+                                                       Text=""
+                                                       FontFamily="{StaticResource UiFont}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,5" />
+                                            <ScrollViewer Grid.Row="2" Style="{StaticResource ObsidianScrollViewerStyle}" MaxHeight="94">
+                                                <TextBlock x:Name="NotifDetailBodyText"
+                                                           Text=""
+                                                           FontFamily="{StaticResource UiTextFont}"
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           TextWrapping="Wrap" />
+                                            </ScrollViewer>
+                                            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                                                <Button x:Name="BtnNotifDetailCopy" Style="{StaticResource DarkActionButtonStyle}" Background="#FF232836" BorderBrush="#38FFFFFF" Padding="11,4" FontSize="10.2" Margin="0,0,6,0" Content="Kopyala" Click="OnNotifDetailCopyClick" />
+                                                <Button x:Name="BtnNotifDetailDismiss" Style="{StaticResource DarkActionButtonStyle}" Background="#FF232836" BorderBrush="#38FFFFFF" Foreground="{StaticResource AccentAmberBrush}" Padding="11,4" FontSize="10.2" Content="Kapat" Click="OnNotifDetailDismissClick" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </Border>
+
+                                <!-- In-Island Non-Activating Glass Overlay: Audio Quality Picker -->
+                                <Border x:Name="AudioQualityOverlay"
+                                        Grid.Row="0"
+                                        Grid.RowSpan="2"
+                                        Background="#EC050609"
+                                        CornerRadius="16"
+                                        Visibility="Collapsed"
+                                        MouseLeftButtonDown="OnOverlayBackdropMouseDown">
+                                    <Border Width="380"
+                                            MaxHeight="214"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            CornerRadius="16"
+                                            Background="#FF141822"
+                                            BorderBrush="#42FFFFFF"
+                                            BorderThickness="1"
+                                            Padding="14,12"
+                                            MouseLeftButtonDown="OnOverlayCardSwallowMouseDown">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="*" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Grid Grid.Row="0" Margin="0,0,0,4">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="AudioQualityTitleText"
+                                                               Text="Ses Çıkış Kalitesi"
+                                                               FontFamily="{StaticResource UiFont}"
+                                                               FontSize="12.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}" />
+                                                    <TextBlock x:Name="AudioQualityDeviceText"
+                                                               Text=""
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="9.6"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <Button x:Name="BtnAudioQualityClose"
+                                                        Style="{StaticResource IconCircleButtonStyle}"
+                                                        Background="#FF232836"
+                                                        Width="24" Height="24"
+                                                        FontFamily="{StaticResource IconFont}"
+                                                        FontSize="10"
+                                                        Content="&#xE711;"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Top"
+                                                        Click="OnAudioQualityCloseClick" />
+                                            </Grid>
+                                            <Button x:Name="BtnAudioQualityUseMax"
+                                                    Grid.Row="1"
+                                                    Style="{StaticResource PillTabButtonStyle}"
+                                                    Background="#FF122A48"
+                                                    BorderBrush="#660A84FF"
+                                                    BorderThickness="0.8"
+                                                    Foreground="{StaticResource AccentCyanBrush}"
+                                                    Padding="10,4"
+                                                    FontSize="10.2"
+                                                    FontWeight="SemiBold"
+                                                    Margin="0,2,0,6"
+                                                    Content="En Yüksek Kaliteyi Kullan"
+                                                    Click="OnAudioQualityUseMaxClick" />
+                                            <ScrollViewer Grid.Row="2" Style="{StaticResource ObsidianScrollViewerStyle}" MaxHeight="96">
+                                                <StackPanel x:Name="AudioQualityListPanel" />
+                                            </ScrollViewer>
+                                            <Grid Grid.Row="3" Margin="0,7,0,0">
+                                                <TextBlock x:Name="AudioQualityStatusText"
+                                                           Text=""
+                                                           FontFamily="{StaticResource UiTextFont}"
+                                                           FontSize="9.4"
+                                                           Foreground="{StaticResource AccentGreenBrush}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <Button x:Name="BtnAudioQualitySettings"
+                                                        Style="{StaticResource DarkActionButtonStyle}"
+                                                        Background="#FF232836"
+                                                        BorderBrush="#38FFFFFF"
+                                                        Padding="10,3.5"
+                                                        FontSize="9.8"
+                                                        HorizontalAlignment="Right"
+                                                        Content="Ses Ayarları"
+                                                        Click="OnAudioQualityOpenSettingsClick" />
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </Border>
+                            </Grid>
+                        </Canvas>
+                    </Grid>
+
+                    <!-- Open-Top Rim Highlight in NotchFlush / Closed Rim in Floating -->
+                    <Path x:Name="NotchRimPath"
+                          Stroke="{StaticResource NotchRimGradientBrush}"
+                          StrokeThickness="1"
+                          IsHitTestVisible="False"
+                          Stretch="None" />
+                </Grid>
+            </Grid>
+
+            <!-- Secondary Live Activity Satellite Pill (S2Split) -->
+            <Canvas x:Name="SatelliteVisualRoot"
+                    Canvas.Left="0"
+                    Canvas.Top="0"
+                    Width="150"
+                    Height="60"
+                    Visibility="Collapsed"
+                    MouseEnter="OnSatelliteMouseEnter"
+                    MouseLeave="OnSatelliteMouseLeave"
+                    MouseLeftButtonDown="OnSatelliteMouseLeftButtonDown"
+                    MouseRightButtonUp="OnMainAssemblyMouseRightButtonUp">
+                <Canvas.RenderTransform>
+                    <TranslateTransform x:Name="SatelliteTranslateTransform" X="0" Y="0" />
+                </Canvas.RenderTransform>
+
+                <!-- Unscaled Satellite Hit Surface -->
+                <Path x:Name="SatelliteHitPath"
+                      Fill="#01000000"
+                      IsHitTestVisible="True"
+                      Stretch="None" />
+
+                <Grid x:Name="SatelliteVisualGroup" IsHitTestVisible="False">
+                    <Grid.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform x:Name="SatelliteScaleTransform" ScaleX="1" ScaleY="1" CenterX="30" CenterY="0" />
+                            <ScaleTransform x:Name="SatelliteHoverScaleTransform" ScaleX="1" ScaleY="1" CenterX="30" CenterY="0" />
+                        </TransformGroup>
+                    </Grid.RenderTransform>
+
+                    <Path x:Name="SatelliteShellPath"
+                          Fill="{StaticResource NotchOledShellBrush}"
+                          Stretch="None" />
+
+                    <Grid x:Name="SatelliteContentClipHost">
+                        <Rectangle x:Name="SatelliteGlowRect"
+                                   Width="140"
+                                   Height="60"
+                                   Opacity="0"
+                                   IsHitTestVisible="False">
+                            <Rectangle.RenderTransform>
+                                <TranslateTransform x:Name="SatelliteGlowTransform" X="0" Y="0" />
+                            </Rectangle.RenderTransform>
+                            <Rectangle.Fill>
+                                <RadialGradientBrush Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.5" RadiusY="0.5">
+                                    <GradientStop x:Name="AuraSatStop0" Color="#565E5CE6" Offset="0.0" />
+                                    <GradientStop x:Name="AuraSatStop1" Color="#365E5CE6" Offset="0.35" />
+                                    <GradientStop x:Name="AuraSatStop2" Color="#160A84FF" Offset="0.72" />
+                                    <GradientStop Color="#00000000" Offset="1.0" />
+                                </RadialGradientBrush>
+                            </Rectangle.Fill>
+                        </Rectangle>
+                        <Grid x:Name="SatelliteInnerGrid"
+                              Width="84"
+                              Height="28"
+                              HorizontalAlignment="Left"
+                              VerticalAlignment="Top">
+                            <Grid.RenderTransform>
+                                <TranslateTransform x:Name="SatelliteContentTransform" X="6" Y="4" />
+                            </Grid.RenderTransform>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Ellipse x:Name="SatelliteAccentDot"
+                                         Width="6"
+                                         Height="6"
+                                         Fill="{StaticResource AccentAmberBrush}"
+                                         Margin="0,0,5,0"
+                                         VerticalAlignment="Center" />
+                                <TextBlock x:Name="SatelliteIconText"
+                                           Text="&#xE916;"
+                                           FontFamily="{StaticResource IconFont}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock x:Name="SatellitePrimaryText"
+                                           Text=""
+                                           FontFamily="{StaticResource UiTextFont}"
+                                           FontSize="10.8"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Margin="5,0,0,0"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"
+                                           MaxWidth="56"
+                                           Visibility="Collapsed" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+
+                    <Path x:Name="SatelliteRimPath"
+                          Stroke="{StaticResource NotchRimGradientBrush}"
+                          StrokeThickness="1"
+                          Stretch="None" />
+                </Grid>
+            </Canvas>
+        </Canvas>
+    </Grid>
+</Window>

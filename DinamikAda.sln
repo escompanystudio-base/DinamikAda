@@ -1,0 +1,99 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{6A3A0B11-E432-47FB-9C43-418D95FDA0F8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DinamikAda.App", "src\DinamikAda.App\DinamikAda.App.csproj", "{5C681F3F-16D7-4514-9CF0-4CE6349E32BC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DinamikAda.Core", "src\DinamikAda.Core\DinamikAda.Core.csproj", "{22FC7FE0-862A-46B1-B334-34C7EEB13035}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DinamikAda.Modules.CommandHub", "src\DinamikAda.Modules.CommandHub\DinamikAda.Modules.CommandHub.csproj", "{27124670-1920-43D5-B7CA-969E28A9CA99}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DinamikAda.Modules.Media", "src\DinamikAda.Modules.Media\DinamikAda.Modules.Media.csproj", "{85F311DC-6554-4B82-897C-02DD6B03DC77}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DinamikAda.Modules.Notifications", "src\DinamikAda.Modules.Notifications\DinamikAda.Modules.Notifications.csproj", "{D992A9C9-2300-43BF-A70E-BAFCFEAAA4C1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DinamikAda.Modules.Productivity", "src\DinamikAda.Modules.Productivity\DinamikAda.Modules.Productivity.csproj", "{5DE818CB-444D-45CB-8DC6-AF28CE002A1A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DinamikAda.Modules.SystemControl", "src\DinamikAda.Modules.SystemControl\DinamikAda.Modules.SystemControl.csproj", "{AC501C9D-F537-42D3-B3BF-F228A399FFC9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DinamikAda.Modules.Telemetry", "src\DinamikAda.Modules.Telemetry\DinamikAda.Modules.Telemetry.csproj", "{6FADE804-EDCC-4D9B-878D-BD4E0B0724BE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DinamikAda.Modules.Widgets", "src\DinamikAda.Modules.Widgets\DinamikAda.Modules.Widgets.csproj", "{7DB6DCB3-4B5C-4381-90A1-E40A02AB94BE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DinamikAda.Platform.Win32", "src\DinamikAda.Platform.Win32\DinamikAda.Platform.Win32.csproj", "{8BA3F201-64D7-4DC2-A95A-023DCDC9AC3B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{B28445CB-4D5C-4B63-BEA9-4237C8318B51}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DinamikAda.Tests", "tests\DinamikAda.Tests\DinamikAda.Tests.csproj", "{196E2638-6F2A-4F47-AA73-2EA6E01B6793}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5C681F3F-16D7-4514-9CF0-4CE6349E32BC}.Debug|x64.ActiveCfg = Debug|x64
+		{5C681F3F-16D7-4514-9CF0-4CE6349E32BC}.Debug|x64.Build.0 = Debug|x64
+		{5C681F3F-16D7-4514-9CF0-4CE6349E32BC}.Release|x64.ActiveCfg = Release|x64
+		{5C681F3F-16D7-4514-9CF0-4CE6349E32BC}.Release|x64.Build.0 = Release|x64
+		{22FC7FE0-862A-46B1-B334-34C7EEB13035}.Debug|x64.ActiveCfg = Debug|x64
+		{22FC7FE0-862A-46B1-B334-34C7EEB13035}.Debug|x64.Build.0 = Debug|x64
+		{22FC7FE0-862A-46B1-B334-34C7EEB13035}.Release|x64.ActiveCfg = Release|x64
+		{22FC7FE0-862A-46B1-B334-34C7EEB13035}.Release|x64.Build.0 = Release|x64
+		{27124670-1920-43D5-B7CA-969E28A9CA99}.Debug|x64.ActiveCfg = Debug|x64
+		{27124670-1920-43D5-B7CA-969E28A9CA99}.Debug|x64.Build.0 = Debug|x64
+		{27124670-1920-43D5-B7CA-969E28A9CA99}.Release|x64.ActiveCfg = Release|x64
+		{27124670-1920-43D5-B7CA-969E28A9CA99}.Release|x64.Build.0 = Release|x64
+		{85F311DC-6554-4B82-897C-02DD6B03DC77}.Debug|x64.ActiveCfg = Debug|x64
+		{85F311DC-6554-4B82-897C-02DD6B03DC77}.Debug|x64.Build.0 = Debug|x64
+		{85F311DC-6554-4B82-897C-02DD6B03DC77}.Release|x64.ActiveCfg = Release|x64
+		{85F311DC-6554-4B82-897C-02DD6B03DC77}.Release|x64.Build.0 = Release|x64
+		{D992A9C9-2300-43BF-A70E-BAFCFEAAA4C1}.Debug|x64.ActiveCfg = Debug|x64
+		{D992A9C9-2300-43BF-A70E-BAFCFEAAA4C1}.Debug|x64.Build.0 = Debug|x64
+		{D992A9C9-2300-43BF-A70E-BAFCFEAAA4C1}.Release|x64.ActiveCfg = Release|x64
+		{D992A9C9-2300-43BF-A70E-BAFCFEAAA4C1}.Release|x64.Build.0 = Release|x64
+		{5DE818CB-444D-45CB-8DC6-AF28CE002A1A}.Debug|x64.ActiveCfg = Debug|x64
+		{5DE818CB-444D-45CB-8DC6-AF28CE002A1A}.Debug|x64.Build.0 = Debug|x64
+		{5DE818CB-444D-45CB-8DC6-AF28CE002A1A}.Release|x64.ActiveCfg = Release|x64
+		{5DE818CB-444D-45CB-8DC6-AF28CE002A1A}.Release|x64.Build.0 = Release|x64
+		{AC501C9D-F537-42D3-B3BF-F228A399FFC9}.Debug|x64.ActiveCfg = Debug|x64
+		{AC501C9D-F537-42D3-B3BF-F228A399FFC9}.Debug|x64.Build.0 = Debug|x64
+		{AC501C9D-F537-42D3-B3BF-F228A399FFC9}.Release|x64.ActiveCfg = Release|x64
+		{AC501C9D-F537-42D3-B3BF-F228A399FFC9}.Release|x64.Build.0 = Release|x64
+		{6FADE804-EDCC-4D9B-878D-BD4E0B0724BE}.Debug|x64.ActiveCfg = Debug|x64
+		{6FADE804-EDCC-4D9B-878D-BD4E0B0724BE}.Debug|x64.Build.0 = Debug|x64
+		{6FADE804-EDCC-4D9B-878D-BD4E0B0724BE}.Release|x64.ActiveCfg = Release|x64
+		{6FADE804-EDCC-4D9B-878D-BD4E0B0724BE}.Release|x64.Build.0 = Release|x64
+		{7DB6DCB3-4B5C-4381-90A1-E40A02AB94BE}.Debug|x64.ActiveCfg = Debug|x64
+		{7DB6DCB3-4B5C-4381-90A1-E40A02AB94BE}.Debug|x64.Build.0 = Debug|x64
+		{7DB6DCB3-4B5C-4381-90A1-E40A02AB94BE}.Release|x64.ActiveCfg = Release|x64
+		{7DB6DCB3-4B5C-4381-90A1-E40A02AB94BE}.Release|x64.Build.0 = Release|x64
+		{8BA3F201-64D7-4DC2-A95A-023DCDC9AC3B}.Debug|x64.ActiveCfg = Debug|x64
+		{8BA3F201-64D7-4DC2-A95A-023DCDC9AC3B}.Debug|x64.Build.0 = Debug|x64
+		{8BA3F201-64D7-4DC2-A95A-023DCDC9AC3B}.Release|x64.ActiveCfg = Release|x64
+		{8BA3F201-64D7-4DC2-A95A-023DCDC9AC3B}.Release|x64.Build.0 = Release|x64
+		{196E2638-6F2A-4F47-AA73-2EA6E01B6793}.Debug|x64.ActiveCfg = Debug|x64
+		{196E2638-6F2A-4F47-AA73-2EA6E01B6793}.Debug|x64.Build.0 = Debug|x64
+		{196E2638-6F2A-4F47-AA73-2EA6E01B6793}.Release|x64.ActiveCfg = Release|x64
+		{196E2638-6F2A-4F47-AA73-2EA6E01B6793}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{5C681F3F-16D7-4514-9CF0-4CE6349E32BC} = {6A3A0B11-E432-47FB-9C43-418D95FDA0F8}
+		{22FC7FE0-862A-46B1-B334-34C7EEB13035} = {6A3A0B11-E432-47FB-9C43-418D95FDA0F8}
+		{27124670-1920-43D5-B7CA-969E28A9CA99} = {6A3A0B11-E432-47FB-9C43-418D95FDA0F8}
+		{85F311DC-6554-4B82-897C-02DD6B03DC77} = {6A3A0B11-E432-47FB-9C43-418D95FDA0F8}
+		{D992A9C9-2300-43BF-A70E-BAFCFEAAA4C1} = {6A3A0B11-E432-47FB-9C43-418D95FDA0F8}
+		{5DE818CB-444D-45CB-8DC6-AF28CE002A1A} = {6A3A0B11-E432-47FB-9C43-418D95FDA0F8}
+		{AC501C9D-F537-42D3-B3BF-F228A399FFC9} = {6A3A0B11-E432-47FB-9C43-418D95FDA0F8}
+		{6FADE804-EDCC-4D9B-878D-BD4E0B0724BE} = {6A3A0B11-E432-47FB-9C43-418D95FDA0F8}
+		{7DB6DCB3-4B5C-4381-90A1-E40A02AB94BE} = {6A3A0B11-E432-47FB-9C43-418D95FDA0F8}
+		{8BA3F201-64D7-4DC2-A95A-023DCDC9AC3B} = {6A3A0B11-E432-47FB-9C43-418D95FDA0F8}
+		{196E2638-6F2A-4F47-AA73-2EA6E01B6793} = {B28445CB-4D5C-4B63-BEA9-4237C8318B51}
+	EndGlobalSection
+EndGlobal

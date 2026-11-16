@@ -1,0 +1,496 @@
+<Window x:Class="DinamikAda.App.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DinamikAda — Ayarlar"
+        Width="656"
+        Height="720"
+        MinWidth="580"
+        MinHeight="460"
+        WindowStartupLocation="Manual"
+        Background="#FF050608"
+        Foreground="#FFF5F5F7"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Themes/ObsidianGlassTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid x:Name="SettingsRootGrid" Background="#FF050608">
+        <Border Height="190" VerticalAlignment="Top" IsHitTestVisible="False">
+            <Border.Background>
+                <RadialGradientBrush Center="0.5,0.0" GradientOrigin="0.5,0.0" RadiusX="0.72" RadiusY="0.92">
+                    <GradientStop Color="#220A84FF" Offset="0"/>
+                    <GradientStop Color="#0D64D2FF" Offset="0.45"/>
+                    <GradientStop Color="#00000000" Offset="1"/>
+                </RadialGradientBrush>
+            </Border.Background>
+        </Border>
+
+        <Grid Margin="20,18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Branded Header -->
+            <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                <Border DockPanel.Dock="Left" Width="42" Height="42" CornerRadius="12"
+                        Background="#200A84FF" BorderBrush="#4064D2FF" BorderThickness="1" Margin="0,0,12,0">
+                    <TextBlock Text="&#xE713;" FontFamily="{StaticResource IconFont}" FontSize="17"
+                               Foreground="{StaticResource AccentCyanBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="TxtHeaderTitle" Text="DinamikAda Ayarları" FontFamily="{StaticResource UiFont}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock x:Name="TxtHeaderSubtitle" Text="MacBook çentik görünümü, çoklu monitör yerleşimi, yenileme hızı ve modül izinleri" FontFamily="{StaticResource UiTextFont}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Inline Error / Validation Banner -->
+            <Border x:Name="BannerInlineError"
+                    Grid.Row="1"
+                    Visibility="Collapsed"
+                    Margin="0,0,0,10"
+                    Background="#2BFF453A"
+                    BorderBrush="#77FF453A"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="12,8">
+                <TextBlock x:Name="TxtInlineError"
+                           FontFamily="{StaticResource UiTextFont}"
+                           FontSize="11.5"
+                           Foreground="#FFFFDCD8"
+                           TextWrapping="Wrap"/>
+            </Border>
+
+            <!-- Scrollable Obsidian Bento Sections -->
+            <ScrollViewer Grid.Row="2" Style="{StaticResource ObsidianScrollViewerStyle}" Padding="0,0,6,0">
+                <StackPanel>
+
+                    <!-- Section 0: Live MacBook Display Bezel Preview -->
+                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,12">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,10">
+                                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                                    <Border Width="22" Height="22" CornerRadius="7" Background="#2064D2FF" Margin="0,0,8,0">
+                                        <TextBlock Text="&#xE7F4;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{StaticResource AccentCyanBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock x:Name="HdrPreviewSection" Text="Canlı Ekran Çentik Önizlemesi" FontFamily="{StaticResource UiFont}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Border DockPanel.Dock="Right" HorizontalAlignment="Right" CornerRadius="7" Padding="8,2"
+                                        Background="#14FFFFFF" BorderBrush="#24FFFFFF" BorderThickness="0.8">
+                                    <TextBlock x:Name="TxtPreviewDimsBadge" Text="212 × 36 dp • Ear 11" FontFamily="{StaticResource UiTextFont}" FontSize="10.2" Foreground="{StaticResource AccentCyanBrush}"/>
+                                </Border>
+                            </DockPanel>
+
+                            <!-- Clipped 84dp MacBook Display Bezel -->
+                            <Border Height="84"
+                                    CornerRadius="12"
+                                    ClipToBounds="True"
+                                    BorderBrush="#2CFFFFFF"
+                                    BorderThickness="1">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#FF0E1729" Offset="0"/>
+                                        <GradientStop Color="#FF172742" Offset="0.52"/>
+                                        <GradientStop Color="#FF111B30" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Grid>
+                                    <!-- Ambient wallpaper bloom -->
+                                    <Ellipse x:Name="PreviewAlbumGlow"
+                                             Width="260" Height="110"
+                                             HorizontalAlignment="Center" VerticalAlignment="Top"
+                                             Margin="0,-30,0,0"
+                                             Opacity="0.55"
+                                             IsHitTestVisible="False">
+                                        <Ellipse.Fill>
+                                            <RadialGradientBrush>
+                                                <GradientStop Color="#520A84FF" Offset="0"/>
+                                                <GradientStop Color="#1F64D2FF" Offset="0.45"/>
+                                                <GradientStop Color="#00000000" Offset="1"/>
+                                            </RadialGradientBrush>
+                                        </Ellipse.Fill>
+                                    </Ellipse>
+
+                                    <!-- Top menu bar simulation strip -->
+                                    <Border Height="22" VerticalAlignment="Top" Background="#28000000" IsHitTestVisible="False">
+                                        <Grid Margin="14,0">
+                                            <StackPanel x:Name="PreviewMenuLeft" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="DinamikAda" FontFamily="{StaticResource UiFont}" FontSize="10" FontWeight="SemiBold" Foreground="#CCFFFFFF" Margin="0,0,10,0"/>
+                                                <TextBlock x:Name="PreviewMenuWindow" Text="Pencere" FontFamily="{StaticResource UiTextFont}" FontSize="9.8" Foreground="#99FFFFFF" Margin="0,0,8,0"/>
+                                                <TextBlock x:Name="PreviewMenuAudio" Text="Ses" FontFamily="{StaticResource UiTextFont}" FontSize="9.8" Foreground="#99FFFFFF"/>
+                                            </StackPanel>
+                                            <StackPanel x:Name="PreviewMenuRight" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE701;  &#xE767;" FontFamily="{StaticResource IconFont}" FontSize="9.5" Foreground="#B3FFFFFF" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                <TextBlock Text="100%" FontFamily="{StaticResource UiTextFont}" FontSize="9.5" FontWeight="SemiBold" Foreground="#B3FFFFFF" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Parametric Notch Shell & Rim Preview Canvas -->
+                                    <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center" VerticalAlignment="Top">
+                                        <Canvas x:Name="BezelPreviewCanvas"
+                                                Width="560"
+                                                Height="84"
+                                                ClipToBounds="True">
+                                            <Path x:Name="PreviewShellPath"
+                                                  Fill="{StaticResource NotchOledShellBrush}"
+                                                  IsHitTestVisible="False"/>
+                                            <Path x:Name="PreviewRimPath"
+                                                  Stroke="{StaticResource NotchRimGradientBrush}"
+                                                  StrokeThickness="1.0"
+                                                  Fill="{x:Null}"
+                                                  IsHitTestVisible="False"/>
+                                            <!-- Camera lens hardware detail inside dormant notch -->
+                                            <Grid x:Name="PreviewCameraLens"
+                                                  Width="12"
+                                                  Height="12"
+                                                  Canvas.Left="274"
+                                                  Canvas.Top="11"
+                                                  IsHitTestVisible="False">
+                                                <Ellipse Fill="#FF080A10" Stroke="#24FFFFFF" StrokeThickness="0.7"/>
+                                                <Ellipse Width="5" Height="5" Fill="#FF102A54"/>
+                                                <Ellipse Width="2" Height="2" Margin="3,3,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" Fill="#6664D2FF"/>
+                                            </Grid>
+                                            <Ellipse x:Name="PreviewSensorDot"
+                                                     Width="4.5"
+                                                     Height="4.5"
+                                                     Canvas.Left="293"
+                                                     Canvas.Top="15"
+                                                     Fill="{StaticResource AccentGreenBrush}"
+                                                     Opacity="0.88"
+                                                     IsHitTestVisible="False"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section 1: Placement & Monitors -->
+                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <Border Width="22" Height="22" CornerRadius="7" Background="#240A84FF" Margin="0,0,8,0">
+                                    <TextBlock Text="&#xE7F4;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{StaticResource AccentCyanBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock x:Name="HdrPlacementSection" Text="Görünüm &amp; Çoklu Monitör Yerleşimi" FontFamily="{StaticResource UiFont}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock x:Name="LblLanguage" Grid.Row="0" Grid.Column="0" Text="Dil" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <ComboBox x:Name="ComboLanguage" Grid.Row="0" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnLanguageSelectionChanged"/>
+
+                                <TextBlock x:Name="LblDockMode" Grid.Row="1" Grid.Column="0" Text="Yerleşim Konumu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <ComboBox x:Name="ComboDockMode" Grid.Row="1" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
+
+                                <TextBlock x:Name="LblNotchScalePreset" Grid.Row="2" Grid.Column="0" Text="Çentik Boyutu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <ComboBox x:Name="ComboNotchScalePreset" Grid.Row="2" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
+
+                                <TextBlock x:Name="LblMonitorMode" Grid.Row="3" Grid.Column="0" Text="Monitör Modu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <ComboBox x:Name="ComboMonitorMode" Grid.Row="3" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
+
+                                <TextBlock x:Name="LblPinnedMonitor" Grid.Row="4" Grid.Column="0" Text="Hedef Monitör" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <ComboBox x:Name="ComboPinnedMonitor" Grid.Row="4" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
+
+                                <TextBlock x:Name="LblDetent" Grid.Row="5" Grid.Column="0" Text="Yatay Hizalama" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <ComboBox x:Name="ComboDetent" Grid.Row="5" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
+
+                                <TextBlock x:Name="LblCustomRatio" Grid.Row="6" Grid.Column="0" Text="Yatay Konum (%)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <Grid Grid.Row="6" Grid.Column="1" Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="SliderCustomRatio" Style="{StaticResource ObsidianSliderStyle}" Minimum="8" Maximum="92" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                    <TextBlock x:Name="ValCustomRatio" Grid.Column="1" Text="50%" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <TextBlock x:Name="LblCustomFreeTop" Grid.Row="7" Grid.Column="0" Text="Serbest Üst Mesafe (dp)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <Grid Grid.Row="7" Grid.Column="1" Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="SliderCustomFreeTop" Style="{StaticResource ObsidianSliderStyle}" Minimum="0" Maximum="2000" TickFrequency="2" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                    <TextBlock x:Name="ValCustomFreeTop" Grid.Column="1" Text="12 dp" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <CheckBox x:Name="ChkDormantCameraLens" Grid.Row="8" Grid.ColumnSpan="2" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,8,0,2" Content="Beklemede Kamera Lens Detayı" Click="OnPreviewToggleChanged"/>
+                                <CheckBox x:Name="ChkDynamicAlbumGlow" Grid.Row="9" Grid.ColumnSpan="2" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4,0,0" Content="Dinamik Albüm Işıltısı" Click="OnPreviewToggleChanged"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section 2: Performance, Refresh Rate & Interaction -->
+                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <Border Width="22" Height="22" CornerRadius="7" Background="#2430D158" Margin="0,0,8,0">
+                                    <TextBlock Text="&#xE945;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{StaticResource AccentGreenBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock x:Name="HdrMotionSection" Text="Performans, Yenileme Hızı &amp; Etkileşim" FontFamily="{StaticResource UiFont}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock x:Name="LblTargetFpsCap" Grid.Row="0" Grid.Column="0" Text="Kare Hızı Sınırı" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <ComboBox x:Name="ComboTargetFpsCap" Grid.Row="0" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
+
+                                <TextBlock x:Name="TxtRefreshRateHint" Grid.Row="1" Grid.Column="1" Text="Aktif ekran tazeleme hızı algılanıyor..." FontFamily="{StaticResource UiTextFont}" FontSize="10.5" Foreground="{StaticResource AccentCyanBrush}" Margin="2,0,0,6" TextWrapping="Wrap"/>
+
+                                <TextBlock x:Name="LblExpandTrigger" Grid.Row="2" Grid.Column="0" Text="Genişletme Tetikleyici" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <ComboBox x:Name="ComboExpandTrigger" Grid.Row="2" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4"/>
+
+                                <TextBlock x:Name="LblHoverDwell" Grid.Row="3" Grid.Column="0" Text="Üzerinde Bekleme (ms)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <Grid Grid.Row="3" Grid.Column="1" Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="SliderHoverDwell" Style="{StaticResource ObsidianSliderStyle}" Minimum="40" Maximum="2000" TickFrequency="20" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                    <TextBlock x:Name="ValHoverDwell" Grid.Column="1" Text="240 ms" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <TextBlock x:Name="LblCollapseDelay" Grid.Row="4" Grid.Column="0" Text="Daralma Gecikmesi (ms)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <Grid Grid.Row="4" Grid.Column="1" Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="SliderCollapseDelay" Style="{StaticResource ObsidianSliderStyle}" Minimum="80" Maximum="5000" TickFrequency="20" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                    <TextBlock x:Name="ValCollapseDelay" Grid.Column="1" Text="320 ms" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <TextBlock x:Name="LblHotkey" Grid.Row="5" Grid.Column="0" Text="Genel Kısayol Tuşu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <StackPanel Grid.Row="5" Grid.Column="1" Margin="0,4">
+                                    <TextBox x:Name="TxtHotkey" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32"/>
+                                    <TextBlock x:Name="TxtHotkeyHint" Text="Örn: Ctrl+Shift+Space, Alt+Space, Win+Shift+D" Style="{StaticResource NotchMutedLabelStyle}" Margin="2,3,0,0"/>
+                                </StackPanel>
+
+                                <TextBlock x:Name="LblMicMuteHotkey" Grid.Row="6" Grid.Column="0" Text="Mikrofon Susturma Kısayolu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <TextBox x:Name="TxtMicMuteHotkey" Grid.Row="6" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32" Margin="0,4"/>
+
+                                <TextBlock x:Name="LblColorPickerHotkey" Grid.Row="7" Grid.Column="0" Text="Renk Seçici Kısayolu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <TextBox x:Name="TxtColorPickerHotkey" Grid.Row="7" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32" Margin="0,4"/>
+                            </Grid>
+
+                            <Separator Margin="0,10,0,8" Background="#16FFFFFF" Height="1"/>
+
+                            <CheckBox x:Name="ChkHardwareRendering" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Donanım GPU İşleme (yeniden başlatma gerekir)"/>
+                            <CheckBox x:Name="ChkSpectrumVisualizer" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Ses Spektrum Görselleştirici"/>
+                            <CheckBox x:Name="ChkAutoDodge" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Auto-Dodge (Shift basılıyken ada tıklamaları arkaya geçirir)"/>
+                            <CheckBox x:Name="ChkFadeWhenIdle" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Boştayken Adanın Opaklığını Azalt"/>
+                            <CheckBox x:Name="ChkQuietIsland" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Sessiz Ada (Yalnızca kritik uyarılar)"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section 3: Fullscreen Behavior -->
+                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <Border Width="22" Height="22" CornerRadius="7" Background="#24FF9F0A" Margin="0,0,8,0">
+                                    <TextBlock Text="&#xE740;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{StaticResource AccentAmberBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock x:Name="HdrFullscreenSection" Text="Tam Ekran Davranışı" FontFamily="{StaticResource UiFont}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock x:Name="LblGamePolicy" Grid.Row="0" Grid.Column="0" Text="Oyunlar" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <ComboBox x:Name="ComboGamePolicy" Grid.Row="0" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4"/>
+
+                                <TextBlock x:Name="LblVideoPolicy" Grid.Row="1" Grid.Column="0" Text="Tam Ekran Video" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <ComboBox x:Name="ComboVideoPolicy" Grid.Row="1" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4"/>
+
+                                <TextBlock x:Name="LblProductivityPolicy" Grid.Row="2" Grid.Column="0" Text="Diğer Tam Ekran Uygulamalar" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <ComboBox x:Name="ComboProductivityPolicy" Grid.Row="2" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4"/>
+
+                                <TextBlock x:Name="LblWhitelistExes" Grid.Row="3" Grid.Column="0" Text="Her Zaman Kompakt (.exe)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <TextBox x:Name="TxtWhitelistExes" Grid.Row="3" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32" Margin="0,4" ToolTip="Virgülle ayrılmış: vlc.exe, potplayermini64.exe"/>
+
+                                <TextBlock x:Name="LblHideExes" Grid.Row="4" Grid.Column="0" Text="Her Zaman Gizle (.exe)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <TextBox x:Name="TxtHideExes" Grid.Row="4" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32" Margin="0,4" ToolTip="Virgülle ayrılmış: cs2.exe, valorant.exe"/>
+                            </Grid>
+
+                            <Separator Margin="0,8,0,6" Background="#16FFFFFF" Height="1"/>
+                            <CheckBox x:Name="ChkGameModeAuto" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Oyun Modu Otomasyonu (Yüksek Performans Güç Planı)"/>
+                            <CheckBox x:Name="ChkGameModeHide" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Oyun Modunda Adayı Tamamen Gizle"/>
+                            <CheckBox x:Name="ChkGameModePingPill" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Oyun Modunda S2 Split Canlı Ping Hapını Göster"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section 4: Modules, Tabs & Startup -->
+                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <Border Width="22" Height="22" CornerRadius="7" Background="#24BF5AF2" Margin="0,0,8,0">
+                                    <TextBlock Text="&#xE8A9;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{StaticResource AccentPurpleBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock x:Name="HdrModulesSection" Text="Sekmeler, Modüller &amp; Pano Kasası" FontFamily="{StaticResource UiFont}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <TextBlock x:Name="LblPinnedTabs" Text="Görünür Sekmeler (en az 1)" Style="{StaticResource NotchSubtitleTextStyle}" Margin="0,0,0,6"/>
+                            <UniformGrid Columns="3" Margin="0,0,0,8">
+                                <CheckBox x:Name="ChkTabNow" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
+                                <CheckBox x:Name="ChkTabAudio" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
+                                <CheckBox x:Name="ChkTabControl" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
+                                <CheckBox x:Name="ChkTabShelf" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
+                                <CheckBox x:Name="ChkTabSystem" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
+                                <CheckBox x:Name="ChkTabWidgets" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
+                            </UniformGrid>
+
+                            <Grid Margin="0,2,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="52"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="LblMaxClipboard" Grid.Column="0" Text="Maks. Pano Öğesi" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center"/>
+                                <Slider x:Name="SliderMaxClipboard" Grid.Column="1" Style="{StaticResource ObsidianSliderStyle}" Minimum="5" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                <TextBlock x:Name="ValMaxClipboard" Grid.Column="2" Text="30" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <CheckBox x:Name="ChkShowTelemetryPill" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Kompakt Kapsülde CPU/RAM Özeti Göster"/>
+                            <CheckBox x:Name="ChkMicPrivacyAlert" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Mikrofon Aktif Uyarısını Adada Göster"/>
+                            <CheckBox x:Name="ChkMirrorOsNotifications" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Windows Bildirimlerini Adada Aynala"/>
+                            <CheckBox x:Name="ChkClipboardVault" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Şifreli Pano Kasası (DPAPI)"/>
+                            <CheckBox x:Name="ChkBtBatteryAlerts" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Bluetooth Pil HUD &amp; Düşük Pil Uyarısı"/>
+                            <CheckBox x:Name="ChkNotchDesktopSwipe" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Çentikte Yatay Kaydırma / Shift+Tekerlek ile Masaüstü Değiştir"/>
+                            <CheckBox x:Name="ChkCalendarEnabled" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Toplantı Geri Sayımı (.ics)"/>
+                            <CheckBox x:Name="ChkDownloadsWatch" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="İndirmeleri Çentikte İzle"/>
+                            <CheckBox x:Name="ChkLyricsEnabled" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Senkron Şarkı Sözü (.lrc)"/>
+                            <CheckBox x:Name="ChkUsbDriveHud" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="USB / Harici Disk Tak-Çıkar HUD &amp; Güvenle Çıkar"/>
+                            <CheckBox x:Name="ChkDevBridgeEnabled" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Geliştirici Bildirim Köprüsü (HTTP + Named Pipe)"/>
+                            <CheckBox x:Name="ChkLaunchAtStartup" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Windows ile Başlat"/>
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="LblCalendarSources" Grid.Row="0" Grid.Column="0" Text="Takvim .ics Kaynakları" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,5"/>
+                                <TextBox x:Name="TxtCalendarSources" Grid.Row="0" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3" ToolTip="Yerel .ics dosya yolu veya https:// takvim URL (satır veya noktalı virgül ile ayırın)"/>
+                                <TextBlock x:Name="LblDownloadsPath" Grid.Row="1" Grid.Column="0" Text="İzlenen İndirme Klasörü" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,5"/>
+                                <TextBox x:Name="TxtDownloadsPath" Grid.Row="1" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3" ToolTip="Boş = Varsayılan Windows İndirilenler klasörü"/>
+                                <TextBlock x:Name="LblLyricsFolders" Grid.Row="2" Grid.Column="0" Text="Şarkı Sözü Klasörleri (.lrc)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,5"/>
+                                <TextBox x:Name="TxtLyricsFolders" Grid.Row="2" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3" ToolTip="Boş = Müzik klasörün · Ek .lrc klasörlerini ';' ile ayırın"/>
+                                <TextBlock x:Name="LblPingHost" Grid.Row="3" Grid.Column="0" Text="Ping Hedefi (IP / Alan Adı)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,5"/>
+                                <TextBox x:Name="TxtPingHost" Grid.Row="3" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3"/>
+                                <TextBlock x:Name="LblDevBridgePort" Grid.Row="4" Grid.Column="0" Text="Geliştirici Köprüsü Portu (127.0.0.1)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,5"/>
+                                <TextBox x:Name="TxtDevBridgePort" Grid.Row="4" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section 5: Package Identity & Plugins -->
+                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,6" Padding="15,13">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Border Width="22" Height="22" CornerRadius="7" Background="#2464D2FF" Margin="0,0,8,0">
+                                    <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{StaticResource AccentCyanBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock x:Name="HdrIdentitySection" Text="Sparse MSIX Paket Kimliği &amp; Eklentiler" FontFamily="{StaticResource UiFont}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <TextBlock x:Name="TxtIdentityStatus" FontFamily="{StaticResource UiTextFont}" FontSize="11.2" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <WrapPanel>
+                                <Button x:Name="BtnCopyMsix" Style="{StaticResource DarkActionButtonStyle}" Height="30" Padding="12,4" Margin="0,0,8,4" Content="Sparse MSIX Komutunu Kopyala" Click="OnCopyMsixCommandClick"/>
+                                <Button x:Name="BtnOpenPlugins" Style="{StaticResource DarkActionButtonStyle}" Height="30" Padding="12,4" Margin="0,0,8,4" Content="Widget Eklenti Klasörü" Click="OnOpenPluginsClick"/>
+                            </WrapPanel>
+
+                            <TextBlock x:Name="TxtIdentityActionStatus" Visibility="Collapsed" FontFamily="{StaticResource UiTextFont}" FontSize="10.8" Foreground="{StaticResource AccentGreenBrush}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Action Footer -->
+            <DockPanel Grid.Row="3" Margin="0,14,0,0">
+                <Button x:Name="BtnResetDefaults"
+                        DockPanel.Dock="Left"
+                        Style="{StaticResource DarkActionButtonStyle}"
+                        Height="34"
+                        Padding="14,0"
+                        Content="Varsayılanlara Sıfırla"
+                        Click="OnResetDefaultsClick"/>
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="BtnCancel"
+                            Style="{StaticResource DarkActionButtonStyle}"
+                            Height="34"
+                            MinWidth="92"
+                            Margin="0,0,8,0"
+                            Content="İptal"
+                            Click="OnCancelClick"/>
+                    <Button x:Name="BtnSave"
+                            Style="{StaticResource AccentHeroButtonStyle}"
+                            Height="34"
+                            MinWidth="114"
+                            Content="Kaydet"
+                            Click="OnSaveClick"/>
+                </StackPanel>
+            </DockPanel>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.26100.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DinamikAda.Core\DinamikAda.Core.csproj" />
+    <ProjectReference Include="..\DinamikAda.Platform.Win32\DinamikAda.Platform.Win32.csproj" />
+    <ProjectReference Include="..\DinamikAda.Modules.Productivity\DinamikAda.Modules.Productivity.csproj" />
+  </ItemGroup>
+</Project>
