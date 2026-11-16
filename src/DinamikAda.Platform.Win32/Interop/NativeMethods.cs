@@ -1315,6 +1315,10 @@ public static unsafe partial class NativeMethods
     public const uint ABM_REMOVE = 0x00000001;
     public const uint ABM_QUERYPOS = 0x00000002;
     public const uint ABM_SETPOS = 0x00000003;
+    public const uint ABM_GETSTATE = 0x00000004;
+    public const uint ABM_SETSTATE = 0x0000000A;
+    public const int ABS_ALWAYSONTOP = 0x00000000;
+    public const int ABS_AUTOHIDE = 0x00000001;
     public const uint ABE_BOTTOM = 3;
 
     [StructLayout(LayoutKind.Sequential)]

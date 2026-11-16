@@ -51,11 +51,11 @@
         <Border x:Name="DockPillContainer"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Bottom"
-                Margin="0,0,0,5"
-                CornerRadius="15"
-                Background="#E806070B"
-                BorderBrush="#22FFFFFF"
-                BorderThickness="0.8"
+                Margin="0,0,0,6"
+                CornerRadius="18"
+                Background="#EF06080E"
+                BorderBrush="#32FFFFFF"
+                BorderThickness="0.9"
                 ClipToBounds="False"
                 MouseEnter="OnDockMouseEnter"
                 MouseMove="OnDockMouseMove"
@@ -65,7 +65,7 @@
             </Border.RenderTransform>
             <Grid ClipToBounds="False">
                 <!-- Synced Ambient Glow rendered directly via rounded Border.Background (never leaks corners) -->
-                <Border x:Name="DockAmbientOverlay" CornerRadius="14" IsHitTestVisible="False">
+                <Border x:Name="DockAmbientOverlay" CornerRadius="17" IsHitTestVisible="False">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                             <GradientStop x:Name="DockAuraStop0" Color="#1E0A84FF" Offset="0.0" />

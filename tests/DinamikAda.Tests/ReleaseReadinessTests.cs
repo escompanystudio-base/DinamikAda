@@ -656,5 +656,11 @@ public sealed class ReleaseReadinessTests
         Assert.False(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("SecurityHealthSystray", @"C:\WINDOWS\system32\SecurityHealthSystray.exe", @"C:\WINDOWS"));
         Assert.False(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("RadeonSoftware", @"C:\Program Files\AMD\CNext\CNext\RadeonSoftware.exe", @"C:\WINDOWS"));
         Assert.False(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("lghub_system_tray", expanded, @"C:\WINDOWS"));
+
+        var defaultCfg = new AppConfig();
+        Assert.False(defaultCfg.DockReserveWorkArea);
+        Assert.Equal(4u, NativeMethods.ABM_GETSTATE);
+        Assert.Equal(10u, NativeMethods.ABM_SETSTATE);
+        Assert.Equal(1, NativeMethods.ABS_AUTOHIDE);
     }
 }

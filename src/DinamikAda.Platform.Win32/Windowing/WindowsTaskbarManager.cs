@@ -19,6 +19,7 @@ public sealed unsafe class WindowsTaskbarManager : IDisposable
     private nint _appBarHwnd;
     private NativeMethods.RECT _appliedReservedRect;
     private bool _hasAppBarRegistered;
+    private int? _savedTaskbarState;
     private bool _disposed;
 
     public bool IsTaskbarHidden
@@ -29,7 +30,11 @@ public sealed unsafe class WindowsTaskbarManager : IDisposable
     /// <summary>
     /// Must be called on the WPF UI thread so WINEVENT_OUTOFCONTEXT fires automatically on the pump.
     /// </summary>
-    public void ApplyState(bool hideTaskbar, MonitorDescriptor? primaryMonitor, int reservedBottomPx)
+    public void ApplyState(
+        bool hideTaskbar,
+        MonitorDescriptor? primaryMonitor,
+        int reservedBottomPx,
+        bool reserveFullWidthWorkArea = false)
     {
         lock (_sync)
         {
@@ -42,6 +47,24 @@ public sealed unsafe class WindowsTaskbarManager : IDisposable
 
             _hideActive = true;
             InstallHookIfNeeded();
+
+            if (!reserveFullWidthWorkArea)
+            {
+                RemoveAppBarWorkArea();
+                _savedTaskbarState ??= ReadShellTrayState();
+                if (_savedTaskbarState is not null && ReadShellTrayState() != NativeMethods.ABS_AUTOHIDE)
+                {
+                    SetShellTrayState(NativeMethods.ABS_AUTOHIDE);
+                }
+                HideAllTaskbarWindows();
+                return;
+            }
+
+            if (_savedTaskbarState is int prevState)
+            {
+                SetShellTrayState(prevState);
+                _savedTaskbarState = null;
+            }
             HideAllTaskbarWindows();
 
             if (primaryMonitor is not null && reservedBottomPx > 0)
@@ -199,6 +222,37 @@ public sealed unsafe class WindowsTaskbarManager : IDisposable
         }
         _knownTaskbarHwnds.Clear();
         RemoveAppBarWorkArea();
+
+        if (_savedTaskbarState is int prevState)
+        {
+            SetShellTrayState(prevState);
+            _savedTaskbarState = null;
+        }
+    }
+
+    private static int? ReadShellTrayState()
+    {
+        nint tray = NativeMethods.FindWindowW("Shell_TrayWnd", null);
+        if (tray == 0) return null;
+        var abd = new NativeMethods.APPBARDATA
+        {
+            cbSize = (uint)Marshal.SizeOf<NativeMethods.APPBARDATA>(),
+            hWnd = tray
+        };
+        return unchecked((int)NativeMethods.SHAppBarMessage(NativeMethods.ABM_GETSTATE, ref abd));
+    }
+
+    private static void SetShellTrayState(int state)
+    {
+        nint tray = NativeMethods.FindWindowW("Shell_TrayWnd", null);
+        if (tray == 0) return;
+        var abd = new NativeMethods.APPBARDATA
+        {
+            cbSize = (uint)Marshal.SizeOf<NativeMethods.APPBARDATA>(),
+            hWnd = tray,
+            lParam = new nint(state)
+        };
+        _ = NativeMethods.SHAppBarMessage(NativeMethods.ABM_SETSTATE, ref abd);
     }
 
     private void EnsureAppBarWorkArea(MonitorDescriptor monitor, int desiredWorkBottomPx)

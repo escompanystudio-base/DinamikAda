@@ -87,6 +87,7 @@ public sealed class AppConfig
     public bool HideWindowsTaskbar { get; set; } = true;
     public bool DockMagnificationEnabled { get; set; } = true;
     public bool DockFollowFullscreenHide { get; set; } = true;
+    public bool DockReserveWorkArea { get; set; } = false;
     public int DockIconSizeDip { get; set; } = 32;
     public List<string> PinnedDockApps { get; set; } = new();
 

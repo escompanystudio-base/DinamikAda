@@ -172,7 +172,11 @@ public partial class DockWindow : Window
 
         if (!_isSmokeOrAuditMode)
         {
-            _taskbarManager.ApplyState(hideTaskbar, _activeMonitor, reservedPx);
+            _taskbarManager.ApplyState(
+                hideTaskbar,
+                _activeMonitor,
+                reservedPx,
+                reserveFullWidthWorkArea: _orch.Config.DockReserveWorkArea);
         }
 
         if (shouldBeVisible)
@@ -1777,6 +1781,12 @@ public partial class DockWindow : Window
             menu.Items.Add(toggleHub);
             menu.Items.Add(cmdPal);
         }
+        else if (slot.Kind == SlotKind.TrayOverflow)
+        {
+            var openTrayItem = new MenuItem { Header = Strings.DockTrayAppsLabel(lang) };
+            openTrayItem.Click += (_, _) => ToggleTrayPopup();
+            menu.Items.Add(openTrayItem);
+        }
         else if (slot.Kind == SlotKind.Trash)
         {
             var openRb = new MenuItem { Header = Strings.DockOpenTrash(lang) };
@@ -1788,6 +1798,20 @@ public partial class DockWindow : Window
         }
 
         menu.Items.Add(new Separator());
+        var toggleWorkArea = new MenuItem
+        {
+            Header = _orch.Config.DockReserveWorkArea
+                ? Strings.DockFloatOverAppsMenu(lang)
+                : Strings.DockReserveStripMenu(lang)
+        };
+        toggleWorkArea.Click += (_, _) =>
+        {
+            _orch.Config.DockReserveWorkArea = !_orch.Config.DockReserveWorkArea;
+            _orch.SaveConfig();
+            ApplyConfigAndSync();
+        };
+        menu.Items.Add(toggleWorkArea);
+
         var toggleTaskbar = new MenuItem
         {
             Header = _orch.Config.HideWindowsTaskbar

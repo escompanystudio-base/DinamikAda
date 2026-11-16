@@ -204,6 +204,8 @@ public static class Strings
     public static string TrayOpenApp(string lang) => Pick(lang, "Aç / Öne Getir", "Open / Bring to Front");
     public static string TrayOpenLocation(string lang) => Pick(lang, "Dosya Konumunu Aç", "Open File Location");
     public static string TrayQuitApp(string lang) => Pick(lang, "Uygulamayı Kapat", "Quit Background App");
+    public static string DockFloatOverAppsMenu(string lang) => Pick(lang, "Yüzer Kavisli Mod (Uygulamalar Alta İnsin)", "Floating Curved Mode (Full-Height Apps)");
+    public static string DockReserveStripMenu(string lang) => Pick(lang, "Alt Şerit Boşluğunu Koru", "Reserve Full Bottom Strip");
 
     // Multi-Account AI Subscription & Quota Reset Tracker
     public static string AiQuotaSectionTitle(string lang) => Pick(lang, "AI Abonelik & Kota Takibi", "AI Subscriptions & Quota");
