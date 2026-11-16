@@ -45,6 +45,9 @@ public static unsafe class WindowControlMath
         "System tray overflow window.",
         "Program Manager",
         "DinamikAda",
+        "DinamikAda — Island",
+        "DinamikAda Dock",
+        "DinamikAda Ayarlar",
         "Windows 11 Dynamic Island",
         "Windows Input Experience",
         "Task Switching"
@@ -92,9 +95,7 @@ public static unsafe class WindowControlMath
             }
         }
 
-        if (trimmed.StartsWith("DinamikAda", StringComparison.OrdinalIgnoreCase)
-            || trimmed.StartsWith("Windows 11 Dynamic Island", StringComparison.OrdinalIgnoreCase)
-            || trimmed.Contains("Sistem tepsisi taşma", StringComparison.OrdinalIgnoreCase)
+        if (trimmed.Contains("Sistem tepsisi taşma", StringComparison.OrdinalIgnoreCase)
             || trimmed.Contains("System tray overflow", StringComparison.OrdinalIgnoreCase))
         {
             return false;

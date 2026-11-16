@@ -1082,7 +1082,7 @@ public partial class DockWindow : Window
         var container = new Grid
         {
             Width = tileW,
-            Height = tileH + 7.0,
+            Height = tileH + 9.0,
             Cursor = Cursors.Hand,
             Background = Brushes.Transparent,
             RenderTransform = tg
@@ -1193,12 +1193,13 @@ public partial class DockWindow : Window
         Border? pill = null;
         if (isForeground)
         {
+            var fgAccent = ParseAccentColor(_orch.Coordinator.Current.PrimaryActivity?.AccentHex, Color.FromRgb(96, 165, 250));
             pill = new Border
             {
-                Width = 10,
-                Height = 3.0,
-                CornerRadius = new CornerRadius(1.5),
-                Background = new SolidColorBrush(ParseAccentColor(_orch.Coordinator.Current.PrimaryActivity?.AccentHex, Color.FromRgb(10, 132, 255))),
+                Width = 14.0,
+                Height = 3.5,
+                CornerRadius = new CornerRadius(1.75),
+                Background = new SolidColorBrush(fgAccent),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Bottom,
                 Margin = new Thickness(0, 0, 0, 0.5),
@@ -1210,9 +1211,9 @@ public partial class DockWindow : Window
         {
             dot = new Ellipse
             {
-                Width = 3.5,
-                Height = 3.5,
-                Fill = new SolidColorBrush(Color.FromArgb(0xC8, 0xF5, 0xF5, 0xF7)),
+                Width = 5.0,
+                Height = 5.0,
+                Fill = new SolidColorBrush(Color.FromArgb(0xF2, 0xF5, 0xF5, 0xF7)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Bottom,
                 Margin = new Thickness(0, 0, 0, 0.5),
@@ -1268,7 +1269,7 @@ public partial class DockWindow : Window
         var container = new Grid
         {
             Width = tileW,
-            Height = tileH + 7.0,
+            Height = tileH + 9.0,
             Cursor = Cursors.Hand,
             Background = Brushes.Transparent,
             RenderTransform = tg
@@ -1399,7 +1400,7 @@ public partial class DockWindow : Window
         var container = new Grid
         {
             Width = tileW,
-            Height = tileH + 7.0,
+            Height = tileH + 9.0,
             Cursor = Cursors.Hand,
             Background = Brushes.Transparent,
             RenderTransform = tg
@@ -1904,7 +1905,7 @@ public partial class DockWindow : Window
         var container = new Grid
         {
             Width = tileW,
-            Height = tileH + 7.0,
+            Height = tileH + 9.0,
             Cursor = Cursors.Hand,
             Background = Brushes.Transparent,
             RenderTransform = tg

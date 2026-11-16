@@ -788,5 +788,30 @@ public sealed class ReleaseReadinessTests
         Assert.True(WindowRestoreGeometry.ShouldLightDismissPopup(
             isOpen: true, waitingInitialRelease: false, prevAnyButtonDown: false, curAnyButtonDown: false,
             isEscapeDown: false, insideCard: false, insideToggleButton: false, foregroundChanged: true, contextMenuOpen: false));
+
+        // External IDEs/editors/folders whose workspace title mentions DinamikAda/Dynamic Island must still appear on Dock with running dots!
+        Assert.True(WindowControlMath.IsEligibleExternalWindowMetadata("Chrome_WidgetWin_1", "Windows 11 Dynamic Island App — Antigravity"));
+        Assert.True(WindowControlMath.IsEligibleExternalWindowMetadata("Chrome_WidgetWin_1", "DinamikAda — Visual Studio Code"));
+        Assert.False(WindowControlMath.IsEligibleExternalWindowMetadata("HwndWrapper[DinamikAda.App;;999]", "DinamikAda Dock"));
+
+        // Pinned shortcut matching for File Explorer (empty target, icon resource explorer.exe, Turkish/English name) and Squirrel Update.exe wrappers
+        Assert.True(WindowRestoreGeometry.MatchesPinnedAppIdentity(
+            targetExePath: null,
+            iconSourcePath: @"C:\Windows\explorer.exe,0",
+            displayName: "Dosya Gezgini",
+            windowExePath: @"C:\WINDOWS\explorer.exe",
+            windowTitle: "Masaüstü"));
+        Assert.True(WindowRestoreGeometry.MatchesPinnedAppIdentity(
+            targetExePath: @"C:\Users\emrea\AppData\Local\Discord\Update.exe",
+            iconSourcePath: null,
+            displayName: "Discord",
+            windowExePath: @"C:\Users\emrea\AppData\Local\Discord\app-1.0.9268\Discord.exe",
+            windowTitle: "Discord"));
+        Assert.True(WindowRestoreGeometry.MatchesPinnedAppIdentity(
+            targetExePath: @"C:\Users\emrea\AppData\Local\Programs\Antigravity\Antigravity.exe",
+            iconSourcePath: null,
+            displayName: "Antigravity",
+            windowExePath: @"C:\Users\emrea\AppData\Local\Programs\Antigravity\Antigravity.exe",
+            windowTitle: "Windows 11 Dynamic Island App"));
     }
 }

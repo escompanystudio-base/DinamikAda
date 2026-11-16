@@ -1094,35 +1094,12 @@ public sealed unsafe class DockAppsService
     }
 
     private static bool MatchesPinnedEntry(PinnedEntry pin, DockWindowRef window)
-    {
-        if (string.IsNullOrWhiteSpace(window.ExePath)) return false;
-        string winExeNorm = NormalizePath(window.ExePath);
-
-        if (!string.IsNullOrWhiteSpace(pin.TargetExePath))
-        {
-            string pinExeNorm = NormalizePath(pin.TargetExePath);
-            if (string.Equals(winExeNorm, pinExeNorm, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            string winFile = Path.GetFileName(winExeNorm);
-            string pinFile = Path.GetFileName(pinExeNorm);
-            if (!string.IsNullOrWhiteSpace(winFile) && string.Equals(winFile, pinFile, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        // Handle Store shortcuts (no direct TargetExePath) via friendly executable stem match.
-        string stem = Path.GetFileNameWithoutExtension(winExeNorm);
-        if (!string.IsNullOrWhiteSpace(stem) && pin.DisplayName.Contains(stem, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
-    }
+        => WindowRestoreGeometry.MatchesPinnedAppIdentity(
+            pin.TargetExePath,
+            pin.IconSourcePath,
+            pin.DisplayName,
+            window.ExePath,
+            window.Title);
 
     private void AddUniquePinnedEntry(PinnedEntry entry)
     {

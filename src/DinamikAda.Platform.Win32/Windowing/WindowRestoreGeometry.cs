@@ -61,6 +61,93 @@ public static class WindowRestoreGeometry
         return true;
     }
 
+    public static bool MatchesPinnedAppIdentity(
+        string? targetExePath,
+        string? iconSourcePath,
+        string? displayName,
+        string? windowExePath,
+        string? windowTitle = null)
+    {
+        if (string.IsNullOrWhiteSpace(windowExePath)) return false;
+
+        string winExeNorm = NormalizeSimplePath(windowExePath);
+        string winFile = Path.GetFileName(winExeNorm);
+        string winStem = Path.GetFileNameWithoutExtension(winExeNorm);
+
+        if (!string.IsNullOrWhiteSpace(targetExePath))
+        {
+            string pinExeNorm = NormalizeSimplePath(targetExePath);
+            if (string.Equals(winExeNorm, pinExeNorm, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            string pinFile = Path.GetFileName(pinExeNorm);
+            if (!string.IsNullOrWhiteSpace(winFile) &&
+                !pinFile.Equals("Update.exe", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(winFile, pinFile, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        // Handle shortcuts whose TargetPath is empty (e.g. File Explorer.lnk) or points to a launcher/updater (Squirrel Update.exe)
+        if (!string.IsNullOrWhiteSpace(iconSourcePath))
+        {
+            string iconExe = StripIconResourceIndex(Environment.ExpandEnvironmentVariables(iconSourcePath));
+            if (iconExe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                string iconFile = Path.GetFileName(iconExe);
+                if (!string.IsNullOrWhiteSpace(iconFile) &&
+                    !iconFile.Equals("Update.exe", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(winFile, iconFile, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        bool isWrapperOrMissingTarget = string.IsNullOrWhiteSpace(targetExePath) ||
+            Path.GetFileName(targetExePath).Equals("Update.exe", StringComparison.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrWhiteSpace(winStem) &&
+            !string.IsNullOrWhiteSpace(displayName) &&
+            (isWrapperOrMissingTarget || !string.IsNullOrWhiteSpace(targetExePath)) &&
+            !winFile.Equals("ApplicationFrameHost.exe", StringComparison.OrdinalIgnoreCase) &&
+            displayName.Contains(winStem, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (winFile.Equals("ApplicationFrameHost.exe", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(displayName) &&
+            !string.IsNullOrWhiteSpace(windowTitle) &&
+            (windowTitle.Contains(displayName, StringComparison.OrdinalIgnoreCase) ||
+             displayName.Contains(windowTitle, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string NormalizeSimplePath(string path)
+    {
+        try { return Path.GetFullPath(path.Trim()); }
+        catch { return path.Trim(); }
+    }
+
+    private static string StripIconResourceIndex(string raw)
+    {
+        string trimmed = raw.Trim().Trim('"');
+        int comma = trimmed.LastIndexOf(',');
+        if (comma > 0 && int.TryParse(trimmed[(comma + 1)..].Trim(), out _))
+        {
+            trimmed = trimmed[..comma].Trim().Trim('"');
+        }
+        return trimmed;
+    }
+
     public static bool ShouldLightDismissPopup(
         bool isOpen,
         bool waitingInitialRelease,
