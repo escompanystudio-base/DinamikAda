@@ -651,6 +651,7 @@ public sealed class ReleaseReadinessTests
         Assert.True(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("MoNotificationUx", @"C:\WINDOWS\UUS\amd64\MoNotificationUx.exe", @"C:\WINDOWS"));
         Assert.True(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("lghub_agent", @"C:\Program Files\LGHUB\lghub_agent.exe", @"C:\WINDOWS"));
         Assert.True(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("AMDRSSrcExt", @"C:\Program Files\AMD\CNext\CNext\AMDRSSrcExt.exe", @"C:\WINDOWS"));
+        Assert.True(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("SteelSeriesGGEZ", @"C:\Program Files\SteelSeries\GG\SteelSeriesGGEZ.exe", @"C:\WINDOWS"));
         Assert.True(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("DDPM.Subagent.User", @"C:\Program Files\Dell\DDPM.Subagent.User.exe", @"C:\WINDOWS"));
         Assert.False(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("SecurityHealthSystray", @"C:\WINDOWS\system32\SecurityHealthSystray.exe", @"C:\WINDOWS"));
         Assert.False(DockLayoutCalculator.IsIgnoredBackgroundTrayProcess("RadeonSoftware", @"C:\Program Files\AMD\CNext\CNext\RadeonSoftware.exe", @"C:\WINDOWS"));

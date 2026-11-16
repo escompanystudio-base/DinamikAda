@@ -243,6 +243,7 @@ public static class DockLayoutCalculator
             exeName.Equals("AMDRSServ", StringComparison.OrdinalIgnoreCase) ||
             exeName.Equals("SteelSeriesEngine", StringComparison.OrdinalIgnoreCase) ||
             exeName.Equals("SteelSeriesPrism", StringComparison.OrdinalIgnoreCase) ||
+            exeName.Equals("SteelSeriesGGEZ", StringComparison.OrdinalIgnoreCase) ||
             exeName.Equals("EpicOnlineServicesUserHelper", StringComparison.OrdinalIgnoreCase) ||
             exeName.Equals("zen", StringComparison.OrdinalIgnoreCase) ||
             exeName.Equals("chrome", StringComparison.OrdinalIgnoreCase) ||

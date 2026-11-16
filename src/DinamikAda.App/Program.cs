@@ -55,6 +55,7 @@ public static class Program
             if (smokeTest && renderAuditDir is null)
             {
                 initialConfig.EnableSpectrumVisualizer = false;
+                initialConfig.DynamicAlbumGlowEnabled = false;
             }
         }
         if (renderAuditDir is not null)

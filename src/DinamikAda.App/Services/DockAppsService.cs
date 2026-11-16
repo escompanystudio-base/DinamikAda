@@ -738,6 +738,7 @@ public sealed unsafe class DockAppsService
         if (exeName.Equals("RadeonSoftware", StringComparison.OrdinalIgnoreCase)) return "AMD Software";
         if (exeName.Equals("lghub_system_tray", StringComparison.OrdinalIgnoreCase)) return "Logitech G HUB";
         if (exeName.Equals("ksdeui", StringComparison.OrdinalIgnoreCase)) return "Kaspersky VPN";
+        if (exeName.Equals("steam", StringComparison.OrdinalIgnoreCase)) return "Steam";
 
         if (!string.IsNullOrWhiteSpace(registryTooltip) &&
             registryTooltip.Length <= 32 &&
