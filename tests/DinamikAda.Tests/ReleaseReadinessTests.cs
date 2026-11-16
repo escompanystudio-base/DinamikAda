@@ -367,4 +367,45 @@ public sealed class ReleaseReadinessTests
             try { if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true); } catch { }
         }
     }
+
+    [Fact]
+    public void ScreenOcrService_PrepareBgraForOcr_UpscalesPadsAndInvertsDarkSmallCapturesCleanly()
+    {
+        const int w = 131;
+        const int h = 29;
+        byte[] src = new byte[w * h * 4];
+        for (int i = 0; i < src.Length; i += 4)
+        {
+            src[i] = 14;     // B
+            src[i + 1] = 12; // G
+            src[i + 2] = 10; // R
+            src[i + 3] = 255;
+        }
+
+        // Paint a white center stroke simulating bright text inside dark UI
+        int centerIdx = (14 * w + 65) * 4;
+        src[centerIdx] = 255;
+        src[centerIdx + 1] = 255;
+        src[centerIdx + 2] = 255;
+
+        var (normalPixels, nw, nh) = ScreenOcrService.PrepareBgraForOcr(src, w, h, scaleFactor: 3, paddingPx: 36, invertRgb: false);
+        Assert.Equal(465, nw);
+        Assert.Equal(159, nh);
+        Assert.Equal(14, normalPixels[0]);
+        Assert.Equal(12, normalPixels[1]);
+        Assert.Equal(10, normalPixels[2]);
+        Assert.Equal(255, normalPixels[3]);
+
+        var (invPixels, iw, ih) = ScreenOcrService.PrepareBgraForOcr(src, w, h, scaleFactor: 3, paddingPx: 36, invertRgb: true);
+        Assert.Equal(465, iw);
+        Assert.Equal(159, ih);
+        Assert.Equal((byte)241, invPixels[0]);
+        Assert.Equal((byte)243, invPixels[1]);
+        Assert.Equal((byte)245, invPixels[2]);
+
+        int mappedCenter = ((36 + 14 * 3 + 1) * iw + (36 + 65 * 3 + 1)) * 4;
+        Assert.Equal((byte)0, invPixels[mappedCenter]);
+        Assert.Equal((byte)0, invPixels[mappedCenter + 1]);
+        Assert.Equal((byte)0, invPixels[mappedCenter + 2]);
+    }
 }

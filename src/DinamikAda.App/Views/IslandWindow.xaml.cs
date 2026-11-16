@@ -3585,20 +3585,82 @@ public partial class IslandWindow : Window
 
             string path = item.FullPath;
             string itemId = item.Id;
+            string ext = Path.GetExtension(path);
+            bool isImage = !item.IsDirectory &&
+                (string.Equals(ext, ".png", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(ext, ".jpg", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(ext, ".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(ext, ".jfif", StringComparison.OrdinalIgnoreCase));
 
-            card.MouseLeftButtonDown += (_, args) =>
+            card.ToolTip = Strings.Pick(
+                _orch.Config.Language,
+                "Tıkla: Dosyayı aç • Sürükle: Başka pencereye bırak",
+                "Click: Open file • Drag: Drop into another window");
+
+            Point? dragStart = null;
+            bool dragStarted = false;
+
+            card.PreviewMouseLeftButtonDown += (_, args) =>
             {
-                if (args.ClickCount == 1 && (File.Exists(path) || Directory.Exists(path)))
+                if (IsVisualOriginButton(args.OriginalSource as DependencyObject))
                 {
-                    _isInternalDragOut = true;
+                    dragStart = null;
+                    dragStarted = false;
+                    return;
+                }
+                if (args.ClickCount == 1)
+                {
+                    dragStart = args.GetPosition(card);
+                    dragStarted = false;
+                }
+            };
+
+            card.PreviewMouseMove += (_, args) =>
+            {
+                if (!dragStart.HasValue || dragStarted || args.LeftButton != MouseButtonState.Pressed) return;
+                if (!File.Exists(path) && !Directory.Exists(path)) return;
+
+                Vector delta = args.GetPosition(card) - dragStart.Value;
+                if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                    Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+                {
+                    return;
+                }
+
+                dragStarted = true;
+                dragStart = null;
+                _isInternalDragOut = true;
+                try
+                {
+                    var data = new System.Windows.DataObject(DataFormats.FileDrop, new[] { path });
+                    DragDrop.DoDragDrop(card, data, DragDropEffects.Copy | DragDropEffects.Move);
+                }
+                finally
+                {
+                    _isInternalDragOut = false;
+                }
+            };
+
+            card.MouseLeftButtonUp += (_, args) =>
+            {
+                if (!dragStart.HasValue || dragStarted || IsVisualOriginButton(args.OriginalSource as DependencyObject))
+                {
+                    dragStart = null;
+                    dragStarted = false;
+                    return;
+                }
+
+                dragStart = null;
+                if (_isRenderAuditMode) return;
+                if (File.Exists(path) || Directory.Exists(path))
+                {
                     try
                     {
-                        var data = new System.Windows.DataObject(DataFormats.FileDrop, new[] { path });
-                        DragDrop.DoDragDrop(card, data, DragDropEffects.Copy | DragDropEffects.Move);
+                        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
                     }
-                    finally
+                    catch (Exception ex)
                     {
-                        _isInternalDragOut = false;
+                        _orch.Notifications.AddInternalAlert("DinamikAda", item.Name, ex.Message);
                     }
                 }
             };
@@ -3639,12 +3701,7 @@ public partial class IslandWindow : Window
             row.Children.Add(meta);
 
             var rowBtns = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            string ext = Path.GetExtension(path);
-            if (!item.IsDirectory &&
-                (string.Equals(ext, ".png", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(ext, ".jpg", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(ext, ".jpeg", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(ext, ".jfif", StringComparison.OrdinalIgnoreCase)))
+            if (isImage)
             {
                 var exifBtn = new Button
                 {
@@ -3689,6 +3746,25 @@ public partial class IslandWindow : Window
                 rowBtns.Children.Add(exifBtn);
             }
 
+            var copyBtn = new Button
+            {
+                Style = (Style)FindResource("IconCircleButtonStyle"),
+                Width = 22,
+                Height = 22,
+                FontFamily = UiIconFontFamily,
+                FontSize = 9.5,
+                Margin = new Thickness(2, 0, 4, 0),
+                Content = "\uE8C8",
+                ToolTip = Strings.Pick(_orch.Config.Language, "Panoya kopyala", "Copy to clipboard")
+            };
+            copyBtn.Click += (_, args) =>
+            {
+                args.Handled = true;
+                if (_isRenderAuditMode) return;
+                CopyShelfItemToClipboard(path, isImage, item.Name);
+            };
+            rowBtns.Children.Add(copyBtn);
+
             var remBtn = new Button
             {
                 Style = (Style)FindResource("IconCircleButtonStyle"),
@@ -3696,7 +3772,8 @@ public partial class IslandWindow : Window
                 Height = 22,
                 FontFamily = UiIconFontFamily,
                 FontSize = 9,
-                Content = "\uE711"
+                Content = "\uE711",
+                ToolTip = Strings.Pick(_orch.Config.Language, "Raftan kaldır", "Remove from shelf")
             };
             remBtn.Click += (_, args) =>
             {
@@ -3708,7 +3785,76 @@ public partial class IslandWindow : Window
             row.Children.Add(rowBtns);
 
             card.Child = row;
-            ShelfItemsStack.Children.Add(card);
+        ShelfItemsStack.Children.Add(card);
+        }
+    }
+
+    private static bool IsVisualOriginButton(DependencyObject? source)
+    {
+        DependencyObject? cur = source;
+        while (cur is not null)
+        {
+            if (cur is Button) return true;
+            cur = VisualTreeHelper.GetParent(cur);
+        }
+        return false;
+    }
+
+    private void CopyShelfItemToClipboard(string path, bool isImage, string displayName)
+    {
+        try
+        {
+            if (!File.Exists(path) && !Directory.Exists(path)) return;
+
+            if (!isImage && File.Exists(path) && string.Equals(Path.GetExtension(path), ".txt", StringComparison.OrdinalIgnoreCase))
+            {
+                var info = new FileInfo(path);
+                if (info.Length <= 256 * 1024)
+                {
+                    string txt = File.ReadAllText(path);
+                    if (!string.IsNullOrWhiteSpace(txt) && _orch.Clipboard.CopyTextToClipboard(txt))
+                    {
+                        _orch.Coordinator.Publish(new TransientHudEvent(
+                            CoalesceKey: "hud:clipboard",
+                            Kind: HudKind.Clipboard,
+                            Title: Strings.Pick(_orch.Config.Language, "Panoya Kopyalandı", "Copied to Clipboard"),
+                            Subtitle: displayName,
+                            AccentHex: "#64D2FF",
+                            DurationMs: 1600,
+                            IconGlyph: "\uE8C8"));
+                        return;
+                    }
+                }
+            }
+
+            var dataObj = new System.Windows.DataObject();
+            if (isImage && File.Exists(path))
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.UriSource = new Uri(path);
+                bmp.EndInit();
+                bmp.Freeze();
+                dataObj.SetImage(bmp);
+            }
+
+            var dropList = new System.Collections.Specialized.StringCollection { path };
+            dataObj.SetFileDropList(dropList);
+            System.Windows.Clipboard.SetDataObject(dataObj, true);
+
+            _orch.Coordinator.Publish(new TransientHudEvent(
+                CoalesceKey: "hud:clipboard",
+                Kind: HudKind.Clipboard,
+                Title: Strings.Pick(_orch.Config.Language, "Panoya Kopyalandı", "Copied to Clipboard"),
+                Subtitle: displayName,
+                AccentHex: "#64D2FF",
+                DurationMs: 1600,
+                IconGlyph: "\uE8C8"));
+        }
+        catch (Exception ex)
+        {
+            _orch.Notifications.AddInternalAlert("DinamikAda", displayName, ex.Message);
         }
     }
 
@@ -5512,7 +5658,34 @@ public partial class IslandWindow : Window
             captured = RegionCaptureWindow.CaptureInteractiveRegion(_orch.Config.Language);
             if (!_isClosed) Opacity = prevOpacity;
             if (captured is not null)
-                await _orch.ScreenOcr.ProcessCapturedBgraAsync(captured.BgraPixels, captured.Width, captured.Height);
+            {
+                var ocrRes = await _orch.ScreenOcr.ProcessCapturedBgraAsync(captured.BgraPixels, captured.Width, captured.Height);
+                string lang = _orch.Config.Language;
+                if (ocrRes.HasText)
+                {
+                    _orch.Coordinator.Publish(new TransientHudEvent(
+                        CoalesceKey: "hud:clipboard",
+                        Kind: HudKind.Clipboard,
+                        Title: Strings.Pick(lang, "OCR Metni Kopyalandı", "OCR Text Copied"),
+                        Subtitle: ocrRes.ExtractedText.Replace("\r\n", " ").Replace('\n', ' '),
+                        AccentHex: "#30D158",
+                        DurationMs: 2400,
+                        InteractiveOnHover: true,
+                        IconGlyph: "\uE8C8"));
+                }
+                else
+                {
+                    _orch.Coordinator.Publish(new TransientHudEvent(
+                        CoalesceKey: "hud:ocr",
+                        Kind: HudKind.FileStashed,
+                        Title: Strings.Pick(lang, "Metin Algılanamadı", "No Text Detected"),
+                        Subtitle: Strings.Pick(lang, "Görsel Dosya Rafına eklendi", "Screenshot saved to File Shelf"),
+                        AccentHex: "#FF9F0A",
+                        DurationMs: 2400,
+                        InteractiveOnHover: true,
+                        IconGlyph: "\uE722"));
+                }
+            }
         }
         catch (Exception ex)
         {
