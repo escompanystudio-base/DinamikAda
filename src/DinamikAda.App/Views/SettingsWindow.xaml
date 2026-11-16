@@ -248,6 +248,33 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Section 1.5: Synchronized macOS Bottom Dock & Taskbar Replacement -->
+                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <Border Width="22" Height="22" CornerRadius="7" Background="#2464D2FF" Margin="0,0,8,0">
+                                    <TextBlock Text="&#xE8A9;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{StaticResource AccentCyanBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock x:Name="HdrBottomDockSection" Text="Alt Dock &amp; Görev Çubuğu" FontFamily="{StaticResource UiFont}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <CheckBox x:Name="ChkEnableBottomDock" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,2,0,4" Content="macOS Tarzı Senkron Alt Dock" Click="OnBottomDockToggleChanged"/>
+                            <CheckBox x:Name="ChkHideWindowsTaskbar" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Windows Görev Çubuğunu Gizle (Alt Dock Açıkken)"/>
+                            <CheckBox x:Name="ChkDockMagnification" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Üzerine Gelince Simge Büyütme Animasyonu"/>
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="60"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="LblDockIconSize" Grid.Column="0" Text="Alt Dock Simge Boyutu (dp)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center"/>
+                                <Slider x:Name="SliderDockIconSize" Grid.Column="1" Style="{StaticResource ObsidianSliderStyle}" Minimum="26" Maximum="48" TickFrequency="2" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                <TextBlock x:Name="ValDockIconSize" Grid.Column="2" Text="32 dp" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Section 2: Performance, Refresh Rate & Interaction -->
                     <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
                         <StackPanel>

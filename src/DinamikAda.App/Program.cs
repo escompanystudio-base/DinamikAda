@@ -48,6 +48,11 @@ public static class Program
             ? new AppConfigStore(Path.Combine(isolatedConfigDir, "config.json"))
             : new AppConfigStore();
         var initialConfig = configStore.Load();
+        if (isolatedConfigDir is not null)
+        {
+            initialConfig.HideWindowsTaskbar = false;
+            initialConfig.EnableBottomDock = false;
+        }
         if (renderAuditDir is not null)
         {
             initialConfig.DockPlacement = DockPlacementMode.NotchFlush;
@@ -99,10 +104,15 @@ public static class Program
             }
 
             var orch = provider.GetRequiredService<AppOrchestrator>();
+            var taskbarManager = provider.GetRequiredService<WindowsTaskbarManager>();
             var window = provider.GetRequiredService<IslandWindow>();
             app.MainWindow = window;
             window.Show();
             orch.StartMessageLoopHooks();
+
+            EventHandler onProcessExit = (_, _) => taskbarManager.Restore();
+            AppDomain.CurrentDomain.ProcessExit += onProcessExit;
+            app.SessionEnding += (_, _) => taskbarManager.Restore();
 
             _ = Task.Run(async () =>
             {
@@ -118,6 +128,8 @@ public static class Program
 
             app.Exit += (_, _) =>
             {
+                AppDomain.CurrentDomain.ProcessExit -= onProcessExit;
+                taskbarManager.Restore();
                 NativeMethods.SetThreadExecutionState(NativeMethods.ES_CONTINUOUS);
                 try
                 {
@@ -212,6 +224,8 @@ public static class Program
         });
 
         services.AddSingleton<DimmerOverlayManager>();
+        services.AddSingleton<WindowsTaskbarManager>();
+        services.AddSingleton<DockWindow>();
         services.AddSingleton<AppOrchestrator>();
         services.AddSingleton<IslandWindow>();
 
@@ -1161,6 +1175,10 @@ public static class Program
             routingAudio);
         window.OpenNotificationDetailForAudit(demoNotifs[0]);
         SavePng(window.RenderAuditBackdropBitmap(800, 460), Path.Combine(outputDir, "30_s4_notif_detail_overlay.png"));
+        savedCount++;
+
+        var dockAudit = provider.GetRequiredService<DockWindow>();
+        SavePng(dockAudit.RenderForAudit(960, 96), Path.Combine(outputDir, "31_bottom_dock.png"));
         savedCount++;
 
         Console.WriteLine($"RENDER_AUDIT_PASS: {savedCount} files -> {outputDir}");

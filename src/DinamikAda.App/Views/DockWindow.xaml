@@ -1,0 +1,94 @@
+<Window x:Class="DinamikAda.App.Views.DockWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DinamikAda Dock"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        ShowActivated="False"
+        Focusable="False"
+        SizeToContent="Manual"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        RenderOptions.BitmapScalingMode="HighQuality">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Themes/ObsidianGlassTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid x:Name="DockRootGrid" Background="{x:Null}" ClipToBounds="False">
+        <!-- Floating macOS Icon Hover Tooltip -->
+        <Border x:Name="DockTooltipBorder"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Opacity="0"
+                IsHitTestVisible="False"
+                CornerRadius="7"
+                Padding="8,3"
+                Background="#F2080A10"
+                BorderBrush="#2AFFFFFF"
+                BorderThickness="0.8">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="DockTooltipTransform" X="0" Y="0" />
+            </Border.RenderTransform>
+            <TextBlock x:Name="DockTooltipText"
+                       FontFamily="{StaticResource UiFont}"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}" />
+        </Border>
+
+        <!-- Centered Floating macOS-Style Obsidian Dock Capsule -->
+        <Border x:Name="DockPillContainer"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Bottom"
+                Margin="0,0,0,5"
+                CornerRadius="15"
+                Background="#E806070B"
+                BorderBrush="#22FFFFFF"
+                BorderThickness="0.8"
+                ClipToBounds="False"
+                MouseEnter="OnDockMouseEnter"
+                MouseMove="OnDockMouseMove"
+                MouseLeave="OnDockMouseLeave">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="DockCapsuleOffsetTransform" X="0" Y="0" />
+            </Border.RenderTransform>
+            <Grid ClipToBounds="False">
+                <!-- Synced Ambient Glow rendered directly via rounded Border.Background (never leaks corners) -->
+                <Border x:Name="DockAmbientOverlay" CornerRadius="14" IsHitTestVisible="False">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop x:Name="DockAuraStop0" Color="#1E0A84FF" Offset="0.0" />
+                            <GradientStop x:Name="DockAuraStop1" Color="#145E5CE6" Offset="0.5" />
+                            <GradientStop x:Name="DockAuraStop2" Color="#1A64D2FF" Offset="1.0" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <Border Height="1"
+                            Margin="14,0"
+                            VerticalAlignment="Top"
+                            Background="{StaticResource ObsidianTopSpecularBrush}"
+                            Opacity="0.35"
+                            IsHitTestVisible="False" />
+                </Border>
+
+                <!-- Dynamic App Slots + Separator + Island Sync + Trash + Clock -->
+                <StackPanel x:Name="DockItemsHost"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Margin="9,6,9,4"
+                            ClipToBounds="False" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

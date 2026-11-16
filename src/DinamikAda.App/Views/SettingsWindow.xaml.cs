@@ -163,6 +163,10 @@ public partial class SettingsWindow : Window
 
             ChkDormantCameraLens.IsChecked = cfg.DormantCameraLensEnabled;
             ChkDynamicAlbumGlow.IsChecked = cfg.DynamicAlbumGlowEnabled;
+            ChkEnableBottomDock.IsChecked = cfg.EnableBottomDock;
+            ChkHideWindowsTaskbar.IsChecked = cfg.HideWindowsTaskbar;
+            ChkDockMagnification.IsChecked = cfg.DockMagnificationEnabled;
+            SliderDockIconSize.Value = Math.Clamp(cfg.DockIconSizeDip, 26, 48);
             ChkHardwareRendering.IsChecked = cfg.UseHardwareRendering;
             ChkSpectrumVisualizer.IsChecked = cfg.EnableSpectrumVisualizer;
             ChkAutoDodge.IsChecked = cfg.AutoDodgeEnabled;
@@ -388,6 +392,12 @@ public partial class SettingsWindow : Window
         LblDetent.Text = Strings.Pick(lang, "Yatay Hizalama", "Horizontal Alignment");
         LblCustomRatio.Text = Strings.Pick(lang, "Yatay Konum (%)", "Custom Horizontal Ratio (%)");
         LblCustomFreeTop.Text = Strings.Pick(lang, "Serbest Üst Mesafe (dp)", "Free Float Top Offset (dp)");
+
+        HdrBottomDockSection.Text = Strings.DockSectionHeader(lang);
+        ChkEnableBottomDock.Content = Strings.EnableBottomDockLabel(lang);
+        ChkHideWindowsTaskbar.Content = Strings.HideWindowsTaskbarLabel(lang);
+        ChkDockMagnification.Content = Strings.DockMagnificationLabel(lang);
+        LblDockIconSize.Text = Strings.DockIconSizeLabel(lang);
 
         HdrMotionSection.Text = Strings.Pick(lang, "Performans, Yenileme Hızı & Etkileşim", "Performance, Refresh Rate & Interaction");
         LblTargetFpsCap.Text = Strings.TargetFpsCapLabel(lang);
@@ -675,8 +685,20 @@ public partial class SettingsWindow : Window
         UpdateBezelPreview();
     }
 
+    private void OnBottomDockToggleChanged(object sender, RoutedEventArgs e)
+    {
+        if (_suppressUiEvents) return;
+        UpdateConditionalEnablement();
+    }
+
     private void UpdateConditionalEnablement()
     {
+        bool dockEnabled = ChkEnableBottomDock.IsChecked == true;
+        ChkHideWindowsTaskbar.IsEnabled = dockEnabled;
+        ChkDockMagnification.IsEnabled = dockEnabled;
+        SliderDockIconSize.IsEnabled = dockEnabled;
+        LblDockIconSize.Opacity = dockEnabled ? 1.0 : 0.45;
+        ValDockIconSize.Opacity = dockEnabled ? 1.0 : 0.45;
         var monMode = GetSelectedValue(ComboMonitorMode, _orch.Config.MonitorMode);
         bool pinMonitor = monMode == MonitorPlacementMode.PinnedMonitor;
         ComboPinnedMonitor.IsEnabled = pinMonitor;
@@ -709,6 +731,7 @@ public partial class SettingsWindow : Window
     {
         ValCustomRatio.Text = $"{Math.Round(SliderCustomRatio.Value):0}%";
         ValCustomFreeTop.Text = $"{Math.Round(SliderCustomFreeTop.Value):0} dp";
+        ValDockIconSize.Text = $"{Math.Round(SliderDockIconSize.Value):0} dp";
         ValHoverDwell.Text = $"{Math.Round(SliderHoverDwell.Value):0} ms";
         ValCollapseDelay.Text = $"{Math.Round(SliderCollapseDelay.Value):0} ms";
         ValMaxClipboard.Text = $"{Math.Round(SliderMaxClipboard.Value):0}";
@@ -910,6 +933,10 @@ public partial class SettingsWindow : Window
         cfg.NotchScalePreset = GetSelectedValue(ComboNotchScalePreset, cfg.NotchScalePreset);
         cfg.DormantCameraLensEnabled = ChkDormantCameraLens.IsChecked == true;
         cfg.DynamicAlbumGlowEnabled = ChkDynamicAlbumGlow.IsChecked == true;
+        cfg.EnableBottomDock = ChkEnableBottomDock.IsChecked == true;
+        cfg.HideWindowsTaskbar = ChkHideWindowsTaskbar.IsChecked == true;
+        cfg.DockMagnificationEnabled = ChkDockMagnification.IsChecked == true;
+        cfg.DockIconSizeDip = (int)Math.Round(SliderDockIconSize.Value);
         cfg.MonitorMode = GetSelectedValue(ComboMonitorMode, cfg.MonitorMode);
         if (cfg.MonitorMode == MonitorPlacementMode.PinnedMonitor)
         {

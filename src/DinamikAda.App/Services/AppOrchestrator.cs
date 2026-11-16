@@ -56,6 +56,8 @@ public sealed class AppOrchestrator : IAsyncDisposable
     public event Func<Task>? RegionOcrRequested;
     public event Func<Task>? RegionColorPickRequested;
 
+    public void RequestOpenSettings() => OpenSettingsRequested?.Invoke(this, EventArgs.Empty);
+
     private CancellationTokenSource? _bgCts;
     private Timer? _maintenanceTimer;
     private int _lastReportedVolumePct = -1;

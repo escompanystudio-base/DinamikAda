@@ -471,4 +471,70 @@ public sealed class ReleaseReadinessTests
             try { if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true); } catch { }
         }
     }
+
+    [Fact]
+    public void DockLayoutCalculator_ComputesBoundsWorkAreaMagnificationAndTaskbarClassesCorrectly()
+    {
+        var mon = new MonitorDescriptor(0, @"\\.\DISPLAY1", "Primary", true, 0, 0, 1920, 1080, 1.0, 240);
+        var host = DockLayoutCalculator.ComputeHostWindowBounds(mon, DockLayoutCalculator.DefaultHostHeightDip);
+        Assert.Equal(0, host.LeftPx);
+        Assert.Equal(1920, host.WidthPx);
+        Assert.Equal(96, host.HeightPx);
+        Assert.Equal(1080 - 96, host.TopPx);
+
+        int reservedPx = DockLayoutCalculator.ComputeReservedBottomHeightPx(1.0, 32);
+        Assert.Equal(53, reservedPx);
+
+        var workArea = DockLayoutCalculator.ComputeReservedWorkArea(mon, reservedPx);
+        Assert.Equal(0, workArea.Left);
+        Assert.Equal(0, workArea.Top);
+        Assert.Equal(1920, workArea.Right);
+        Assert.Equal(1027, workArea.Bottom);
+
+        double[] centers = [19.0, 57.0, 95.0, 133.0, 171.0];
+        var idle = DockLayoutCalculator.ComputeMagnification(null, centers, 38.0);
+        Assert.Equal(5, idle.Length);
+        Assert.All(idle, t =>
+        {
+            Assert.Equal(1.0, t.Scale);
+            Assert.Equal(0.0, t.ShiftXDip);
+            Assert.Equal(0.0, t.LiftYDip);
+        });
+
+        var hoverCenter = DockLayoutCalculator.ComputeMagnification(95.0, centers, 38.0, maxScale: 1.38, influenceRadiusDip: 108.0);
+        Assert.Equal(1.38, hoverCenter[2].Scale, precision: 4);
+        Assert.True(hoverCenter[1].Scale > hoverCenter[0].Scale);
+        Assert.True(hoverCenter[2].Scale > hoverCenter[1].Scale);
+        Assert.Equal(hoverCenter[1].Scale, hoverCenter[3].Scale, precision: 4);
+        Assert.True(hoverCenter[1].ShiftXDip < 0.0);
+        Assert.True(hoverCenter[3].ShiftXDip > 0.0);
+        Assert.Equal(0.0, hoverCenter[2].ShiftXDip, precision: 4);
+        Assert.True(hoverCenter[2].LiftYDip < 0.0);
+
+        Assert.True(DockLayoutCalculator.IsTaskbarWindowClass("Shell_TrayWnd"));
+        Assert.True(DockLayoutCalculator.IsTaskbarWindowClass("Shell_SecondaryTrayWnd"));
+        Assert.False(DockLayoutCalculator.IsTaskbarWindowClass("Notepad"));
+        Assert.False(DockLayoutCalculator.IsTaskbarWindowClass(null));
+    }
+
+    [Fact]
+    public void AppConfig_BottomDockPreferences_SanitizeAndPersistCleanly()
+    {
+        var cfg = new AppConfig
+        {
+            DockIconSizeDip = 10,
+            PinnedDockApps = ["  C:\\Windows\\explorer.exe ", "C:\\WINDOWS\\explorer.exe", ""]
+        };
+        cfg.Sanitize();
+
+        Assert.True(cfg.EnableBottomDock);
+        Assert.True(cfg.HideWindowsTaskbar);
+        Assert.True(cfg.DockMagnificationEnabled);
+        Assert.Equal(26, cfg.DockIconSizeDip);
+        Assert.Single(cfg.PinnedDockApps);
+
+        cfg.DockIconSizeDip = 120;
+        cfg.Sanitize();
+        Assert.Equal(48, cfg.DockIconSizeDip);
+    }
 }

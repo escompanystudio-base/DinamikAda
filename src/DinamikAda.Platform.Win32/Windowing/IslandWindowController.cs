@@ -469,6 +469,8 @@ public sealed class IslandWindowController : IWindowStyleHost, IDisposable
         }
     }
 
+    public static bool TryFocusExternalWindow(nint targetHwnd) => ForceForeground(targetHwnd);
+
     private static bool ForceForeground(nint targetHwnd)
     {
         if (targetHwnd == 0 || !NativeMethods.IsWindow(targetHwnd) || NativeMethods.IsHungAppWindow(targetHwnd))

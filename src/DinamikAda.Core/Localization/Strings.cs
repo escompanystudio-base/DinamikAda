@@ -181,6 +181,24 @@ public static class Strings
     public static string SysCloseSelectedBtn(string lang) => Pick(lang, "Seçilenleri Kapat", "Close Selected");
     public static string SysNoIdleAppsFound(string lang) => Pick(lang, "Kapatılabilir boşta arka plan uygulaması yok", "No closeable idle background apps found");
 
+    // Bottom Dock & Taskbar Replacement
+    public static string DockSectionHeader(string lang) => Pick(lang, "Alt Dock & Görev Çubuğu", "Bottom Dock & Taskbar");
+    public static string EnableBottomDockLabel(string lang) => Pick(lang, "macOS Tarzı Senkron Alt Dock", "macOS-Style Synced Bottom Dock");
+    public static string HideWindowsTaskbarLabel(string lang) => Pick(lang, "Windows Görev Çubuğunu Gizle (Alt Dock Açıkken)", "Hide Windows Taskbar (While Dock Active)");
+    public static string DockMagnificationLabel(string lang) => Pick(lang, "Üzerine Gelince Simge Büyütme Animasyonu", "Hover Icon Magnification Animation");
+    public static string DockIconSizeLabel(string lang) => Pick(lang, "Alt Dock Simge Boyutu (dp)", "Bottom Dock Icon Size (dp)");
+    public static string RestoreWindowsTaskbar(string lang) => Pick(lang, "Windows Görev Çubuğunu Geri Getir", "Restore Windows Taskbar");
+    public static string HideWindowsTaskbarMenu(string lang) => Pick(lang, "Windows Görev Çubuğunu Gizle", "Hide Windows Taskbar");
+    public static string DockStartLabel(string lang) => Pick(lang, "Başlat Menüsü", "Start Menu");
+    public static string DockIslandSyncLabel(string lang) => Pick(lang, "Üst Adayı Aç", "Toggle Top Island");
+    public static string DockTrashLabel(string lang) => Pick(lang, "Çöp Kutusu", "Recycle Bin");
+    public static string DockEmptyTrash(string lang) => Pick(lang, "Çöp Kutusunu Boşalt", "Empty Recycle Bin");
+    public static string DockOpenTrash(string lang) => Pick(lang, "Çöp Kutusunu Aç", "Open Recycle Bin");
+    public static string DockPinApp(string lang) => Pick(lang, "Dock'a Sabitle", "Pin to Dock");
+    public static string DockUnpinApp(string lang) => Pick(lang, "Dock'tan Kaldır", "Unpin from Dock");
+    public static string DockNewWindow(string lang) => Pick(lang, "Yeni Pencere Aç", "Open New Window");
+    public static string DockCloseWindow(string lang) => Pick(lang, "Pencereyi Kapat", "Close Window");
+
     public static string Get(string lang, string key) => key switch
     {
         nameof(TabNow) => TabNow(lang),

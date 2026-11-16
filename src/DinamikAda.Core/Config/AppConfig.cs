@@ -82,6 +82,14 @@ public sealed class AppConfig
     public bool EnableDeveloperBridge { get; set; } = true;
     public int DeveloperBridgePort { get; set; } = 47821;
 
+    // Synchronized macOS-style Bottom Dock & Taskbar Replacement
+    public bool EnableBottomDock { get; set; } = true;
+    public bool HideWindowsTaskbar { get; set; } = true;
+    public bool DockMagnificationEnabled { get; set; } = true;
+    public bool DockFollowFullscreenHide { get; set; } = true;
+    public int DockIconSizeDip { get; set; } = 32;
+    public List<string> PinnedDockApps { get; set; } = new();
+
     [JsonIgnore]
     public bool ShowSpectrum
     {
@@ -152,6 +160,8 @@ public sealed class AppConfig
 
         FullscreenWhitelistExes = SanitizeExeList(FullscreenWhitelistExes);
         FullscreenHideExes = SanitizeExeList(FullscreenHideExes);
+        DockIconSizeDip = Math.Clamp(DockIconSizeDip, 26, 48);
+        PinnedDockApps = SanitizeExeList(PinnedDockApps);
 
         PinnedTabs = PinnedTabs is null
             ? CreateDefaultTabs()

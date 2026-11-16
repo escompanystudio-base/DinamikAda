@@ -90,6 +90,7 @@ public partial class IslandWindow : Window
     private readonly IslandWindowController _controller;
     private readonly GlobalHotkeyService _hotkeyService;
     private readonly DimmerOverlayManager _dimmerManager;
+    private readonly DockWindow? _dockWindow;
 
     private readonly IslandMotionState _motion = new();
     private readonly NotchGeometryBuilder _mainNotchBuilder = new();
@@ -226,12 +227,14 @@ public partial class IslandWindow : Window
         AppOrchestrator orchestrator,
         IslandWindowController controller,
         GlobalHotkeyService hotkeyService,
-        DimmerOverlayManager dimmerManager)
+        DimmerOverlayManager dimmerManager,
+        DockWindow? dockWindow = null)
     {
         _orch = orchestrator;
         _controller = controller;
         _hotkeyService = hotkeyService;
         _dimmerManager = dimmerManager;
+        _dockWindow = dockWindow;
 
         InitializeComponent();
 
@@ -349,6 +352,10 @@ public partial class IslandWindow : Window
 
         SyncMediaPositionTimerState();
         _ = RefreshInitialContentAsync();
+        if (!_isSmokeMode && _dockWindow is not null && !_dockWindow.IsVisible)
+        {
+            _dockWindow.Show();
+        }
     }
 
     private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -371,6 +378,8 @@ public partial class IslandWindow : Window
 
         if (!_isRenderAuditMode)
         {
+            _dockWindow?.RestoreTaskbarImmediately();
+            try { _dockWindow?.Close(); } catch { }
             _orch.Clipboard.AttachToWindow(0);
             _trayIcon.LeftClicked -= OnTrayLeftClicked;
             _trayIcon.DoubleClicked -= OnTrayLeftClicked;
@@ -4995,6 +5004,7 @@ public partial class IslandWindow : Window
                 _activeMonitor = ResolveTargetMonitor(_lastSnapshot);
                 ApplyTierAndMonitorPlacement(_lastSnapshot, snapImmediately: false);
                 RenderCoordinatorSnapshot(_lastSnapshot, isInitial: false);
+                _dockWindow?.ApplyConfigAndSync();
             },
             islandHwnd: _hwnd);
 
@@ -5091,6 +5101,19 @@ public partial class IslandWindow : Window
         var pinItem = new MenuItem { Header = Strings.PinOpen(lang), IsCheckable = true, IsChecked = _lastSnapshot.IsPinnedOpen };
         pinItem.Click += (_, _) => _orch.Coordinator.TogglePinned();
 
+        var taskbarToggleItem = new MenuItem
+        {
+            Header = _orch.Config.HideWindowsTaskbar
+                ? Strings.RestoreWindowsTaskbar(lang)
+                : Strings.HideWindowsTaskbarMenu(lang)
+        };
+        taskbarToggleItem.Click += (_, _) =>
+        {
+            _orch.Config.HideWindowsTaskbar = !_orch.Config.HideWindowsTaskbar;
+            _orch.SaveConfig();
+            _dockWindow?.ApplyConfigAndSync();
+        };
+
         var settingsItem = new MenuItem { Header = Strings.Settings(lang) };
         settingsItem.Click += (_, _) => OpenSettingsDialog();
 
@@ -5101,6 +5124,7 @@ public partial class IslandWindow : Window
         _islandContextMenu.Items.Add(cmdItem);
         _islandContextMenu.Items.Add(pinItem);
         _islandContextMenu.Items.Add(new Separator());
+        _islandContextMenu.Items.Add(taskbarToggleItem);
         _islandContextMenu.Items.Add(settingsItem);
         _islandContextMenu.Items.Add(exitItem);
 

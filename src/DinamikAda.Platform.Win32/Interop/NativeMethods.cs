@@ -1286,4 +1286,88 @@ public static unsafe partial class NativeMethods
         int nul = span.IndexOf('\0');
         return (nul >= 0 ? span[..nul] : span).ToString();
     }
+
+    // Bottom Dock & Windows Taskbar management
+    public const int SW_MINIMIZE = 6;
+    public const uint SPI_GETWORKAREA = 0x0030;
+    public const uint SPI_SETWORKAREA = 0x002F;
+    public const uint SPIF_SENDCHANGE = 0x0002;
+    public const uint EVENT_OBJECT_CREATE = 0x8000;
+    public const uint EVENT_OBJECT_NAMECHANGE = 0x800C;
+    public const uint SHGFI_ICON = 0x000000100;
+    public const uint SHGFI_LARGEICON = 0x000000000;
+    public const uint SHERB_NOCONFIRMATION = 0x00000001;
+    public const uint SHERB_NOPROGRESSUI = 0x00000002;
+    public const uint WM_GETICON = 0x007F;
+    public const int ICON_SMALL = 0;
+    public const int ICON_BIG = 1;
+    public const int ICON_SMALL2 = 2;
+    public const int GCLP_HICON = -14;
+    public const int GCLP_HICONSM = -34;
+    public const uint ABM_NEW = 0x00000000;
+    public const uint ABM_REMOVE = 0x00000001;
+    public const uint ABM_QUERYPOS = 0x00000002;
+    public const uint ABM_SETPOS = 0x00000003;
+    public const uint ABE_BOTTOM = 3;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct APPBARDATA
+    {
+        public uint cbSize;
+        public nint hWnd;
+        public uint uCallbackMessage;
+        public uint uEdge;
+        public RECT rc;
+        public nint lParam;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct SHFILEINFOW
+    {
+        public nint hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        public fixed char szDisplayName[260];
+        public fixed char szTypeName[80];
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SHQUERYRBINFO
+    {
+        public int cbSize;
+        public long i64Size;
+        public long i64NumItems;
+    }
+
+    [LibraryImport("user32.dll", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
+    public static partial nint FindWindowW(string? lpClassName, string? lpWindowName);
+
+    [LibraryImport("user32.dll", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
+    public static partial nint FindWindowExW(nint hWndParent, nint hWndChildAfter, string? lpszClass, string? lpszWindow);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint GetShellWindow();
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool EnumChildWindows(nint hWndParent, EnumWindowsProc lpEnumFunc, nint lParam);
+
+    [LibraryImport("user32.dll", EntryPoint = "SystemParametersInfoW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool SystemParametersInfoWorkArea(uint uiAction, uint uiParam, ref RECT pvParam, uint fWinIni);
+
+    [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial nuint SHGetFileInfoW(string pszPath, uint dwFileAttributes, SHFILEINFOW* psfi, uint cbFileInfo, uint uFlags);
+
+    [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int SHQueryRecycleBinW(string? pszRootPath, ref SHQUERYRBINFO pSHQueryRBInfo);
+
+    [LibraryImport("shell32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int SHEmptyRecycleBinW(nint hwnd, string? pszRootPath, uint dwFlags);
+
+    [LibraryImport("shell32.dll")]
+    public static partial nuint SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetClassLongPtrW")]
+    public static partial nint GetClassLongPtrW(nint hWnd, int nIndex);
 }
