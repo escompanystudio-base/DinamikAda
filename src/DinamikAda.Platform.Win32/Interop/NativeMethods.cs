@@ -1136,14 +1136,16 @@ public static unsafe partial class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool LookupPrivilegeValueW(string? lpSystemName, string lpName, out long lpLuid);
 
-    [StructLayout(LayoutKind.Sequential)]
+    // winnt.h declares these under pshpack4: LUID is 4-byte aligned.
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public struct LUID_AND_ATTRIBUTES
     {
         public long Luid;
         public uint Attributes;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
+    // winnt.h declares these under pshpack4: LUID is 4-byte aligned.
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public struct TOKEN_PRIVILEGES_SINGLE
     {
         public uint PrivilegeCount;

@@ -17,6 +17,7 @@ public sealed unsafe class Win32TrayIcon : IDisposable
     private string _tooltip = "DinamikAda";
     private bool _added;
     private bool _disposed;
+    private bool _suppressNextLeftUp;
 
     public event EventHandler? LeftClick;
     public event EventHandler? LeftClicked;
@@ -61,6 +62,13 @@ public sealed unsafe class Win32TrayIcon : IDisposable
         switch (mouseEvent)
         {
             case NativeMethods.WM_LBUTTONUP:
+                // A double-click arrives as UP, DBLCLK, UP. Swallow the trailing UP so a double-click
+                // does not fire three toggles.
+                if (_suppressNextLeftUp)
+                {
+                    _suppressNextLeftUp = false;
+                    return true;
+                }
                 LeftClick?.Invoke(this, EventArgs.Empty);
                 LeftClicked?.Invoke(this, EventArgs.Empty);
                 return true;
@@ -71,6 +79,7 @@ public sealed unsafe class Win32TrayIcon : IDisposable
                 return true;
 
             case NativeMethods.WM_LBUTTONDBLCLK:
+                _suppressNextLeftUp = true;
                 DoubleClicked?.Invoke(this, EventArgs.Empty);
                 return true;
 

@@ -90,7 +90,7 @@ public static class Program
         ServiceProvider? provider = null;
         try
         {
-            var services = ConfigureServices(configStore, initialConfig);
+            var services = ConfigureServices(configStore, initialConfig, isolated: isolatedConfigDir is not null);
             provider = services.BuildServiceProvider();
 
             var app = new System.Windows.Application
@@ -110,6 +110,12 @@ public static class Program
 
             var orch = provider.GetRequiredService<AppOrchestrator>();
             var taskbarManager = provider.GetRequiredService<WindowsTaskbarManager>();
+            // Undo a taskbar hide left behind by a crash or forced kill of the previous session.
+            if (taskbarManager.RecoverFromPreviousSession())
+            {
+                CrashLogger.Log("startup", null, "Restored Windows taskbar state left hidden by previous session.");
+            }
+            InstallGlobalExceptionHandlers(app, orch, taskbarManager);
             var window = provider.GetRequiredService<IslandWindow>();
             app.MainWindow = window;
             window.Show();
@@ -127,6 +133,7 @@ public static class Program
                 }
                 catch (Exception ex)
                 {
+                    CrashLogger.Log("startup", ex, "Orchestrator start failed.");
                     orch.Notifications.AddInternalAlert("DinamikAda", "Başlatma uyarısı", ex.Message);
                 }
             });
@@ -167,7 +174,54 @@ public static class Program
         }
     }
 
-    private static ServiceCollection ConfigureServices(AppConfigStore configStore, AppConfig initialConfig)
+    private static void InstallGlobalExceptionHandlers(
+        System.Windows.Application app,
+        AppOrchestrator orch,
+        WindowsTaskbarManager taskbarManager)
+    {
+        long lastAlertTicks = 0;
+
+        app.DispatcherUnhandledException += (_, e) =>
+        {
+            CrashLogger.Log("ui", e.Exception, "Unhandled UI-thread exception (recovered).");
+            // Keep the shell alive: a single faulty handler must not kill the island and leave the
+            // Windows taskbar hidden. Throttle user-facing alerts to one per 30 s.
+            e.Handled = true;
+            long now = Environment.TickCount64;
+            if (now - Interlocked.Read(ref lastAlertTicks) > 30_000)
+            {
+                Interlocked.Exchange(ref lastAlertTicks, now);
+                try
+                {
+                    orch.Notifications.AddInternalAlert(
+                        "DinamikAda",
+                        "Beklenmeyen hata",
+                        $"{e.Exception.GetType().Name}: {e.Exception.Message}");
+                }
+                catch
+                {
+                }
+            }
+        };
+
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            CrashLogger.Log("fatal", e.ExceptionObject as Exception, $"Unhandled exception (terminating={e.IsTerminating}).");
+            if (e.IsTerminating)
+            {
+                try { taskbarManager.Restore(); } catch { }
+                try { NativeMethods.SetThreadExecutionState(NativeMethods.ES_CONTINUOUS); } catch { }
+            }
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            CrashLogger.Log("task", e.Exception, "Unobserved task exception.");
+            e.SetObserved();
+        };
+    }
+
+    private static ServiceCollection ConfigureServices(AppConfigStore configStore, AppConfig initialConfig, bool isolated)
     {
         var services = new ServiceCollection();
 
@@ -239,7 +293,8 @@ public static class Program
         });
 
         services.AddSingleton<DimmerOverlayManager>();
-        services.AddSingleton<WindowsTaskbarManager>();
+        // Smoke/render-audit runs must never read or delete the real session's crash-recovery marker.
+        services.AddSingleton(_ => isolated ? new WindowsTaskbarManager(recoveryStatePath: null) : new WindowsTaskbarManager());
         services.AddSingleton<DockWindow>();
         services.AddSingleton<AppOrchestrator>();
         services.AddSingleton<IslandWindow>();

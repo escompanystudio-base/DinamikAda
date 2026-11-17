@@ -43,6 +43,7 @@ public partial class SettingsWindow : Window
 
         InitializeComponent();
         LoadFromConfig(_orch.Config);
+        CaptureExternallyMutableBaseline();
         SourceInitialized += (_, _) => CenterOnIslandMonitorWorkArea();
         CenterOnIslandMonitorWorkArea();
     }
@@ -141,7 +142,27 @@ public partial class SettingsWindow : Window
         Top = workTopDip + Math.Max(0.0, (workHDip - Height) * 0.5);
     }
 
-    private void LoadFromConfig(AppConfig cfg)
+    // Settings that can also change while this window is open (dock/island context menus, Quiet Island
+    // button, dragging the notch). Save only writes them back if the user changed the control here, so
+    // it never reverts those external edits — or clamps a dragged position to the slider's range.
+    private bool _baseHideTaskbar;
+    private bool _baseIntellihide;
+    private bool _baseQuietIsland;
+    private HorizontalAnchorDetent _baseDetent;
+    private double _baseRatioSlider;
+    private double _baseFreeTopSlider;
+
+    private void CaptureExternallyMutableBaseline()
+    {
+        _baseHideTaskbar = ChkHideWindowsTaskbar.IsChecked == true;
+        _baseIntellihide = ChkDockIntellihide.IsChecked == true;
+        _baseQuietIsland = ChkQuietIsland.IsChecked == true;
+        _baseDetent = GetSelectedValue(ComboDetent, _orch.Config.HorizontalDetent);
+        _baseRatioSlider = Math.Round(SliderCustomRatio.Value);
+        _baseFreeTopSlider = Math.Round(SliderCustomFreeTop.Value);
+    }
+
+    private void LoadFromConfig(AppConfig cfg, bool preferRegisteredHotkeys = true)
     {
         _suppressUiEvents = true;
         try
@@ -157,9 +178,9 @@ public partial class SettingsWindow : Window
             SliderCollapseDelay.Value = Math.Clamp(cfg.CollapseHysteresisMs, 80, 5000);
             SliderMaxClipboard.Value = Math.Clamp(cfg.MaxClipboardItems, 5, 100);
 
-            TxtHotkey.Text = _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.HotkeyId, out var activeCmd) ? activeCmd : cfg.CommandHotkey;
-            TxtMicMuteHotkey.Text = _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.MicMuteHotkeyId, out var activeMic) ? activeMic : cfg.MicMuteHotkey;
-            TxtColorPickerHotkey.Text = _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.ColorPickerHotkeyId, out var activePicker) ? activePicker : cfg.ColorPickerHotkey;
+            TxtHotkey.Text = preferRegisteredHotkeys && _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.HotkeyId, out var activeCmd) ? activeCmd : cfg.CommandHotkey;
+            TxtMicMuteHotkey.Text = preferRegisteredHotkeys && _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.MicMuteHotkeyId, out var activeMic) ? activeMic : cfg.MicMuteHotkey;
+            TxtColorPickerHotkey.Text = preferRegisteredHotkeys && _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.ColorPickerHotkeyId, out var activePicker) ? activePicker : cfg.ColorPickerHotkey;
 
             ChkDormantCameraLens.IsChecked = cfg.DormantCameraLensEnabled;
             ChkDynamicAlbumGlow.IsChecked = cfg.DynamicAlbumGlowEnabled;
@@ -167,8 +188,10 @@ public partial class SettingsWindow : Window
             ChkHideWindowsTaskbar.IsChecked = cfg.HideWindowsTaskbar;
             ChkDockMagnification.IsChecked = cfg.DockMagnificationEnabled;
             ChkDockIntellihide.IsChecked = cfg.DockIntellihideEnabled;
+            ChkDockFollowFullscreenHide.IsChecked = cfg.DockFollowFullscreenHide;
             SliderDockIconSize.Value = Math.Clamp(cfg.DockIconSizeDip, 26, 48);
             ChkHardwareRendering.IsChecked = cfg.UseHardwareRendering;
+            ChkAmdSafeCompositing.IsChecked = cfg.AmdSafeSoftwareCompositing;
             ChkSpectrumVisualizer.IsChecked = cfg.EnableSpectrumVisualizer;
             ChkAutoDodge.IsChecked = cfg.AutoDodgeEnabled;
             ChkFadeWhenIdle.IsChecked = cfg.FadeWhenIdle;
@@ -180,7 +203,9 @@ public partial class SettingsWindow : Window
             ChkMicPrivacyAlert.IsChecked = cfg.ShowMicPrivacyAlert;
             ChkMirrorOsNotifications.IsChecked = cfg.MirrorOsNotifications;
             ChkClipboardVault.IsChecked = cfg.EnableClipboardVault;
+            ChkLanShareClipboard.IsChecked = cfg.LanShareIncludeClipboard;
             ChkBtBatteryAlerts.IsChecked = cfg.BluetoothBatteryAlertsEnabled;
+            SliderBtBatteryThreshold.Value = Math.Clamp(cfg.BluetoothLowBatteryThreshold, 5, 40);
             ChkNotchDesktopSwipe.IsChecked = cfg.NotchDesktopSwipeEnabled;
             ChkCalendarEnabled.IsChecked = cfg.CalendarEnabled;
             ChkDownloadsWatch.IsChecked = cfg.DownloadsWatchEnabled;
@@ -399,6 +424,12 @@ public partial class SettingsWindow : Window
         ChkHideWindowsTaskbar.Content = Strings.HideWindowsTaskbarLabel(lang);
         ChkDockMagnification.Content = Strings.DockMagnificationLabel(lang);
         ChkDockIntellihide.Content = Strings.DockIntellihideLabel(lang);
+        ChkDockFollowFullscreenHide.Content = Strings.Pick(lang, "Tam Ekran Oyun/Videoda Dock'u Gizle", "Hide Dock During Fullscreen Games/Video");
+        ChkAmdSafeCompositing.Content = Strings.Pick(
+            lang,
+            "AMD Güvenli Yazılım Kompozisyonu (yeniden başlatma gerekir)",
+            "AMD-Safe Software Compositing (restart required)");
+        LblBtBatteryThreshold.Text = Strings.Pick(lang, "Düşük Pil Eşiği", "Low Battery Threshold");
         LblDockIconSize.Text = Strings.DockIconSizeLabel(lang);
 
         HdrMotionSection.Text = Strings.Pick(lang, "Performans, Yenileme Hızı & Etkileşim", "Performance, Refresh Rate & Interaction");
@@ -480,6 +511,10 @@ public partial class SettingsWindow : Window
             lang,
             "Windows Bildirimlerini Adada Aynala",
             "Mirror Windows Notifications in Island");
+        ChkLanShareClipboard.Content = Strings.Pick(
+            lang,
+            "QR LAN Paylaşımına Son Pano Metnini Ekle",
+            "Include Latest Clipboard Text in QR LAN Share");
         ChkClipboardVault.Content = Strings.Pick(
             lang,
             "Şifreli Pano Kasası (DPAPI) Etkin",
@@ -699,6 +734,7 @@ public partial class SettingsWindow : Window
         ChkHideWindowsTaskbar.IsEnabled = dockEnabled;
         ChkDockMagnification.IsEnabled = dockEnabled;
         ChkDockIntellihide.IsEnabled = dockEnabled;
+        ChkDockFollowFullscreenHide.IsEnabled = dockEnabled;
         SliderDockIconSize.IsEnabled = dockEnabled;
         LblDockIconSize.Opacity = dockEnabled ? 1.0 : 0.45;
         ValDockIconSize.Opacity = dockEnabled ? 1.0 : 0.45;
@@ -738,6 +774,7 @@ public partial class SettingsWindow : Window
         ValHoverDwell.Text = $"{Math.Round(SliderHoverDwell.Value):0} ms";
         ValCollapseDelay.Text = $"{Math.Round(SliderCollapseDelay.Value):0} ms";
         ValMaxClipboard.Text = $"{Math.Round(SliderMaxClipboard.Value):0}";
+        ValBtBatteryThreshold.Text = $"{Math.Round(SliderBtBatteryThreshold.Value):0}%";
     }
 
     private void OnPinnedTabChanged(object sender, RoutedEventArgs e)
@@ -783,7 +820,7 @@ public partial class SettingsWindow : Window
     {
         var defaults = new AppConfig { Language = _currentLang };
         defaults.Sanitize();
-        LoadFromConfig(defaults);
+        LoadFromConfig(defaults, preferRegisteredHotkeys: false);
         TxtIdentityActionStatus.Text = Strings.Pick(
             _currentLang,
             "Varsayılan ayarlar yüklendi — uygulamak için Kaydet'e basın.",
@@ -860,6 +897,12 @@ public partial class SettingsWindow : Window
         bool micHotkeyChanged = !string.Equals(newMicHotkey, previousMicHotkey, StringComparison.OrdinalIgnoreCase);
         bool pickerHotkeyChanged = !string.Equals(newPickerHotkey, previousPickerHotkey, StringComparison.OrdinalIgnoreCase);
 
+        // Roll back to the chords that are actually registered right now (startup may have used a
+        // fallback chord because the configured one was taken), not to the config values.
+        string rollbackHotkey = _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.HotkeyId, out var activeCmdChord) ? activeCmdChord : previousHotkey;
+        string rollbackMicHotkey = _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.MicMuteHotkeyId, out var activeMicChord) ? activeMicChord : previousMicHotkey;
+        string rollbackPickerHotkey = _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.ColorPickerHotkeyId, out var activePickerChord) ? activePickerChord : previousPickerHotkey;
+
         void RollbackHotkeys()
         {
             if (_islandHwnd == 0) return;
@@ -868,11 +911,11 @@ public partial class SettingsWindow : Window
             if (pickerHotkeyChanged) _hotkeyService.Unregister(GlobalHotkeyService.ColorPickerHotkeyId);
 
             if (hotkeyChanged || !_hotkeyService.IsRegistered)
-                _ = _hotkeyService.TryRegister(GlobalHotkeyService.HotkeyId, _islandHwnd, previousHotkey);
+                _ = _hotkeyService.TryRegister(GlobalHotkeyService.HotkeyId, _islandHwnd, rollbackHotkey);
             if (micHotkeyChanged)
-                _ = _hotkeyService.TryRegister(GlobalHotkeyService.MicMuteHotkeyId, _islandHwnd, previousMicHotkey);
+                _ = _hotkeyService.TryRegister(GlobalHotkeyService.MicMuteHotkeyId, _islandHwnd, rollbackMicHotkey);
             if (pickerHotkeyChanged)
-                _ = _hotkeyService.TryRegister(GlobalHotkeyService.ColorPickerHotkeyId, _islandHwnd, previousPickerHotkey);
+                _ = _hotkeyService.TryRegister(GlobalHotkeyService.ColorPickerHotkeyId, _islandHwnd, rollbackPickerHotkey);
         }
 
         if (_islandHwnd != 0)
@@ -937,18 +980,20 @@ public partial class SettingsWindow : Window
         cfg.DormantCameraLensEnabled = ChkDormantCameraLens.IsChecked == true;
         cfg.DynamicAlbumGlowEnabled = ChkDynamicAlbumGlow.IsChecked == true;
         cfg.EnableBottomDock = ChkEnableBottomDock.IsChecked == true;
-        cfg.HideWindowsTaskbar = ChkHideWindowsTaskbar.IsChecked == true;
+        if ((ChkHideWindowsTaskbar.IsChecked == true) != _baseHideTaskbar) cfg.HideWindowsTaskbar = ChkHideWindowsTaskbar.IsChecked == true;
         cfg.DockMagnificationEnabled = ChkDockMagnification.IsChecked == true;
-        cfg.DockIntellihideEnabled = ChkDockIntellihide.IsChecked == true;
+        if ((ChkDockIntellihide.IsChecked == true) != _baseIntellihide) cfg.DockIntellihideEnabled = ChkDockIntellihide.IsChecked == true;
+        cfg.DockFollowFullscreenHide = ChkDockFollowFullscreenHide.IsChecked == true;
         cfg.DockIconSizeDip = (int)Math.Round(SliderDockIconSize.Value);
         cfg.MonitorMode = GetSelectedValue(ComboMonitorMode, cfg.MonitorMode);
         if (cfg.MonitorMode == MonitorPlacementMode.PinnedMonitor)
         {
             cfg.PinnedMonitorDeviceName = GetSelectedValue<string?>(ComboPinnedMonitor, cfg.PinnedMonitorDeviceName);
         }
-        cfg.HorizontalDetent = GetSelectedValue(ComboDetent, cfg.HorizontalDetent);
-        cfg.CustomHorizontalRatio = Math.Round(SliderCustomRatio.Value) / 100.0;
-        cfg.CustomFreeTopDip = Math.Round(SliderCustomFreeTop.Value);
+        var selectedDetent = GetSelectedValue(ComboDetent, cfg.HorizontalDetent);
+        if (selectedDetent != _baseDetent) cfg.HorizontalDetent = selectedDetent;
+        if (Math.Round(SliderCustomRatio.Value) != _baseRatioSlider) cfg.CustomHorizontalRatio = Math.Round(SliderCustomRatio.Value) / 100.0;
+        if (Math.Round(SliderCustomFreeTop.Value) != _baseFreeTopSlider) cfg.CustomFreeTopDip = Math.Round(SliderCustomFreeTop.Value);
 
         cfg.TargetFpsCap = GetSelectedValue(ComboTargetFpsCap, cfg.TargetFpsCap);
         cfg.ExpandTrigger = GetSelectedValue(ComboExpandTrigger, cfg.ExpandTrigger);
@@ -959,10 +1004,11 @@ public partial class SettingsWindow : Window
         cfg.ColorPickerHotkey = newPickerHotkey;
 
         cfg.UseHardwareRendering = ChkHardwareRendering.IsChecked == true;
+        cfg.AmdSafeSoftwareCompositing = ChkAmdSafeCompositing.IsChecked == true;
         cfg.EnableSpectrumVisualizer = ChkSpectrumVisualizer.IsChecked == true;
         cfg.AutoDodgeEnabled = ChkAutoDodge.IsChecked == true;
         cfg.FadeWhenIdle = ChkFadeWhenIdle.IsChecked == true;
-        cfg.QuietIslandEnabled = ChkQuietIsland.IsChecked == true;
+        if ((ChkQuietIsland.IsChecked == true) != _baseQuietIsland) cfg.QuietIslandEnabled = ChkQuietIsland.IsChecked == true;
 
         cfg.GameFullscreenPolicy = GetSelectedValue(ComboGamePolicy, cfg.GameFullscreenPolicy);
         cfg.VideoFullscreenPolicy = GetSelectedValue(ComboVideoPolicy, cfg.VideoFullscreenPolicy);
@@ -984,7 +1030,9 @@ public partial class SettingsWindow : Window
         cfg.ShowMicPrivacyAlert = ChkMicPrivacyAlert.IsChecked == true;
         cfg.MirrorOsNotifications = ChkMirrorOsNotifications.IsChecked == true;
         cfg.EnableClipboardVault = ChkClipboardVault.IsChecked == true;
+        cfg.LanShareIncludeClipboard = ChkLanShareClipboard.IsChecked == true;
         cfg.BluetoothBatteryAlertsEnabled = ChkBtBatteryAlerts.IsChecked == true;
+        cfg.BluetoothLowBatteryThreshold = (int)Math.Round(SliderBtBatteryThreshold.Value);
         cfg.NotchDesktopSwipeEnabled = ChkNotchDesktopSwipe.IsChecked == true;
         cfg.CalendarEnabled = ChkCalendarEnabled.IsChecked == true;
         cfg.DownloadsWatchEnabled = ChkDownloadsWatch.IsChecked == true;

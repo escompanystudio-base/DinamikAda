@@ -443,7 +443,7 @@ public partial class DockWindow : Window
 
         _orch.Coordinator.SnapshotChanged += OnCoordinatorSnapshotChanged;
         ApplyConfigAndSync();
-        _lastTrayAppCount = _appsService.QueryBackgroundTrayApps().Count;
+        _lastTrayAppCount = _orch.Config.EnableBottomDock ? _appsService.QueryBackgroundTrayApps().Count : 0;
         if (_trayActiveDot is not null)
         {
             _trayActiveDot.Opacity = _lastTrayAppCount > 0 ? 1.0 : 0.0;
@@ -487,6 +487,10 @@ public partial class DockWindow : Window
         {
             _taskbarManager.EnsureHiddenTick();
         }
+
+        // With the dock disabled nothing shows the clock, trash or tray dots; skip the per-process
+        // tray scan (Process.GetProcesses + OpenProcess + EnumWindows) and recycle-bin query entirely.
+        if (!_orch.Config.EnableBottomDock) return;
 
         UpdateClockText();
 
@@ -1877,12 +1881,19 @@ public partial class DockWindow : Window
 
         menu.Items.Add(new Separator());
         var quitItem = new MenuItem { Header = Strings.TrayQuitApp(lang) };
-        quitItem.Click += (_, _) =>
+        quitItem.Click += async (_, _) =>
         {
-            DockAppsService.QuitBackgroundTrayApp(item);
-            if (TrayOverflowPopup.IsOpen)
+            try
             {
-                RebuildTrayOverflowGrid(_appsService.QueryBackgroundTrayApps());
+                await DockAppsService.QuitBackgroundTrayAppAsync(item);
+                if (TrayOverflowPopup.IsOpen)
+                {
+                    RebuildTrayOverflowGrid(_appsService.QueryBackgroundTrayApps());
+                }
+            }
+            catch (Exception ex)
+            {
+                CrashLogger.Log("dock", ex, "Tray app quit failed.");
             }
         };
         menu.Items.Add(quitItem);

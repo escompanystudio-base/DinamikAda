@@ -45,7 +45,9 @@ public sealed record CloseBackgroundAppsResult(
 /// </summary>
 public sealed class SystemMaintenanceService
 {
-    private static readonly TimeSpan ActiveTempFileGraceAge = TimeSpan.FromMinutes(2);
+    // Installers/archive extractors keep original timestamps and reuse %TEMP% files across stages,
+    // so only files untouched (created AND written) for a full day are considered stale.
+    private static readonly TimeSpan ActiveTempFileGraceAge = TimeSpan.FromHours(24);
 
     public static readonly HashSet<string> ExtraExcludedInfrastructureProcesses = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -230,7 +232,8 @@ public sealed class SystemMaintenanceService
                 long len = file.Length;
                 scannedBytes += len;
 
-                if (file.LastWriteTimeUtc > cutoffUtc)
+                DateTime newestStampUtc = file.LastWriteTimeUtc > file.CreationTimeUtc ? file.LastWriteTimeUtc : file.CreationTimeUtc;
+                if (newestStampUtc > cutoffUtc)
                 {
                     skippedLocked++;
                     continue;
@@ -514,7 +517,15 @@ public sealed class SystemMaintenanceService
                         continue;
                     }
 
-                    proc.Kill(entireProcessTree: true);
+                    // The PID was captured at scan time and may have been recycled by another app.
+                    if (!string.Equals(clean, HungProcessService.NormalizeImageName(candidate.ProcessName), StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    // Every instance PID is listed in candidate.Pids, so killing just this process is
+                    // enough; tree-kill would also take down unrelated child apps it launched.
+                    proc.Kill(entireProcessTree: false);
                     anyClosedForCandidate = true;
                 }
                 catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)

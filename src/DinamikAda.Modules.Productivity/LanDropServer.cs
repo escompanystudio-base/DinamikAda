@@ -503,10 +503,27 @@ public sealed class LanDropServer : IDisposable
                 try { File.Delete(destPath); } catch { }
                 throw;
             }
+            ApplyMarkOfTheWeb(destPath);
             saved.Add(destPath);
         }
 
         return saved;
+    }
+
+    /// <summary>
+    /// Tags a received file with a Zone.Identifier (Internet zone) alternate data stream so that
+    /// SmartScreen, Office Protected View and "unblock" prompts treat it like any other download.
+    /// </summary>
+    internal static void ApplyMarkOfTheWeb(string path)
+    {
+        try
+        {
+            File.WriteAllText(path + ":Zone.Identifier", "[ZoneTransfer]\r\nZoneId=3\r\nHostUrl=about:internet\r\n");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            // Non-NTFS volumes (FAT32/exFAT) have no alternate data streams.
+        }
     }
 
     private static List<(string FileName, byte[] Content)> ParseMultipartParts(byte[] body, string boundary)

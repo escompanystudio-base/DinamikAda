@@ -48,6 +48,9 @@ public sealed class AppConfig
     public bool ShowMicPrivacyAlert { get; set; } = false;
     public bool MirrorOsNotifications { get; set; } = true;
     public bool EnableClipboardVault { get; set; } = true;
+    // LAN QR share runs over plain HTTP on the local network; sharing the latest clipboard text
+    // (often a password or token) must be an explicit opt-in.
+    public bool LanShareIncludeClipboard { get; set; } = false;
     public int MaxClipboardItems { get; set; } = 25;
     public string CommandHotkey { get; set; } = "Ctrl+Shift+Space";
     public bool UseHardwareRendering { get; set; } = true;
@@ -91,6 +94,9 @@ public sealed class AppConfig
     public bool DockReserveWorkArea { get; set; } = false;
     public int DockIconSizeDip { get; set; } = 32;
     public List<string> PinnedDockApps { get; set; } = new();
+    // True once the user has edited dock pins; an empty PinnedDockApps then means "no pins",
+    // not "never configured" (which would re-import the Windows taskbar pins on next start).
+    public bool DockPinsCustomized { get; set; } = false;
 
     // Local Multi-Account AI Subscription Quota & Reset Tracker (no browser cookies or credential bypass)
     public bool AiQuotaSeeded { get; set; } = false;
@@ -218,15 +224,14 @@ public sealed class AppConfig
                 seenIds.Add(id);
             }
 
-            clean.Add(new AiQuotaSlotConfig
-            {
-                Id = id,
-                Provider = provider,
-                Label = label,
-                ResetWindowMinutes = Math.Clamp(s.ResetWindowMinutes, AiQuotaSlotConfig.MinWindowMinutes, AiQuotaSlotConfig.MaxWindowMinutes),
-                NextResetUtcTicks = Math.Max(0L, s.NextResetUtcTicks),
-                NotifyOnReset = s.NotifyOnReset
-            });
+            // Normalize in place: AiQuotaTrackerService (timer thread) holds references to these slot
+            // objects, and replacing them on every Save would orphan its in-flight updates.
+            s.Id = id;
+            s.Provider = provider;
+            s.Label = label;
+            s.ResetWindowMinutes = Math.Clamp(s.ResetWindowMinutes, AiQuotaSlotConfig.MinWindowMinutes, AiQuotaSlotConfig.MaxWindowMinutes);
+            s.NextResetUtcTicks = Math.Max(0L, s.NextResetUtcTicks);
+            clean.Add(s);
         }
 
         return clean;
@@ -304,6 +309,9 @@ public sealed class AppConfigStore
                 }
                 catch
                 {
+                    // Keep a copy of the unreadable file: the next Save would otherwise destroy any
+                    // settings the per-property recovery below cannot salvage.
+                    BackupCorruptConfig();
                     var partial = LoadResilientPerProperty(json);
                     partial.Sanitize();
                     return partial;
@@ -315,6 +323,18 @@ public sealed class AppConfigStore
                 fallback.Sanitize();
                 return fallback;
             }
+        }
+    }
+
+    private void BackupCorruptConfig()
+    {
+        try
+        {
+            string backup = $"{_configPath}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}.bak";
+            File.Copy(_configPath, backup, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
         }
     }
 
@@ -364,6 +384,23 @@ public sealed class AppConfigStore
         return cfg;
     }
 
+    private static string SerializeWithRetry(AppConfig config)
+    {
+        // Config lists are mutated by background services (dock pins, audio routes, quota slots)
+        // without this store's lock; retry if a collection changes mid-serialization.
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return JsonSerializer.Serialize(config, JsonOptions);
+            }
+            catch (InvalidOperationException) when (attempt < 4)
+            {
+                Thread.Sleep(5);
+            }
+        }
+    }
+
     public void Save(AppConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -376,9 +413,16 @@ public sealed class AppConfigStore
                 Directory.CreateDirectory(dir);
             }
 
-            string json = JsonSerializer.Serialize(config, JsonOptions);
+            string json = SerializeWithRetry(config);
             string tempPath = _configPath + ".tmp";
-            File.WriteAllText(tempPath, json);
+            using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(fs, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+            {
+                writer.Write(json);
+                writer.Flush();
+                // Force the bytes to disk before the rename so a power loss can't leave an empty config.
+                fs.Flush(flushToDisk: true);
+            }
             File.Move(tempPath, _configPath, overwrite: true);
         }
     }

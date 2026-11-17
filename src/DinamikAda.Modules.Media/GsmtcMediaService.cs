@@ -17,6 +17,10 @@ public sealed class GsmtcMediaService : IMediaControlBackend
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> _trackedSessions = new(StringComparer.OrdinalIgnoreCase);
     private string? _preferredSessionId;
     private string? _lastTrackSignature;
+    // Players such as Spotify and browsers publish the new title before the new artwork. For a short
+    // window after a track change, re-read the thumbnail on every update; the hash check dedupes it.
+    private const long LateThumbnailWindowMs = 8000;
+    private long _trackChangedTickMs;
     private byte[]? _lastThumbHash;
     private long _currentTimelineStartTicks;
     private MediaPlaybackSnapshot _current = EmptySnapshot();
@@ -330,13 +334,21 @@ public sealed class GsmtcMediaService : IMediaControlBackend
             string? secondaryAccent = trackChanged ? "#5E5CE6" : _current.SecondaryAccentHex;
             string? highlightAccent = trackChanged ? "#64D2FF" : _current.HighlightAccentHex;
 
-            if (trackChanged || (thumbBytes is null && mediaProps?.Thumbnail is not null))
+            bool lateThumbRefresh = !trackChanged && thumbBytes is not null && mediaProps?.Thumbnail is not null &&
+                Environment.TickCount64 - _trackChangedTickMs < LateThumbnailWindowMs;
+            if (trackChanged) _trackChangedTickMs = Environment.TickCount64;
+
+            if (trackChanged || lateThumbRefresh || (thumbBytes is null && mediaProps?.Thumbnail is not null))
             {
                 _lastTrackSignature = sig;
                 byte[]? fetched = await ReadThumbnailBytesAsync(mediaProps?.Thumbnail, ct);
                 byte[]? fetchedHash = ComputeThumbnailHash(fetched);
 
-                if (fetched is null)
+                if (fetched is null && lateThumbRefresh)
+                {
+                    // Transient read failure during a late refresh: keep the artwork we already have.
+                }
+                else if (fetched is null)
                 {
                     _lastThumbHash = null;
                     thumbBytes = null;

@@ -38,7 +38,8 @@ public struct PropVariant
     public nint p2;
 }
 
-[StructLayout(LayoutKind.Sequential)]
+// mmreg.h packs WAVEFORMATEX to 1 byte: 18 bytes total.
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct WaveFormatEx
 {
     public ushort wFormatTag;
@@ -50,7 +51,8 @@ public struct WaveFormatEx
     public ushort cbSize;
 }
 
-[StructLayout(LayoutKind.Sequential)]
+// WAVEFORMATEXTENSIBLE: 40 bytes, SubFormat at offset 24.
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct WaveFormatExtensible
 {
     public WaveFormatEx Format;

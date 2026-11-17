@@ -1118,6 +1118,8 @@ public sealed class ConnectivityAndSystemService : IConnectivityBackend
                     NetworkInterfaceType.FastEthernetFx or
                     NetworkInterfaceType.FastEthernetT or
                     NetworkInterfaceType.Ethernet3Megabit)
+                // Bluetooth PAN adapters report as Ethernet; they are never a wired connection.
+                .Where(n => !$"{n.Name} {n.Description}".Contains("Bluetooth", StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             if (nics.Count == 0) return (false, null, null);

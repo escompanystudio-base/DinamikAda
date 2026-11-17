@@ -305,7 +305,9 @@ public sealed class TransferMonitorService : ILiveActivitySource, IDisposable
         string rateLabel = FormatTransferRate(rate);
         double? progress = lead.ExpectedTotalBytes is > 0
             ? Math.Clamp((double)lead.LastBytes / lead.ExpectedTotalBytes.Value, 0.02, 0.99)
-            : Math.Clamp((Environment.TickCount64 % 2400) / 2400.0, 0.08, 0.92);
+            // Unknown total size: report no progress instead of a clock-driven fake percentage
+            // (the compact pill would otherwise show e.g. "47%" for an unknown download).
+            : null;
 
         PublishActivityLocked(new LiveActivityState(
             SourceId: SourceId,

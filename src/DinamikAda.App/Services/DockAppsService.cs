@@ -99,6 +99,10 @@ public sealed unsafe class DockAppsService
             }
         }
 
+        // Migration: a non-empty saved list means the user already customized the dock.
+        if (_config.PinnedDockApps.Count > 0) _config.DockPinsCustomized = true;
+        if (_config.DockPinsCustomized) return;
+
         if (_pinnedEntries.Count == 0)
         {
             string pinnedDir = Path.Combine(
@@ -240,6 +244,7 @@ public sealed unsafe class DockAppsService
     public bool TogglePin(DockAppItem item)
     {
         EnsurePinnedLoaded();
+        _config.DockPinsCustomized = true;
 
         if (item.IsPinned)
         {
@@ -686,6 +691,14 @@ public sealed unsafe class DockAppsService
         }
     }
 
+    /// <summary>
+    /// Asks a tray app to exit gracefully and only force-terminates the process itself (never its
+    /// child tree, e.g. games launched by Steam) if it ignores the request. Runs off the UI thread so
+    /// the WH_MOUSE_LL hook installed by open dock popups is never starved.
+    /// </summary>
+    public static Task QuitBackgroundTrayAppAsync(BackgroundTrayAppItem item) =>
+        Task.Run(() => QuitBackgroundTrayApp(item));
+
     public static void QuitBackgroundTrayApp(BackgroundTrayAppItem item)
     {
         try
@@ -696,11 +709,11 @@ public sealed unsafe class DockAppsService
                 if (item.RestoreWindowHwnd != 0 && NativeMethods.IsWindow(item.RestoreWindowHwnd))
                 {
                     NativeMethods.PostMessageW(item.RestoreWindowHwnd, NativeMethods.WM_CLOSE, 0, 0);
-                    if (proc.WaitForExit(1200)) return;
+                    if (proc.WaitForExit(3000)) return;
                 }
-                if (!proc.CloseMainWindow() || !proc.WaitForExit(1200))
+                if (!proc.CloseMainWindow() || !proc.WaitForExit(3000))
                 {
-                    proc.Kill(entireProcessTree: true);
+                    proc.Kill(entireProcessTree: false);
                 }
             }
         }
@@ -1211,7 +1224,7 @@ public sealed unsafe class DockAppsService
     {
         if (string.IsNullOrWhiteSpace(raw)) return "Uygulama";
         string trimmed = raw.Trim();
-        return char.IsLower(trimmed[0]) ? char.ToUpper(trimmed[0]) + trimmed[1..] : trimmed;
+        return char.IsLower(trimmed[0]) ? char.ToUpperInvariant(trimmed[0]) + trimmed[1..] : trimmed;
     }
 
     private static string ReadWindowClass(nint hwnd)
