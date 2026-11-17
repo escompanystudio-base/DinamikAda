@@ -58,7 +58,12 @@
                 ClipToBounds="False"
                 MouseEnter="OnDockMouseEnter"
                 MouseMove="OnDockMouseMove"
-                MouseLeave="OnDockMouseLeave">
+                MouseLeave="OnDockMouseLeave"
+                AllowDrop="True"
+                DragEnter="OnDockDragOver"
+                DragOver="OnDockDragOver"
+                DragLeave="OnDockDragLeave"
+                Drop="OnDockDrop">
             <Border.BorderBrush>
                 <LinearGradientBrush x:Name="DockBorderGlowBrush" StartPoint="0,0" EndPoint="1,1">
                     <GradientStop x:Name="DockBorderStop0" Color="#32FFFFFF" Offset="0.0" />

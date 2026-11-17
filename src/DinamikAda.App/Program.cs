@@ -302,6 +302,75 @@ public static class Program
         return services;
     }
 
+    /// <summary>
+    /// Exercises Dock pin editing (drop-to-pin, folder pins, reorder, offline-target retention and
+    /// Settings reload detection) against an isolated config and temp files.
+    /// </summary>
+    private static void SmokeCheckDockPinEditing(List<string> failures)
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "DinamikAda-smoke-pins-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(dir);
+            string alpha = Path.GetFullPath(Path.Combine(dir, "alpha.txt"));
+            string beta = Path.GetFullPath(Path.Combine(dir, "beta.txt"));
+            string gamma = Path.GetFullPath(Path.Combine(dir, "Gamma"));
+            string offline = Path.Combine(dir, "offline", "delta.exe");
+            File.WriteAllText(alpha, "a");
+            File.WriteAllText(beta, "b");
+            Directory.CreateDirectory(gamma);
+
+            var cfg = new AppConfig { DockPinsCustomized = true, PinnedDockApps = new List<string> { offline } };
+            int saves = 0;
+            var svc = new DockAppsService(cfg, () => saves++);
+
+            bool pinnedAll = svc.PinPath(alpha) & svc.PinPath(beta) & svc.PinPath(gamma, insertIndex: 0);
+            bool duplicateRejected = !svc.PinPath(alpha);
+            var afterPin = cfg.PinnedDockApps.ToList();
+            string[] expectedPin = { gamma, alpha, beta, offline };
+            if (!pinnedAll || !duplicateRejected || !afterPin.SequenceEqual(expectedPin, StringComparer.OrdinalIgnoreCase))
+            {
+                failures.Add($"Dock PinPath produced [{string.Join(", ", afterPin)}], expected [{string.Join(", ", expectedPin)}].");
+            }
+
+            bool moved = svc.MovePinned(beta, 0);
+            string[] expectedMove = { beta, gamma, alpha, offline };
+            if (!moved || !cfg.PinnedDockApps.SequenceEqual(expectedMove, StringComparer.OrdinalIgnoreCase))
+            {
+                failures.Add($"Dock MovePinned produced [{string.Join(", ", cfg.PinnedDockApps)}], expected [{string.Join(", ", expectedMove)}].");
+            }
+
+            var effective = DockAppsService.ResolveEffectivePinnedTargets(cfg);
+            if (!effective.SequenceEqual(new[] { beta, gamma, alpha }, StringComparer.OrdinalIgnoreCase))
+            {
+                failures.Add($"Dock effective pins were [{string.Join(", ", effective)}].");
+            }
+
+            if (svc.ReloadIfConfigChanged())
+            {
+                failures.Add("Dock reloaded pins although only the Dock itself changed them.");
+            }
+            cfg.PinnedDockApps = new List<string> { alpha };
+            if (!svc.ReloadIfConfigChanged())
+            {
+                failures.Add("Dock did not pick up a pin list rewritten by Settings.");
+            }
+
+            if (saves < 4)
+            {
+                failures.Add($"Dock pin edits saved config {saves} times, expected at least 4.");
+            }
+        }
+        catch (Exception ex)
+        {
+            failures.Add($"Dock pin editing check threw: {ex.Message}");
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
     private static int RunSmokeTest(System.Windows.Application app, ServiceProvider provider, int durationSec, bool traceMode = false)
     {
         int exitCode = 0;
@@ -408,6 +477,8 @@ public static class Program
                         if (orch.Coordinator.Current.State != IslandPresentationState.S6DragShelf)
                             failures.Add($"Expected S6DragShelf, got {orch.Coordinator.Current.State}");
                         orch.Coordinator.SetDragShelfActive(false);
+
+                        SmokeCheckDockPinEditing(failures);
 
                         orch.Coordinator.RequestCollapse(forceUnpin: true);
                         orch.Coordinator.PublishLiveActivity(null, "smoke");
@@ -879,6 +950,8 @@ public static class Program
         // 15: SettingsWindow with Live MacBook Bezel Preview
         var settingsWin = new SettingsWindow(orch, hotkeyService, () => { });
         SavePng(settingsWin.RenderToBitmap(), Path.Combine(outputDir, "15_settings_window.png"));
+        savedCount++;
+        SavePng(settingsWin.RenderToBitmap(scrollToDockSection: true), Path.Combine(outputDir, "15b_settings_dock_pins.png"));
         savedCount++;
 
         // 16: Desktop PC S4 Control Center (Ethernet + Master Audio + DDC/CI Display + Real Power Scheme)
