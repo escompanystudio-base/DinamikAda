@@ -10,7 +10,8 @@ public sealed record TempCleanupResult(
     long FreedBytes,
     int DeletedFileCount,
     int SkippedLockedCount,
-    int DeletedDirectoryCount);
+    int DeletedDirectoryCount,
+    int SkippedRecentCount = 0);
 
 public sealed record MemoryTrimResult(
     int TrimmedProcessCount,
@@ -154,6 +155,7 @@ public sealed class SystemMaintenanceService
         long freedBytes = 0;
         int deletedFiles = 0;
         int skippedLocked = 0;
+        int skippedRecent = 0;
         int deletedDirs = 0;
 
         foreach (string root in dirs)
@@ -166,7 +168,7 @@ public sealed class SystemMaintenanceService
                 var rootInfo = new DirectoryInfo(root);
                 if ((rootInfo.Attributes & FileAttributes.ReparsePoint) != 0) continue;
 
-                CleanDirectoryRecursive(rootInfo, isRoot: true, cutoffUtc, ct, ref scannedBytes, ref freedBytes, ref deletedFiles, ref skippedLocked, ref deletedDirs);
+                CleanDirectoryRecursive(rootInfo, isRoot: true, cutoffUtc, ct, ref scannedBytes, ref freedBytes, ref deletedFiles, ref skippedLocked, ref deletedDirs, ref skippedRecent);
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
             {
@@ -174,7 +176,7 @@ public sealed class SystemMaintenanceService
             }
         }
 
-        return new TempCleanupResult(scannedBytes, freedBytes, deletedFiles, skippedLocked, deletedDirs);
+        return new TempCleanupResult(scannedBytes, freedBytes, deletedFiles, skippedLocked, deletedDirs, skippedRecent);
     }
 
     public Task<TempCleanupResult> ExecuteTempCleanupAsync(IReadOnlyList<string>? targetDirectories = null, TimeSpan? minFileAge = null, CancellationToken ct = default) =>
@@ -189,7 +191,8 @@ public sealed class SystemMaintenanceService
         ref long freedBytes,
         ref int deletedFiles,
         ref int skippedLocked,
-        ref int deletedDirs)
+        ref int deletedDirs,
+        ref int skippedRecent)
     {
         if (ct.IsCancellationRequested) return;
         if ((dir.Attributes & FileAttributes.ReparsePoint) != 0) return;
@@ -208,7 +211,7 @@ public sealed class SystemMaintenanceService
         foreach (var sub in subDirs)
         {
             if (ct.IsCancellationRequested) break;
-            CleanDirectoryRecursive(sub, isRoot: false, cutoffUtc, ct, ref scannedBytes, ref freedBytes, ref deletedFiles, ref skippedLocked, ref deletedDirs);
+            CleanDirectoryRecursive(sub, isRoot: false, cutoffUtc, ct, ref scannedBytes, ref freedBytes, ref deletedFiles, ref skippedLocked, ref deletedDirs, ref skippedRecent);
         }
 
         FileInfo[] files;
@@ -235,7 +238,7 @@ public sealed class SystemMaintenanceService
                 DateTime newestStampUtc = file.LastWriteTimeUtc > file.CreationTimeUtc ? file.LastWriteTimeUtc : file.CreationTimeUtc;
                 if (newestStampUtc > cutoffUtc)
                 {
-                    skippedLocked++;
+                    skippedRecent++; // still potentially in use, not a locked/failed delete
                     continue;
                 }
 

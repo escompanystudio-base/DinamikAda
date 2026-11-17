@@ -1003,6 +1003,13 @@ public static unsafe partial class NativeMethods
     [LibraryImport("user32.dll")]
     public static partial nint LoadIconW(nint hInstance, nint lpIconName);
 
+    public const uint IMAGE_ICON = 1;
+    public const int SM_CXSMICON = 49;
+    public const int SM_CYSMICON = 50;
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    public static partial nint LoadImageW(nint hInst, nint name, uint type, int cx, int cy, uint fuLoad);
+
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool DestroyIcon(nint hIcon);

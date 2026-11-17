@@ -514,13 +514,16 @@ public sealed class AppOrchestrator : IAsyncDisposable
     public string? GetCurrentLyricLine(MediaPlaybackSnapshot media)
     {
         if (!Config.LyricsEnabled || !media.HasSession) return null;
+        // GSMTC falls back to the app name when a player publishes no title; don't go hunting for
+        // "Spotify.lrc" in the user's Music folder.
+        if (string.Equals(media.Title?.Trim(), media.AppName?.Trim(), StringComparison.OrdinalIgnoreCase)) return null;
         TimeSpan pos = media.Position;
         if (media.IsPlaying)
         {
             double dt = Math.Clamp((DateTimeOffset.UtcNow - media.LastUpdatedUtc).TotalSeconds, 0, 120);
             pos += TimeSpan.FromSeconds(dt * Math.Max(0.25, media.PlaybackRate));
         }
-        return Lyrics.ResolveLine(media.Title, media.Artist, pos);
+        return Lyrics.ResolveLineNonBlocking(media.Title, media.Artist, pos);
     }
 
     public LanDropShareInfo ToggleOrStartLanQrShare(bool forceStart = true)
@@ -638,7 +641,9 @@ public sealed class AppOrchestrator : IAsyncDisposable
 
     private void OnCoordinatorSnapshotChanged(object? sender, IslandCoordinatorSnapshot snap)
     {
-        Widgets.SetPausedWhenCollapsed(snap.State != IslandPresentationState.S4Expanded);
+        // SnapshotChanged is raised outside the coordinator lock from several threads, so the event
+        // argument can be older than the current state; always act on the latest snapshot.
+        Widgets.SetPausedWhenCollapsed(Coordinator.Current.State != IslandPresentationState.S4Expanded);
     }
 
     private void OnFullscreenChanged(object? sender, FullscreenSnapshot snap)

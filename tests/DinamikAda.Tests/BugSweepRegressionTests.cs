@@ -2,7 +2,11 @@ using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
+using DinamikAda.Core.Abstractions;
+using DinamikAda.Core.Arbitration;
 using DinamikAda.Core.Config;
+using DinamikAda.Modules.Media;
+using DinamikAda.Modules.Telemetry;
 using DinamikAda.Modules.CommandHub;
 using DinamikAda.Modules.Productivity;
 using DinamikAda.Platform.Win32.Audio;
@@ -159,6 +163,73 @@ public sealed class BugSweepRegressionTests
         finally
         {
             try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    [Theory]
+    [InlineData(@"C:\Downloads\~WRL0001.tmp", false)]
+    [InlineData(@"C:\Downloads\~$Report.tmp", false)]
+    [InlineData(@"C:\Downloads\A1B2C3D4.tmp", false)]
+    [InlineData(@"C:\Downloads\archive.tmp", true)]
+    [InlineData(@"C:\Downloads\setup.exe.crdownload", true)]
+    public void TransferMonitor_IgnoresEditorScratchTempFiles(string path, bool expected)
+    {
+        Assert.Equal(expected, TransferMonitorService.IsPartialTransferFile(path));
+    }
+
+    [Fact]
+    public async Task Lyrics_NonBlockingResolveLoadsInBackground()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), $"dinamikada-lrc-nb-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "Artist - Song.lrc"), "[00:01.00]First line\n[00:05.00]Second line\n");
+        try
+        {
+            var svc = new LyricsService();
+            svc.Configure(enabled: true, customFolders: dir);
+            Assert.Null(svc.ResolveLineNonBlocking("Song", "Artist", TimeSpan.FromSeconds(6)));
+
+            string? line = null;
+            for (int i = 0; i < 100 && line is null; i++)
+            {
+                await Task.Delay(20);
+                line = svc.ResolveLineNonBlocking("Song", "Artist", TimeSpan.FromSeconds(6));
+            }
+            Assert.Equal("Second line", line);
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void Coordinator_DoesNotRaiseHudRequestedForQuietSuppressedHud()
+    {
+        var coord = new IslandCoordinator(new AppConfig { QuietIslandEnabled = true }, new FakeTimeProvider());
+        int raised = 0;
+        coord.HudRequested += (_, _) => raised++;
+        coord.Publish(new TransientHudEvent("hud:clip", HudKind.Clipboard, "Pano", "x", null, DurationMs: 1200));
+        Assert.Equal(0, raised);
+        coord.Publish(new TransientHudEvent("hud:vol", HudKind.Volume, "Ses", "50%", 0.5, DurationMs: 1200));
+        Assert.Equal(1, raised);
+    }
+
+    [Fact]
+    public void TempCleanup_CountsRecentFilesSeparatelyFromLocked()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dinamikada-clean2-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            File.WriteAllBytes(Path.Combine(root, "fresh.tmp"), new byte[16]);
+            var res = new SystemMaintenanceService().ExecuteTempCleanup([root], minFileAge: TimeSpan.FromHours(1));
+            Assert.Equal(1, res.SkippedRecentCount);
+            Assert.Equal(0, res.SkippedLockedCount);
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { }
         }
     }
 }

@@ -80,8 +80,6 @@ public sealed class IslandCoordinator : ITransientHudBus, IIslandHostContext
 
     public void Publish(TransientHudEvent hudEvent)
     {
-        HudRequested?.Invoke(this, hudEvent);
-
         IslandCoordinatorSnapshot? emitted = null;
         lock (_sync)
         {
@@ -116,6 +114,9 @@ public sealed class IslandCoordinator : ITransientHudBus, IIslandHostContext
             emitted = CommitSnapshotLocked();
         }
 
+        // Raised only for HUDs that passed Quiet Island / fullscreen / command-palette suppression,
+        // so subscribers (sounds, logging, mirrors) never react to a HUD the user was shielded from.
+        HudRequested?.Invoke(this, hudEvent);
         SnapshotChanged?.Invoke(this, emitted);
     }
 

@@ -18,6 +18,24 @@ public sealed unsafe class Win32TrayIcon : IDisposable
     private bool _added;
     private bool _disposed;
     private bool _suppressNextLeftUp;
+    private bool _ownsIcon;
+
+    /// <summary>
+    /// Loads the exe's own icon (the SDK embeds ApplicationIcon as icon group 32512) at the system
+    /// small-icon size so the tray shows the DinamikAda logo crisply instead of the generic Windows
+    /// application icon. Falls back to the stock icon when the exe has none (e.g. test hosts).
+    /// </summary>
+    private static nint LoadAppTrayIcon(out bool owned)
+    {
+        int cx = NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSMICON);
+        int cy = NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSMICON);
+        nint module = NativeMethods.GetModuleHandleW(null);
+        nint icon = module != 0
+            ? NativeMethods.LoadImageW(module, NativeMethods.IDI_APPLICATION, NativeMethods.IMAGE_ICON, cx > 0 ? cx : 16, cy > 0 ? cy : 16, 0)
+            : 0;
+        owned = icon != 0;
+        return icon != 0 ? icon : NativeMethods.LoadIconW(0, NativeMethods.IDI_APPLICATION);
+    }
 
     public event EventHandler? LeftClick;
     public event EventHandler? LeftClicked;
@@ -30,7 +48,7 @@ public sealed unsafe class Win32TrayIcon : IDisposable
         _hwnd = hwnd;
         _tooltip = string.IsNullOrWhiteSpace(tooltip) ? "DinamikAda" : tooltip;
         _taskbarCreatedMessage = (int)NativeMethods.RegisterWindowMessageW("TaskbarCreated");
-        _iconHandle = NativeMethods.LoadIconW(0, NativeMethods.IDI_APPLICATION);
+        _iconHandle = LoadAppTrayIcon(out _ownsIcon);
 
         var nid = BuildData(_tooltip, NativeMethods.NIF_MESSAGE | NativeMethods.NIF_ICON | NativeMethods.NIF_TIP);
         _added = NativeMethods.Shell_NotifyIconW(NativeMethods.NIM_ADD, &nid);
@@ -123,6 +141,11 @@ public sealed unsafe class Win32TrayIcon : IDisposable
             };
             NativeMethods.Shell_NotifyIconW(NativeMethods.NIM_DELETE, &nid);
             _added = false;
+        }
+        if (_ownsIcon && _iconHandle != 0)
+        {
+            NativeMethods.DestroyIcon(_iconHandle);
+            _ownsIcon = false;
         }
         _iconHandle = 0;
         _hwnd = 0;

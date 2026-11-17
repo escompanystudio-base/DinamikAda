@@ -285,8 +285,6 @@ public sealed class ConnectivityAndSystemService : IConnectivityBackend
 
     public void ToggleDarkTheme() => _ = ToggleDarkThemeAsync();
 
-    public Task<bool> NotifyThemeChangedAsync(CancellationToken ct = default) => ToggleDarkThemeAsync(ct);
-
     public async Task<bool> ToggleDarkThemeAsync(CancellationToken ct = default)
     {
         if (_disposed) return false;

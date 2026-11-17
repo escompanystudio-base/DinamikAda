@@ -6513,10 +6513,11 @@ public partial class IslandWindow : Window
             if (_isClosed) return;
             string sizeStr = SystemMaintenanceService.FormatBytes(res.FreedBytes, lang);
             SysMaintStatusText.Foreground = res.FreedBytes > 0 ? ActiveAccentDotBrush : ActiveTabFgBrush;
+            int skipped = res.SkippedLockedCount + res.SkippedRecentCount;
             SysMaintStatusText.Text = Strings.Pick(
                 lang,
-                $"{sizeStr} temizlendi • {res.DeletedFileCount} dosya silindi",
-                $"Freed {sizeStr} • {res.DeletedFileCount} files removed");
+                $"{sizeStr} temizlendi • {res.DeletedFileCount} dosya silindi" + (skipped > 0 ? $" • {skipped} kullanımda/yeni dosya atlandı" : string.Empty),
+                $"Freed {sizeStr} • {res.DeletedFileCount} files removed" + (skipped > 0 ? $" • {skipped} in-use/recent skipped" : string.Empty));
             await _orch.Telemetry.SampleOnceAsync();
         }
         finally
