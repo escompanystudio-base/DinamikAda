@@ -30,7 +30,8 @@ public static class DockLayoutCalculator
             || string.Equals(trimmed, "Shell_SecondaryTrayWnd", StringComparison.OrdinalIgnoreCase);
     }
 
-    public static DockHostBounds ComputeHostWindowBounds(MonitorDescriptor monitor, double hostHeightDip = DefaultHostHeightDip)
+    public static DockHostBounds ComputeHostWindowBounds(MonitorDescriptor monitor, double hostHeightDip = DefaultHostHeightDip,
+        bool atTop = false, int topInsetPx = 0)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         double scale = Math.Max(1.0, monitor.DpiScale);
@@ -39,7 +40,9 @@ public static class DockLayoutCalculator
         if ((heightPx & 1) != 0) heightPx += 1;
         int widthPx = Math.Max(2, monitor.WidthPx);
         int leftPx = monitor.LeftPx;
-        int topPx = monitor.TopPx + monitor.HeightPx - heightPx;
+        int topPx = atTop
+            ? monitor.TopPx + Math.Clamp(topInsetPx, 0, Math.Max(0, monitor.HeightPx / 4))
+            : monitor.TopPx + monitor.HeightPx - heightPx;
         return new DockHostBounds(leftPx, topPx, widthPx, heightPx, scale);
     }
 
@@ -51,11 +54,26 @@ public static class DockLayoutCalculator
         return (int)Math.Round(reservedDip * scale, MidpointRounding.AwayFromZero);
     }
 
-    public static NativeMethods.RECT ComputeReservedWorkArea(MonitorDescriptor monitor, int reservedBottomPx)
+    public static NativeMethods.RECT ComputeReservedWorkArea(MonitorDescriptor monitor, int reservedBottomPx, bool atTop = false)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         int maxReserve = Math.Max(0, monitor.HeightPx / 3);
         int clampedReserve = Math.Clamp(reservedBottomPx, 0, maxReserve);
+        if (atTop)
+        {
+            int monBottom = monitor.TopPx + monitor.HeightPx;
+            int workBottom = monitor.WorkHeightPx > 0 && monitor.WorkTopPx + monitor.WorkHeightPx <= monBottom
+                ? monitor.WorkTopPx + monitor.WorkHeightPx
+                : monBottom;
+            int topEdge = Math.Min(workBottom - 100, monitor.TopPx + clampedReserve);
+            return new NativeMethods.RECT
+            {
+                Left = monitor.LeftPx,
+                Top = topEdge,
+                Right = monitor.LeftPx + Math.Max(1, monitor.WidthPx),
+                Bottom = workBottom
+            };
+        }
         int top = monitor.WorkHeightPx > 0 && monitor.WorkTopPx >= monitor.TopPx
             ? monitor.WorkTopPx
             : monitor.TopPx;
@@ -273,7 +291,9 @@ public static class DockLayoutCalculator
         double capsuleWidthDip,
         double capsuleHeightDip,
         double bottomMarginDip = 6.0,
-        int topBufferPx = 4)
+        int topBufferPx = 4,
+        bool atTop = false,
+        int topInsetPx = 0)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         double scale = Math.Max(1.0, monitor.DpiScale);
@@ -285,6 +305,17 @@ public static class DockLayoutCalculator
 
         int left = monitor.LeftPx + (monW - capW) / 2;
         int right = left + capW;
+        if (atTop)
+        {
+            int t = monitor.TopPx + Math.Max(0, topInsetPx);
+            return new NativeMethods.RECT
+            {
+                Left = left,
+                Top = t,
+                Right = right,
+                Bottom = Math.Min(monitor.TopPx + monH, t + marginPx + capH + Math.Max(0, topBufferPx))
+            };
+        }
         int bottom = monitor.TopPx + monH;
         int top = Math.Max(monitor.TopPx, bottom - marginPx - capH - Math.Max(0, topBufferPx));
 
@@ -317,15 +348,40 @@ public static class DockLayoutCalculator
             && cursorY <= bottom;
     }
 
+    public static bool IsPointInTopRevealZone(int cursorX, int cursorY, MonitorDescriptor monitor, int edgeHeightPx = 4)
+    {
+        ArgumentNullException.ThrowIfNull(monitor);
+        int right = monitor.LeftPx + Math.Max(1, monitor.WidthPx);
+        int triggerH = Math.Clamp(edgeHeightPx, 1, 96);
+        return cursorX >= monitor.LeftPx && cursorX < right
+            && cursorY >= monitor.TopPx
+            && cursorY < monitor.TopPx + triggerH;
+    }
+
+    /// <summary>True when the cursor is released in the top half of the monitor (dock snaps to the top edge).</summary>
+    public static bool ShouldSnapDockToTop(int cursorY, MonitorDescriptor monitor)
+    {
+        ArgumentNullException.ThrowIfNull(monitor);
+        return cursorY < monitor.TopPx + Math.Max(1, monitor.HeightPx) / 2;
+    }
+
     public static bool IsPointInDockKeepOpenZone(
         int cursorX,
         int cursorY,
         NativeMethods.RECT dockZone,
         int padHorizontalPx = 24,
-        int padTopPx = 30)
+        int padTopPx = 30,
+        bool atTop = false)
     {
         int padH = Math.Max(0, padHorizontalPx);
         int padT = Math.Max(0, padTopPx);
+        if (atTop)
+        {
+            return cursorX >= dockZone.Left - padH
+                && cursorX <= dockZone.Right + padH
+                && cursorY >= dockZone.Top
+                && cursorY <= dockZone.Bottom + padT;
+        }
         return cursorX >= dockZone.Left - padH
             && cursorX <= dockZone.Right + padH
             && cursorY >= dockZone.Top - padT

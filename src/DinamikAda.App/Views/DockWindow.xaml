@@ -88,6 +88,9 @@
                 MouseEnter="OnDockMouseEnter"
                 MouseMove="OnDockMouseMove"
                 MouseLeave="OnDockMouseLeave"
+                MouseLeftButtonDown="OnDockPillMouseLeftButtonDown"
+                MouseLeftButtonUp="OnDockPillMouseLeftButtonUp"
+                MouseRightButtonUp="OnDockPillMouseRightButtonUp"
                 AllowDrop="True"
                 DragEnter="OnDockDragOver"
                 DragOver="OnDockDragOver"
@@ -313,6 +316,30 @@
                         </Border>
                     </StackPanel>
                 </Grid>
+            </Border>
+        </Popup>
+
+        <!-- Dock widget detail card (content is built by the clicked widget tile) -->
+        <Popup x:Name="WidgetCardPopup"
+               AllowsTransparency="True"
+               StaysOpen="True"
+               Placement="Top"
+               VerticalOffset="-18"
+               PopupAnimation="None"
+               Opened="OnWidgetCardOpened"
+               Closed="OnWidgetCardClosed">
+            <Border x:Name="WidgetCardBorder"
+                    Margin="12"
+                    CornerRadius="18"
+                    Background="#FF101520"
+                    BorderBrush="#FF354158"
+                    BorderThickness="1"
+                    Padding="16,14"
+                    PreviewKeyDown="OnWidgetCardPreviewKeyDown">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="22" ShadowDepth="4" Opacity="0.35" Color="#000000" />
+                </Border.Effect>
+                <ContentControl x:Name="WidgetCardHost" Focusable="False" />
             </Border>
         </Popup>
 

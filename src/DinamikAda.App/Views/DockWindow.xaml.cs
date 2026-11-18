@@ -15,6 +15,7 @@ using DinamikAda.Core.Abstractions;
 using DinamikAda.Core.Arbitration;
 using DinamikAda.Core.Localization;
 using DinamikAda.Core.MathAndSearch;
+using DinamikAda.Core.Widgets;
 using DinamikAda.Modules.CommandHub;
 using DinamikAda.Modules.Productivity;
 using DinamikAda.Platform.Win32.Interop;
@@ -144,6 +145,7 @@ public partial class DockWindow : Window
         public double ReorderShiftX { get; set; }
         public double CurrentReorderShiftX { get; set; }
         public double CurrentBounceY { get; set; }
+        public string? WidgetId { get; init; }
     }
 
     private enum SlotKind
@@ -152,7 +154,8 @@ public partial class DockWindow : Window
         App = 1,
         IslandSync = 2,
         Trash = 3,
-        TrayOverflow = 4
+        TrayOverflow = 4,
+        Widget = 5
     }
 
     public DockWindow(AppOrchestrator orchestrator, WindowsTaskbarManager taskbarManager)
@@ -230,6 +233,8 @@ public partial class DockWindow : Window
         _isFullscreenHidden = followFs && fs.IsFullscreen && fs.Kind is FullscreenAppKind.Game or FullscreenAppKind.Video;
 
         _activeMonitor = ResolveDockMonitor();
+        ApplyDockEdgeLayout();
+        ApplyDockStyleVisuals();
         UpdateHostPlacement();
 
         bool shouldBeVisible = enableDock && !_isFullscreenHidden;
@@ -242,7 +247,8 @@ public partial class DockWindow : Window
                 hideTaskbar,
                 _activeMonitor,
                 reservedPx,
-                reserveFullWidthWorkArea: _orch.Config.DockReserveWorkArea);
+                reserveFullWidthWorkArea: _orch.Config.DockReserveWorkArea,
+                reserveAtTop: IsDockAtTop);
         }
 
         if (shouldBeVisible)
@@ -257,6 +263,7 @@ public partial class DockWindow : Window
             }
             _lastRenderedStructureKey = string.Empty; // Force icon size/layout rebuild cleanly
             RefreshDockItemsNow();
+            UpdateWidgetHubDemand();
             SyncCoordinatorState(_orch.Coordinator.Current);
             EvaluateDockOverlapAndState();
         }
@@ -266,6 +273,8 @@ public partial class DockWindow : Window
             _intellihideDebounceTimer.Stop();
             _intellihideEdgeTimer.Stop();
             SetClickThrough(false);
+            CloseWidgetCard();
+            _widgetHub?.SetActiveWidgets([], dockVisible: false);
             if (_hwnd != 0 && NativeMethods.IsWindowVisible(_hwnd))
             {
                 NativeMethods.ShowWindow(_hwnd, NativeMethods.SW_HIDE);
@@ -672,6 +681,10 @@ public partial class DockWindow : Window
         ClockCalendarPopup.IsOpen = false;
         TrayOverflowPopup.IsOpen = false;
         StartLaunchPopup.IsOpen = false;
+        WidgetCardPopup.IsOpen = false;
+        _widgetPicker?.Close();
+        DetachWidgetTiles();
+        _widgetHub?.Dispose();
         _orch.Coordinator.SnapshotChanged -= OnCoordinatorSnapshotChanged;
         _orch.AiQuota.SlotsChanged -= OnDockAiQuotaChanged;
         UninstallWindowEventHooks();
@@ -783,7 +796,7 @@ public partial class DockWindow : Window
 
     private void UpdateHostPlacement()
     {
-        var bounds = DockLayoutCalculator.ComputeHostWindowBounds(_activeMonitor, HostHeightDip);
+        var bounds = DockLayoutCalculator.ComputeHostWindowBounds(_activeMonitor, HostHeightDip, IsDockAtTop, DockTopInsetPx());
         double scale = Math.Max(1.0, bounds.DpiScale);
         Width = bounds.WidthPx / scale;
         Height = bounds.HeightPx / scale;
@@ -890,7 +903,8 @@ public partial class DockWindow : Window
         double capH = DockPillContainer.ActualHeight > 10.0
             ? DockPillContainer.ActualHeight
             : Math.Max(_orch.Config.DockIconSizeDip + 19.0, DockPillContainer.DesiredSize.Height);
-        return DockLayoutCalculator.ComputeDockHitRectPx(_activeMonitor, capW, capH, bottomMarginDip: 6.0, topBufferPx: 4);
+        return DockLayoutCalculator.ComputeDockHitRectPx(_activeMonitor, capW, capH, bottomMarginDip: 6.0, topBufferPx: 4,
+            atTop: IsDockAtTop, topInsetPx: DockTopInsetPx());
     }
 
     private bool IsAnyDockOverlayOpen()
@@ -898,6 +912,8 @@ public partial class DockWindow : Window
         return ClockCalendarPopup.IsOpen
             || TrayOverflowPopup.IsOpen
             || StartLaunchPopup.IsOpen
+            || WidgetCardPopup.IsOpen
+            || _widgetPicker is not null
             || (_activeContextMenu is { IsOpen: true });
     }
 
@@ -976,10 +992,12 @@ public partial class DockWindow : Window
         bool leftButtonDown = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_LBUTTON) & 0x8000) != 0;
         long nowMs = Environment.TickCount64;
         int edgePx = Math.Clamp((int)Math.Round(4.0 * _activeMonitor.DpiScale), 4, 8);
-        bool inRevealEdge = DockLayoutCalculator.IsPointInBottomRevealZone(pt.X, pt.Y, _activeMonitor, edgePx);
+        bool inRevealEdge = IsDockAtTop
+            ? DockLayoutCalculator.IsPointInTopRevealZone(pt.X, pt.Y, _activeMonitor, edgePx + DockTopInsetPx())
+            : DockLayoutCalculator.IsPointInBottomRevealZone(pt.X, pt.Y, _activeMonitor, edgePx);
         int hoverPadH = (int)Math.Round(24.0 * _activeMonitor.DpiScale);
         int hoverPadTop = (int)Math.Round(30.0 * _activeMonitor.DpiScale);
-        bool inKeepOpenZone = DockLayoutCalculator.IsPointInDockKeepOpenZone(pt.X, pt.Y, _cachedDockHitRectPx, hoverPadH, hoverPadTop);
+        bool inKeepOpenZone = DockLayoutCalculator.IsPointInDockKeepOpenZone(pt.X, pt.Y, _cachedDockHitRectPx, hoverPadH, hoverPadTop, IsDockAtTop);
         bool overlayOpen = IsAnyDockOverlayOpen();
 
         if (!_isIntellihidePeeking)
@@ -1194,7 +1212,7 @@ public partial class DockWindow : Window
         int iconSize = Math.Clamp(_orch.Config.DockIconSizeDip, 26, 48);
         string lang = _orch.Config.Language;
         var keyBuilder = new System.Text.StringBuilder(256);
-        keyBuilder.Append(iconSize).Append('|').Append(lang).Append('|');
+        keyBuilder.Append(iconSize).Append('|').Append(lang).Append('|').Append(WidgetStructureKey()).Append('|');
         foreach (var item in _currentAppItems)
         {
             keyBuilder.Append(item.Key)
@@ -1294,6 +1312,12 @@ public partial class DockWindow : Window
         }
 
         AddVerticalDivider(iconSize, leftMargin: 10, rightMargin: 4);
+
+        // 2b. Live widgets (Lumabar-style tiles), in the user's order
+        if (AddWidgetSlots(iconSize) > 0)
+        {
+            AddVerticalDivider(iconSize, leftMargin: 7, rightMargin: 4);
+        }
 
         // 3. Synchronized DinamikAda Live Island Slot
         bool aiInDock = _orch.Config.ShowAiQuotaInIslandAndDock && _orch.AiQuota.GetSummary().TotalCount > 0;
@@ -1974,7 +1998,7 @@ public partial class DockWindow : Window
 
     private void StopPopupLightDismissWatcherIfIdle()
     {
-        if (!TrayOverflowPopup.IsOpen && !ClockCalendarPopup.IsOpen && !StartLaunchPopup.IsOpen)
+        if (!TrayOverflowPopup.IsOpen && !ClockCalendarPopup.IsOpen && !StartLaunchPopup.IsOpen && !WidgetCardPopup.IsOpen)
         {
             _popupLightDismissTimer?.Stop();
             UninstallPopupMouseHook();
@@ -1993,7 +2017,8 @@ public partial class DockWindow : Window
         if (candidateHwnd == _hwnd) return true;
         return candidateHwnd == GetElementPopupHwnd(StartLaunchCard)
             || candidateHwnd == GetElementPopupHwnd(TrayOverflowCard)
-            || candidateHwnd == GetElementPopupHwnd(ClockCalendarCard);
+            || candidateHwnd == GetElementPopupHwnd(ClockCalendarCard)
+            || candidateHwnd == GetElementPopupHwnd(WidgetCardBorder);
     }
 
     private unsafe nint OnLowLevelPopupMouseEvent(int nCode, nint wParam, nint lParam)
@@ -2044,6 +2069,20 @@ public partial class DockWindow : Window
             TrayOverflowPopup.IsOpen = false;
         }
 
+        if (WidgetCardPopup.IsOpen && WindowRestoreGeometry.ShouldLightDismissPopup(
+                isOpen: true,
+                waitingInitialRelease: false,
+                prevAnyButtonDown: false,
+                curAnyButtonDown: true,
+                isEscapeDown: false,
+                insideCard: IsScreenPointInsideElement(WidgetCardBorder, pt, 4.0),
+                insideToggleButton: isLeftButton && IsScreenPointInsideElement(_widgetCardAnchor, pt, 6.0),
+                foregroundChanged: false,
+                contextMenuOpen: false))
+        {
+            WidgetCardPopup.IsOpen = false;
+        }
+
         if (ClockCalendarPopup.IsOpen && WindowRestoreGeometry.ShouldLightDismissPopup(
                 isOpen: true,
                 waitingInitialRelease: false,
@@ -2061,7 +2100,7 @@ public partial class DockWindow : Window
 
     private void OnPopupLightDismissTick()
     {
-        if (_isClosed || (!TrayOverflowPopup.IsOpen && !ClockCalendarPopup.IsOpen && !StartLaunchPopup.IsOpen))
+        if (_isClosed || (!TrayOverflowPopup.IsOpen && !ClockCalendarPopup.IsOpen && !StartLaunchPopup.IsOpen && !WidgetCardPopup.IsOpen))
         {
             StopPopupLightDismissWatcherIfIdle();
             return;
@@ -2102,6 +2141,11 @@ public partial class DockWindow : Window
         if (ClockCalendarPopup.IsOpen)
         {
             ClockCalendarPopup.IsOpen = false;
+        }
+
+        if (WidgetCardPopup.IsOpen)
+        {
+            WidgetCardPopup.IsOpen = false;
         }
     }
 
@@ -3359,7 +3403,9 @@ public partial class DockWindow : Window
     {
         if (_clockTimeText is null || _clockDateText is null) return;
         var now = DateTime.Now;
-        string hhmm = now.ToString("HH:mm");
+        string hhmm = _orch.Config.DockClock24h
+            ? now.ToString("HH:mm", CultureInfo.InvariantCulture)
+            : now.ToString("h:mm", CultureInfo.InvariantCulture) + " " + DockWidgetMath.AmPm(now);
         if (string.Equals(hhmm, _lastClockMinute, StringComparison.Ordinal)) return;
         _lastClockMinute = hhmm;
         _clockTimeText.Text = hhmm;
@@ -3398,13 +3444,13 @@ public partial class DockWindow : Window
         }
     }
 
-    private void HandleSlotContextMenu(DockSlotVisual slot)
+    private void HandleSlotContextMenu(DockSlotVisual? slot)
     {
         string lang = _orch.Config.Language;
         var menu = new ContextMenu();
         _activeContextMenu = menu;
 
-        if (slot.Kind == SlotKind.StartMenu)
+        if (slot?.Kind == SlotKind.StartMenu)
         {
             var startItem = new MenuItem { Header = Strings.DockStartLabel(lang) };
             startItem.Click += (_, _) => ToggleStartPopup();
@@ -3417,7 +3463,7 @@ public partial class DockWindow : Window
             menu.Items.Add(new Separator());
             menu.Items.Add(winStartItem);
         }
-        else if (slot.Kind == SlotKind.App && slot.AppItem is { } app)
+        else if (slot?.Kind == SlotKind.App && slot.AppItem is { } app)
         {
             foreach (var win in app.Windows.Take(6))
             {
@@ -3460,7 +3506,7 @@ public partial class DockWindow : Window
                 menu.Items.Add(closeAll);
             }
         }
-        else if (slot.Kind == SlotKind.IslandSync)
+        else if (slot?.Kind == SlotKind.IslandSync)
         {
             var toggleHub = new MenuItem { Header = Strings.OpenHub(lang) };
             toggleHub.Click += (_, _) => _orch.Coordinator.RequestExpand();
@@ -3472,13 +3518,13 @@ public partial class DockWindow : Window
             menu.Items.Add(aiQuotaItem);
             menu.Items.Add(cmdPal);
         }
-        else if (slot.Kind == SlotKind.TrayOverflow)
+        else if (slot?.Kind == SlotKind.TrayOverflow)
         {
             var openTrayItem = new MenuItem { Header = Strings.DockTrayAppsLabel(lang) };
             openTrayItem.Click += (_, _) => ToggleTrayPopup();
             menu.Items.Add(openTrayItem);
         }
-        else if (slot.Kind == SlotKind.Trash)
+        else if (slot?.Kind == SlotKind.Trash)
         {
             var openRb = new MenuItem { Header = Strings.DockOpenTrash(lang) };
             openRb.Click += (_, _) => DockAppsService.OpenRecycleBin();
@@ -3487,6 +3533,9 @@ public partial class DockWindow : Window
             menu.Items.Add(openRb);
             menu.Items.Add(emptyRb);
         }
+
+        if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+        AppendWidgetAndStyleMenuItems(menu, slot);
 
         menu.Items.Add(new Separator());
         var toggleIntellihide = new MenuItem
@@ -3536,8 +3585,8 @@ public partial class DockWindow : Window
         menu.Items.Add(settingsItem);
 
         menu.Closed += (_, _) => ScheduleIntellihideEval();
-        menu.PlacementTarget = slot.Container;
-        menu.Placement = PlacementMode.Top;
+        menu.PlacementTarget = slot?.Container ?? (UIElement)DockPillContainer;
+        menu.Placement = IsDockAtTop ? PlacementMode.Bottom : PlacementMode.Top;
         menu.IsOpen = true;
     }
 
@@ -3598,6 +3647,12 @@ public partial class DockWindow : Window
 
     private void OnDockMouseMove(object sender, MouseEventArgs e)
     {
+        if (_isEdgeDragPending)
+        {
+            OnDockPillEdgeDragMove(sender, e);
+            return;
+        }
+
         if (_pressedPinnedSlot is not null)
         {
             if (e.LeftButton != MouseButtonState.Pressed)
@@ -3632,6 +3687,17 @@ public partial class DockWindow : Window
 
     private List<DockSlotVisual> GetPinnedSlots()
         => _slots.Where(sl => sl.Kind == SlotKind.App && sl.AppItem is { IsPinned: true }).ToList();
+
+    /// <summary>Slots a drag can reorder among: other widgets for a widget, other pins for a pinned app.</summary>
+    private List<DockSlotVisual> GetReorderGroup(DockSlotVisual dragged)
+        => dragged.Kind == SlotKind.Widget
+            ? _slots.Where(sl => sl.Kind == SlotKind.Widget).ToList()
+            : GetPinnedSlots();
+
+    private double ReorderPitch(DockSlotVisual dragged, double[] centers)
+        => dragged.Kind == SlotKind.Widget
+            ? dragged.Container.Width + dragged.Container.Margin.Left + dragged.Container.Margin.Right
+            : PinnedPitch(centers);
 
     private double[] GetPinnedSlotCenters(List<DockSlotVisual> pinned)
     {
@@ -3670,12 +3736,12 @@ public partial class DockWindow : Window
         var dragged = _pressedPinnedSlot;
         if (dragged is null) return;
 
-        var pinned = GetPinnedSlots();
+        var pinned = GetReorderGroup(dragged);
         int from = pinned.IndexOf(dragged);
         if (from < 0) return;
 
         double[] centers = GetPinnedSlotCenters(pinned);
-        double pitch = PinnedPitch(centers);
+        double pitch = ReorderPitch(dragged, centers);
         int target = DockLayoutCalculator.ComputeReorderTargetIndex(centers, cursorX, from);
         _reorderTargetIndex = target;
 
@@ -3706,20 +3772,23 @@ public partial class DockWindow : Window
         int from = -1;
         if (slot is not null)
         {
-            from = GetPinnedSlots().IndexOf(slot);
+            from = GetReorderGroup(slot).IndexOf(slot);
             slot.Container.Opacity = 1.0;
             Panel.SetZIndex(slot.Container, 0);
             if (slot.Container.IsMouseCaptured) slot.Container.ReleaseMouseCapture();
         }
 
-        bool moved = commit && slot?.AppItem is { } app && from >= 0 && target >= 0 && target != from
-            && _appsService.MovePinned(app.Key, target);
+        bool validMove = commit && from >= 0 && target >= 0 && target != from;
+        bool movedWidget = validMove && slot is { Kind: SlotKind.Widget, WidgetId: { } wid } && MoveDockWidget(wid, target);
+        bool moved = movedWidget || (validMove && slot?.AppItem is { } app && slot.Kind == SlotKind.App
+            && _appsService.MovePinned(app.Key, target));
 
         if (moved)
         {
             // Slots are rebuilt in the new order, so clear offsets without a snap-back animation.
             foreach (var sl in _slots) { sl.ReorderShiftX = 0.0; sl.CurrentReorderShiftX = 0.0; }
-            RefreshDockItemsNow();
+            if (movedWidget) RebuildVisualSlots(force: true);
+            else RefreshDockItemsNow();
         }
         else
         {
@@ -3914,7 +3983,9 @@ public partial class DockWindow : Window
         Point anchorPt = slot.Container.TranslatePoint(new Point(slot.Container.Width * 0.5, 0), DockRootGrid);
         double x = Math.Clamp(anchorPt.X - tipW * 0.5, 8.0, Math.Max(8.0, Width - tipW - 8.0));
         double extraLift = Math.Abs(slot.CurrentLiftY) + (slot.CurrentScale - 1.0) * _orch.Config.DockIconSizeDip * 0.85;
-        double y = Math.Max(4.0, anchorPt.Y - 30.0 - extraLift);
+        double y = IsDockAtTop
+            ? anchorPt.Y + slot.Container.ActualHeight + 6.0 + extraLift
+            : Math.Max(4.0, anchorPt.Y - 30.0 - extraLift);
 
         DockTooltipTransform.X = x;
         DockTooltipTransform.Y = y;
@@ -3960,9 +4031,9 @@ public partial class DockWindow : Window
             DockAuraOrbPrimaryBorder.Opacity = 0.0;
             DockAuraOrbSecondaryBorder.Opacity = 0.0;
             DockAuraOrbHighlightBorder.Opacity = 0.0;
-            DockBorderStop0.Color = Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF);
-            DockBorderStop1.Color = Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF);
-            DockBorderStop2.Color = Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF);
+            DockBorderStop0.Color = DockNeutralBorderColor();
+            DockBorderStop1.Color = DockNeutralBorderColor();
+            DockBorderStop2.Color = DockNeutralBorderColor();
             return;
         }
 
@@ -3990,9 +4061,9 @@ public partial class DockWindow : Window
         }
         else
         {
-            DockBorderStop0.Color = Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF);
-            DockBorderStop1.Color = Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF);
-            DockBorderStop2.Color = Color.FromArgb(0x32, 0xFF, 0xFF, 0xFF);
+            DockBorderStop0.Color = DockNeutralBorderColor();
+            DockBorderStop1.Color = DockNeutralBorderColor();
+            DockBorderStop2.Color = DockNeutralBorderColor();
         }
 
         if (_isSmokeOrAuditMode)
@@ -4103,6 +4174,18 @@ public partial class DockWindow : Window
         {
             var s = _slots[i];
 
+            if (s.Kind == SlotKind.Widget)
+            {
+                s.CurrentReorderShiftX += (s.ReorderShiftX - s.CurrentReorderShiftX) * alpha;
+                if (Math.Abs(s.ReorderShiftX - s.CurrentReorderShiftX) > 0.05) anyMoving = true;
+                else s.CurrentReorderShiftX = s.ReorderShiftX;
+                s.Scale.ScaleX = 1.0;
+                s.Scale.ScaleY = 1.0;
+                s.Translate.X = s.CurrentReorderShiftX;
+                s.Translate.Y = 0.0;
+                continue;
+            }
+
             if (s.Kind != SlotKind.App)
             {
                 s.CurrentScale = 1.0;
@@ -4162,7 +4245,7 @@ public partial class DockWindow : Window
             s.Scale.ScaleX = s.CurrentScale;
             s.Scale.ScaleY = s.CurrentScale;
             s.Translate.X = s.CurrentShiftX + s.CurrentReorderShiftX;
-            s.Translate.Y = s.CurrentLiftY + s.CurrentBounceY;
+            s.Translate.Y = (s.CurrentLiftY + s.CurrentBounceY) * (IsDockAtTop ? -1.0 : 1.0);
         }
 
         double hideDiff = _targetHideProgress - _currentHideProgress;
@@ -4182,7 +4265,7 @@ public partial class DockWindow : Window
             ? DockPillContainer.ActualHeight
             : Math.Max(_orch.Config.DockIconSizeDip + 19.0, 52.0);
         double hideDistance = capH + 14.0;
-        DockCapsuleOffsetTransform.Y = _currentHideProgress * hideDistance;
+        DockCapsuleOffsetTransform.Y = _currentHideProgress * hideDistance * (IsDockAtTop ? -1.0 : 1.0);
         DockPillContainer.Opacity = Math.Clamp(1.0 - Math.Pow(_currentHideProgress, 1.35), 0.0, 1.0);
 
         if (_isHovered && !_isIntellihideTucked && _hoveredSlotIndex >= 0 && (anyMoving || _hoveredSlotIndex != _lastTooltipSlotIndex))
