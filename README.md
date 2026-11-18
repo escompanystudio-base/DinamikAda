@@ -24,16 +24,29 @@ DinamikAda runs on **Windows 11 x64**. Building from source requires the **.NET 
 1. Install [Windhawk](https://windhawk.net/) with its bundled compiler. Exit DinamikAda from its notification-area icon and run [DinamikAda-Explorer-Kur.bat](DinamikAda-Explorer-Kur.bat).
 2. Open **Settings → Bottom Dock** and enable **Smart Auto-Hide** to hide the app row when it overlaps a window. Move the pointer to the **bottom center** to reveal it over a maximized window.
 3. Hover over an app icon for a small lift. The rightmost arrow toggles the system tray between its regular size and a compact button. The theme hides the microphone and volume glyphs. **Win+A** opens Windows Quick Settings.
-4. Play music in an app that shares album artwork with Windows. The top island, app row, system tray and Start menu follow the album colors. The taskbar colors drift during playback.
-5. To restore the standard Windows taskbar, exit DinamikAda and run [DinamikAda-Windows-Barina-Don.bat](DinamikAda-Windows-Barina-Don.bat).
+4. To restore the standard Windows taskbar, exit DinamikAda and run [DinamikAda-Windows-Barina-Don.bat](DinamikAda-Windows-Barina-Don.bat).
 
 The work area extends to the bottom edge of the screen. Clicks in the gaps pass through to the window underneath. Explorer provides the Start menu, grouped app icons, previews and system flyouts.
 
-| App row reveal and icon motion | Right tray toggle |
-| --- | --- |
-| ![The center app row rises from the bottom edge and icons lift on hover](docs/screenshots/explorer-dock.gif) | ![The system tray animates into a compact button and opens again](docs/screenshots/explorer-tray.gif) |
+### Dock and tray motion
 
-[Full taskbar screenshot](docs/screenshots/explorer-taskbar.png) · [Native setup and update instructions in Turkish](docs/kullanim.md#explorer-modunu-güncelleme)
+Move the pointer to the bottom center to reveal the app row. An icon lifts slightly when you hover over it.
+
+![The Explorer dock opens at the bottom edge and the hovered app icon lifts](docs/screenshots/explorer-dock-motion.gif)
+
+The rightmost arrow collapses the system tray into a compact button. Click it again to expand the tray.
+
+![The right system tray collapses and expands](docs/screenshots/explorer-tray.gif)
+
+[Open the dock GIF](https://raw.githubusercontent.com/escompanystudio-base/DinamikAda/main/docs/screenshots/explorer-dock-motion.gif) · [Full taskbar screenshot](docs/screenshots/explorer-taskbar.png) · [Turkish setup guide](docs/kullanim.md#explorer-modunu-güncelleme)
+
+### Music colors
+
+DinamikAda takes its colors from album artwork shared by the active Windows media session. When the track changes, the top island, Explorer dock, system tray and Start menu take on the new palette. The dock and tray colors also drift during playback.
+
+![The top island, app dock and system tray transition from violet and blue to warm orange as the track changes](docs/screenshots/music-colors.gif)
+
+![The native Start menu background transitions between the two tracks’ album palettes](docs/screenshots/music-start-menu.gif)
 
 ### AI Quota
 

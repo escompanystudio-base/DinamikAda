@@ -14,13 +14,22 @@
 3. **Ayarlar → Alt Dock** bölümünde **Windows’un kendi görev çubuğunu DinamikAda tasarımıyla kullan** seçeneğini kontrol et. Aynı ekrandan **Akıllı Gizleme** ve simge büyütmeyi ayarlayabilirsin.
 4. Pencere büyütülüyken fareyi **ekranın tam alt ortasına** götür. Uygulama sırası açılır. Bir simgenin üzerine geldiğinde simge hafifçe yükselir.
 5. Sağ uçtaki oka tıklayarak sistem tepsisini küçült. Aynı düğme tepsiyi geri açar. Gizli simgelere erişmek için önce tepsiyi aç. Ses ayarı için **Win+A** kullan.
-6. Windows’a albüm kapağı ileten bir oynatıcıda müzik aç. Üst ada, uygulama sırası, sağ tepsi ve Başlat menüsü albüm renklerini alır. Alt çubukta renkler oynatma boyunca hareket eder.
 
 ![Explorer uygulama sırası ve sağ tepsinin sade görünümü](screenshots/explorer-taskbar.png)
 
-![Alt kenardan açılan uygulama sırası](screenshots/explorer-dock.gif)
+![Alt kenardan açılan uygulama sırası ve imleç üzerine geldiğinde yükselen simge](screenshots/explorer-dock-motion.gif)
 
 ![Sağ tepsiyi küçültme ve açma](screenshots/explorer-tray.gif)
+
+[Dock GIF’ini aç](https://raw.githubusercontent.com/escompanystudio-base/DinamikAda/main/docs/screenshots/explorer-dock-motion.gif)
+
+### Müziğe göre renk geçişi
+
+DinamikAda, Windows medya oturumunun paylaştığı albüm kapağından renkleri alır. Parça değiştiğinde üst ada, alt dock, sağ tepsi ve Başlat menüsü yeni palete geçer. Dock ve tepside renkler müzik çalarken yüzey boyunca hareket eder.
+
+![Parça değişirken üst ada, alt dock ve sağ tepsinin renk geçişi](screenshots/music-colors.gif)
+
+![Parça değişirken Başlat menüsünün renk geçişi](screenshots/music-start-menu.gif)
 
 ### Explorer modunu güncelleme
 
