@@ -87,6 +87,9 @@ public sealed class AppConfig
 
     // Synchronized macOS-style Bottom Dock & Taskbar Replacement
     public bool EnableBottomDock { get; set; } = true;
+    public bool UseExplorerTaskbar { get; set; }
+    [JsonIgnore]
+    public bool UseCustomBottomDock => EnableBottomDock && !UseExplorerTaskbar;
     public bool HideWindowsTaskbar { get; set; } = true;
     public bool DockMagnificationEnabled { get; set; } = true;
     public bool DockIntellihideEnabled { get; set; } = true;
@@ -100,6 +103,10 @@ public sealed class AppConfig
 
     // Local Multi-Account AI Subscription Quota & Reset Tracker (no browser cookies or credential bypass)
     public bool AiQuotaSeeded { get; set; } = false;
+    public bool AiQuotaTabMigrated { get; set; } = true;
+    public bool RealAccountsMigratedV3 { get; set; } = false;
+    public bool UserExplicitAccountsOnlyV4 { get; set; } = false;
+    public bool ShowAiQuotaInIslandAndDock { get; set; } = true;
     public List<AiQuotaSlotConfig> AiQuotaSlots { get; set; } = new();
 
     [JsonIgnore]
@@ -109,15 +116,9 @@ public sealed class AppConfig
         set => EnableSpectrumVisualizer = value;
     }
 
-    public List<ExpandedTabId> PinnedTabs { get; set; } =
-    [
-        ExpandedTabId.Now,
-        ExpandedTabId.Audio,
-        ExpandedTabId.Control,
-        ExpandedTabId.Shelf,
-        ExpandedTabId.System,
-        ExpandedTabId.Widgets
-    ];
+    public List<ExpandedTabId> PinnedTabs { get; set; } = CreateDefaultTabs();
+
+    internal AppConfig CopyForUpdate() => (AppConfig)MemberwiseClone();
 
     public void Sanitize()
     {
@@ -224,13 +225,95 @@ public sealed class AppConfig
                 seenIds.Add(id);
             }
 
+            double totalQuota = !double.IsFinite(s.TotalQuota) || s.TotalQuota < 0
+                ? AiQuotaSlotConfig.GetDefaultTotalQuota(provider)
+                : Math.Clamp(s.TotalQuota, 0.0, 1_000_000.0);
+            double usedQuota = !double.IsFinite(s.UsedQuota) || s.UsedQuota < 0
+                ? 0.0
+                : (totalQuota > 0 ? Math.Clamp(s.UsedQuota, 0.0, totalQuota) : 0.0);
+
+            string accountId = s.AccountIdentifier?.Trim() ?? string.Empty;
+            if (accountId.Length > 64) accountId = accountId[..64];
+
+            string planTier = s.PlanTier?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(planTier)) planTier = AiQuotaSlotConfig.GetDefaultPlanTier(provider);
+            if (planTier.Length > 20) planTier = planTier[..20];
+
+            string priceLabel = s.PriceLabel?.Trim() ?? string.Empty;
+            if (priceLabel.Length > 20) priceLabel = priceLabel[..20];
+
+            string quotaUnit = string.IsNullOrWhiteSpace(s.QuotaUnit) ? "use" : s.QuotaUnit.Trim().ToLowerInvariant();
+            if (quotaUnit is not ("use" or "pct" or "msg" or "credit")) quotaUnit = "use";
+
+            string localSource = string.IsNullOrWhiteSpace(s.LocalSourceMode) ? "manual" : s.LocalSourceMode.Trim().ToLowerInvariant();
+            if (localSource is not ("manual" or "auto" or "codex" or "claude" or "gemini" or "antigravity" or "api")) localSource = "manual";
+
+            string profileDir = s.ProfileDirectory?.Trim() ?? string.Empty;
+            if (profileDir.Length > 260) profileDir = profileDir[..260];
+
+            string encKey = s.EncryptedApiKey?.Trim() ?? string.Empty;
+            if (encKey.Length > 2048) encKey = string.Empty;
+
+            string notes = s.Notes?.Trim() ?? string.Empty;
+            if (notes.Length > 120) notes = notes[..120];
+
+            var cleanBuckets = new List<AiQuotaModelBucketConfig>();
+            if (s.ModelBuckets is not null)
+            {
+                foreach (var b in s.ModelBuckets)
+                {
+                    if (b is null || cleanBuckets.Count >= 8) break;
+                    string bKey = b.BucketKey?.Trim() ?? string.Empty;
+                    string bName = b.DisplayName?.Trim() ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(bKey) || string.IsNullOrWhiteSpace(bName)) continue;
+                    if (bKey.Length > 40) bKey = bKey[..40];
+                    if (bName.Length > 48) bName = bName[..48];
+                    string bModels = b.ModelsSummary?.Trim() ?? string.Empty;
+                    if (bModels.Length > 160) bModels = bModels[..160];
+                    string bAccent = b.AccentHex?.Trim() ?? "#38BDF8";
+                    if (bAccent.Length > 16) bAccent = "#38BDF8";
+                    cleanBuckets.Add(new AiQuotaModelBucketConfig
+                    {
+                        BucketKey = bKey,
+                        DisplayName = bName,
+                        ModelsSummary = bModels,
+                        WeeklyRemainingPercent = double.IsFinite(b.WeeklyRemainingPercent)
+                            ? Math.Clamp(b.WeeklyRemainingPercent, 0.0, 100.0)
+                            : 100.0,
+                        WeeklyResetUtcTicks = Math.Max(0L, b.WeeklyResetUtcTicks),
+                        FiveHourRemainingPercent = b.FiveHourRemainingPercent.HasValue && double.IsFinite(b.FiveHourRemainingPercent.Value)
+                            ? Math.Clamp(b.FiveHourRemainingPercent.Value, 0.0, 100.0)
+                            : null,
+                        FiveHourResetUtcTicks = Math.Max(0L, b.FiveHourResetUtcTicks),
+                        AccentHex = bAccent
+                    });
+                }
+            }
+
             // Normalize in place: AiQuotaTrackerService (timer thread) holds references to these slot
             // objects, and replacing them on every Save would orphan its in-flight updates.
             s.Id = id;
             s.Provider = provider;
             s.Label = label;
+            s.AccountIdentifier = accountId;
+            s.PlanTier = planTier;
+            s.BillingDayOfMonth = Math.Clamp(s.BillingDayOfMonth, 0, 31);
+            s.PriceLabel = priceLabel;
+            s.QuotaUnit = quotaUnit;
+            s.TotalQuota = totalQuota;
+            s.UsedQuota = usedQuota;
+            s.CriticalThresholdPercent = Math.Clamp(s.CriticalThresholdPercent <= 0 ? 20 : s.CriticalThresholdPercent, 5, 50);
+            s.LocalSourceMode = localSource;
+            s.ProfileDirectory = profileDir;
+            s.EncryptedApiKey = encKey;
+            s.Notes = notes;
             s.ResetWindowMinutes = Math.Clamp(s.ResetWindowMinutes, AiQuotaSlotConfig.MinWindowMinutes, AiQuotaSlotConfig.MaxWindowMinutes);
             s.NextResetUtcTicks = Math.Max(0L, s.NextResetUtcTicks);
+            s.WeeklyUsedPercent = s.WeeklyUsedPercent.HasValue && double.IsFinite(s.WeeklyUsedPercent.Value)
+                ? Math.Clamp(s.WeeklyUsedPercent.Value, 0.0, 100.0)
+                : null;
+            s.WeeklyResetUtcTicks = Math.Max(0L, s.WeeklyResetUtcTicks);
+            s.ModelBuckets = cleanBuckets;
             clean.Add(s);
         }
 
@@ -244,22 +327,74 @@ public sealed class AppConfig
         ExpandedTabId.Control,
         ExpandedTabId.Shelf,
         ExpandedTabId.System,
-        ExpandedTabId.Widgets
+        ExpandedTabId.Widgets,
+        ExpandedTabId.AiQuota
     ];
 }
 
 public sealed class AiQuotaSlotConfig
 {
-    public const int MaxSlotCount = 12;
+    public const int MaxSlotCount = 24;
     public const int MinWindowMinutes = 5;
-    public const int MaxWindowMinutes = 10080;
+    public const int MaxWindowMinutes = 44640;
 
     public string Id { get; set; } = string.Empty;
     public string Provider { get; set; } = "ChatGPT";
     public string Label { get; set; } = "ChatGPT #1";
+    public string AccountIdentifier { get; set; } = string.Empty;
+    public string PlanTier { get; set; } = "Plus";
+    public int BillingDayOfMonth { get; set; } = 0;
+    public string PriceLabel { get; set; } = string.Empty;
+    public string QuotaUnit { get; set; } = "use";
+    public double TotalQuota { get; set; } = -1;
+    public double UsedQuota { get; set; } = 0;
+    public int CriticalThresholdPercent { get; set; } = 20;
+    public string LocalSourceMode { get; set; } = "manual";
+    public string ProfileDirectory { get; set; } = string.Empty;
+    public string EncryptedApiKey { get; set; } = string.Empty;
+    public string Notes { get; set; } = string.Empty;
     public int ResetWindowMinutes { get; set; } = 180;
     public long NextResetUtcTicks { get; set; }
+    public bool? HasReportedPrimaryQuota { get; set; }
+    public double? WeeklyUsedPercent { get; set; }
+    public long WeeklyResetUtcTicks { get; set; }
     public bool NotifyOnReset { get; set; } = true;
+    public List<AiQuotaModelBucketConfig> ModelBuckets { get; set; } = new();
+
+    public static double GetDefaultTotalQuota(string provider) => provider.Trim().ToLowerInvariant() switch
+    {
+        "chatgpt" => 80,
+        "claude" => 45,
+        "gemini" => 250,
+        "antigravity" => 100,
+        "cursor" => 500,
+        "copilot" => 300,
+        "openrouter" => 100,
+        _ => 100
+    };
+
+    public static string GetDefaultPlanTier(string provider) => provider.Trim().ToLowerInvariant() switch
+    {
+        "chatgpt" => "Plus",
+        "claude" => "Pro",
+        "gemini" => "Pro",
+        "antigravity" => "Pro",
+        "cursor" => "Pro",
+        "copilot" => "Pro",
+        _ => "Plus"
+    };
+}
+
+public sealed class AiQuotaModelBucketConfig
+{
+    public string BucketKey { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string ModelsSummary { get; set; } = string.Empty;
+    public double WeeklyRemainingPercent { get; set; } = 100.0;
+    public long WeeklyResetUtcTicks { get; set; }
+    public double? FiveHourRemainingPercent { get; set; }
+    public long FiveHourResetUtcTicks { get; set; }
+    public string AccentHex { get; set; } = "#38BDF8";
 }
 
 public sealed class AppConfigStore
@@ -301,9 +436,15 @@ public sealed class AppConfigStore
                 }
 
                 string json = File.ReadAllText(_configPath);
+                bool hasAiTabMigratedField = json.Contains("\"AiQuotaTabMigrated\"", StringComparison.OrdinalIgnoreCase);
                 try
                 {
                     var loaded = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
+                    if (!hasAiTabMigratedField && loaded.PinnedTabs is not null && !loaded.PinnedTabs.Contains(ExpandedTabId.AiQuota))
+                    {
+                        loaded.PinnedTabs.Add(ExpandedTabId.AiQuota);
+                    }
+                    loaded.AiQuotaTabMigrated = true;
                     loaded.Sanitize();
                     return loaded;
                 }
@@ -313,6 +454,11 @@ public sealed class AppConfigStore
                     // settings the per-property recovery below cannot salvage.
                     BackupCorruptConfig();
                     var partial = LoadResilientPerProperty(json);
+                    if (!hasAiTabMigratedField && !partial.PinnedTabs.Contains(ExpandedTabId.AiQuota))
+                    {
+                        partial.PinnedTabs.Add(ExpandedTabId.AiQuota);
+                    }
+                    partial.AiQuotaTabMigrated = true;
                     partial.Sanitize();
                     return partial;
                 }
@@ -398,6 +544,20 @@ public sealed class AppConfigStore
             {
                 Thread.Sleep(5);
             }
+        }
+    }
+
+    // The edit assigns settings properties; it must not mutate shared collections in place.
+    public void Update(AppConfig config, Action<AppConfig> edit)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(edit);
+        lock (_sync)
+        {
+            var candidate = config.CopyForUpdate();
+            edit(candidate);
+            Save(candidate);
+            edit(config);
         }
     }
 

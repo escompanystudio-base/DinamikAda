@@ -194,7 +194,7 @@ public sealed class CorePhysicsAndArbitrationTests
         Assert.Equal(0.0, coord.Current.Layout.TopCornerRadius, precision: 2);
 
         coord.PublishLiveActivity(new LiveActivityState("priv", ActivityKind.PrivacySensor, 100, "Cam"), "priv");
-        Assert.Equal(252.0, coord.Current.Layout.WidthDip, precision: 2);
+        Assert.Equal(276.0, coord.Current.Layout.WidthDip, precision: 2);
         Assert.Equal(96.0, coord.Current.Layout.SatelliteWidthDip, precision: 2);
         Assert.Equal(10.0, coord.Current.Layout.SatelliteGapDip, precision: 2);
 
@@ -215,7 +215,8 @@ public sealed class CorePhysicsAndArbitrationTests
             [ExpandedTabId.Audio] = 332.0,
             [ExpandedTabId.Shelf] = 336.0,
             [ExpandedTabId.System] = 336.0,
-            [ExpandedTabId.Widgets] = 316.0
+            [ExpandedTabId.Widgets] = 316.0,
+            [ExpandedTabId.AiQuota] = 348.0
         };
         foreach (var (tab, h) in expectedHeights)
         {
@@ -368,12 +369,12 @@ public sealed class CorePhysicsAndArbitrationTests
         {
             motion.StepAll(1.0 / 120.0);
             Assert.True(motion.HoverScale.Value >= 0.998, $"Unexpected inward hover undershoot {motion.HoverScale.Value} at frame {i}");
-            bool compactStillVisible = motion.OverlayCompactFadeOut > 0.01;
+            bool compactStillVisible = motion.CompactOverlayGate > 0.01;
             bool expandedAlreadyVisible = motion.ContentRevealTier2 > 0.01;
             Assert.False(compactStillVisible && expandedAlreadyVisible, $"Opening crossfade overlap at frame {i}");
         }
         Assert.True(motion.IsAllSettled);
-        Assert.Equal(0.0, motion.OverlayCompactFadeOut, precision: 3);
+        Assert.Equal(0.0, motion.CompactOverlayGate, precision: 3);
         Assert.Equal(1.0, motion.ContentRevealTier2, precision: 3);
 
         // Collapse back to S1Dormant: overlay exits BEFORE compact gate opens
@@ -381,13 +382,13 @@ public sealed class CorePhysicsAndArbitrationTests
         for (int i = 0; i < 240; i++)
         {
             motion.StepAll(1.0 / 120.0);
-            bool overlayStillVisible = motion.OverlayCollapseFadeOut > 0.01;
-            bool compactAlreadyVisible = motion.CollapseCompactGate > 0.01;
+            bool overlayStillVisible = motion.ContentRevealTier2 > 0.01;
+            bool compactAlreadyVisible = motion.CompactOverlayGate > 0.01;
             Assert.False(overlayStillVisible && compactAlreadyVisible, $"Closing crossfade overlap at frame {i}");
         }
         Assert.True(motion.IsAllSettled);
-        Assert.Equal(0.0, motion.OverlayCollapseFadeOut, precision: 3);
-        Assert.Equal(1.0, motion.CollapseCompactGate, precision: 3);
+        Assert.Equal(0.0, motion.ContentRevealTier2, precision: 3);
+        Assert.Equal(1.0, motion.CompactOverlayGate, precision: 3);
     }
 
     [Fact]
@@ -417,5 +418,119 @@ public sealed class CorePhysicsAndArbitrationTests
         coord.CloseCommandPalette();
         Assert.NotEqual(IslandPresentationState.S5Command, coord.Current.State);
         Assert.False(coord.Current.Layout.RequiresKeyboardFocus);
+    }
+
+    [Fact]
+    public void IslandMotionState_PreservesCompactContentContinuityBetweenCompactStates()
+    {
+        var motion = new IslandMotionState();
+        var dormant = new IslandLayoutTarget(
+            State: IslandPresentationState.S1Dormant,
+            WidthDip: 156,
+            HeightDip: 32,
+            CornerRadiusDip: 16,
+            SatelliteWidthDip: 0,
+            SatelliteGapDip: 0,
+            IsClickThrough: false,
+            RequiresKeyboardFocus: false,
+            EarRadius: 14,
+            TopCornerRadius: 0);
+        var compact = dormant with { State = IslandPresentationState.S2Compact, WidthDip = 224 };
+        var split = compact with { State = IslandPresentationState.S2Split, WidthDip = 252, SatelliteWidthDip = 72, SatelliteGapDip = 8 };
+
+        motion.ApplyTarget(dormant, isExpanding: false);
+        for (int i = 0; i < 180; i++)
+        {
+            motion.StepAll(1.0 / 120.0);
+        }
+        Assert.Equal(1.0, motion.CompactContentReveal.Value, precision: 3);
+
+        // S1Dormant -> S2Compact -> S2Split -> S2Compact must never blink CompactContentReveal down to 0
+        motion.ApplyTarget(compact, isExpanding: true);
+        Assert.True(motion.CompactContentReveal.Value > 0.9, $"CompactContentReveal blinked on S1->S2Compact: {motion.CompactContentReveal.Value}");
+        motion.StepAll(1.0 / 120.0);
+
+        motion.ApplyTarget(split, isExpanding: true);
+        Assert.True(motion.CompactContentReveal.Value > 0.9, $"CompactContentReveal blinked on S2Compact->S2Split: {motion.CompactContentReveal.Value}");
+        motion.StepAll(1.0 / 120.0);
+
+        motion.ApplyTarget(compact, isExpanding: false);
+        Assert.True(motion.CompactContentReveal.Value > 0.9, $"CompactContentReveal blinked on S2Split->S2Compact: {motion.CompactContentReveal.Value}");
+    }
+
+    [Fact]
+    public void IslandCoordinator_KeepsMediaAndQuotaInPlaceWhenPlaybackPauses()
+    {
+        var coord = new IslandCoordinator(new AppConfig(), TimeProvider.System);
+        var music = new LiveActivityState("music", ActivityKind.Media, 65, "Track");
+        var quota = new LiveActivityState("quota", ActivityKind.CustomWidget, 52, "AI 2/3", TargetTab: ExpandedTabId.AiQuota);
+        coord.PublishLiveActivity(music, music.SourceId);
+        coord.PublishLiveActivity(quota, quota.SourceId);
+        coord.PublishLiveActivity(music with { Priority = 30 }, music.SourceId);
+
+        Assert.Equal(IslandPresentationState.S2Split, coord.Current.State);
+        Assert.Equal("music", coord.Current.PrimaryActivity?.SourceId);
+        Assert.Equal("quota", coord.Current.SatelliteActivity?.SourceId);
+
+        coord.PublishLiveActivity(new LiveActivityState("privacy", ActivityKind.PrivacySensor, 100, "Microphone"), "privacy");
+        Assert.Equal("privacy", coord.Current.PrimaryActivity?.SourceId);
+    }
+
+    [Fact]
+    public void IslandMotionState_QuickSplitReversalPreservesBothVisibleSurfaces()
+    {
+        var motion = new IslandMotionState();
+        var split = new IslandLayoutTarget(IslandPresentationState.S2Split, 276, 36, 16, 96, 10, false, false);
+        var expanded = split with
+        {
+            State = IslandPresentationState.S4Expanded,
+            WidthDip = 620,
+            HeightDip = 360,
+            SatelliteWidthDip = 0,
+            SatelliteGapDip = 0
+        };
+        motion.ApplyTarget(split, isExpanding: true);
+        for (int i = 0; i < 120; i++) motion.StepAll(1.0 / 120.0);
+
+        motion.ApplyTarget(expanded, isExpanding: true);
+        for (int i = 0; i < 5; i++) motion.StepAll(1.0 / 240.0);
+        double compactAlpha = motion.CompactContentOpacity * motion.CompactOverlayGate;
+        double satelliteAlpha = motion.SatelliteOpacity;
+        Assert.InRange(compactAlpha, 0.1, 0.99);
+        Assert.InRange(satelliteAlpha, 0.1, 0.99);
+
+        motion.ApplyTarget(split, isExpanding: false);
+        Assert.Equal(compactAlpha, motion.CompactContentOpacity * motion.CompactOverlayGate, precision: 5);
+        Assert.Equal(satelliteAlpha, motion.SatelliteOpacity, precision: 5);
+        for (int i = 0; i < 120; i++) motion.StepAll(1.0 / 120.0);
+        Assert.Equal(1.0, motion.SatelliteOpacity, precision: 3);
+        Assert.True(motion.IsAllSettled);
+    }
+
+    [Fact]
+    public void IslandMotionState_FadesCompactContentFromExpandedOrHiddenStates()
+    {
+        var motion = new IslandMotionState();
+        var hidden = new IslandLayoutTarget(IslandPresentationState.S0Hidden, 0, 0, 0, 0, 0, true, false);
+        var expanded = new IslandLayoutTarget(IslandPresentationState.S4Expanded, 620, 360, 28, 0, 0, false, false);
+        var compact = new IslandLayoutTarget(IslandPresentationState.S2Compact, 224, 32, 16, 0, 0, false, false);
+
+        motion.ApplyTarget(hidden, isExpanding: false);
+        for (int i = 0; i < 180; i++)
+        {
+            motion.StepAll(1.0 / 120.0);
+        }
+        motion.ApplyTarget(compact, isExpanding: true);
+        Assert.Equal(0.0, motion.CompactContentReveal.Value, precision: 3);
+        Assert.Equal(1.0, motion.CompactContentReveal.Target, precision: 3);
+
+        motion.ApplyTarget(expanded, isExpanding: true);
+        for (int i = 0; i < 240; i++)
+        {
+            motion.StepAll(1.0 / 120.0);
+        }
+        motion.ApplyTarget(compact, isExpanding: false);
+        Assert.Equal(0.0, motion.CompactContentReveal.Value, precision: 3);
+        Assert.Equal(1.0, motion.CompactContentReveal.Target, precision: 3);
     }
 }

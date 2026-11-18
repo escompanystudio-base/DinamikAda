@@ -120,6 +120,33 @@ public sealed class LayoutAndMathTests
     }
 
     [Fact]
+    public void AppConfigStore_UpdateKeepsSettingsAndAccountsIntactWhenWriteFails()
+    {
+        string blockedPath = Path.Combine(Path.GetTempPath(), $"dinamikada-blocked-{Guid.NewGuid():N}");
+        File.WriteAllText(blockedPath, "blocked parent");
+        try
+        {
+            var config = new AppConfig { CustomFreeTopDip = 780 };
+            config.AiQuotaSlots.Add(new AiQuotaSlotConfig { Id = "saved", AccountIdentifier = "studio@example.com" });
+            var store = new AppConfigStore(Path.Combine(blockedPath, "config.json"));
+
+            Assert.ThrowsAny<IOException>(() => store.Update(config, candidate =>
+            {
+                candidate.Language = "en";
+                candidate.CustomFreeTopDip = 1000;
+            }));
+
+            Assert.Equal("tr", config.Language);
+            Assert.Equal(780, config.CustomFreeTopDip);
+            Assert.Equal("studio@example.com", Assert.Single(config.AiQuotaSlots).AccountIdentifier);
+        }
+        finally
+        {
+            File.Delete(blockedPath);
+        }
+    }
+
+    [Fact]
     public void AppConfigStore_LoadResilientFallback_PreservesValidPropertiesWhenOneEnumIsInvalid()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), $"dinamikada_cfg_bad_{Guid.NewGuid():N}");

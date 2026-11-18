@@ -459,6 +459,60 @@ public sealed class FeatureSuite10Tests
         Assert.Single(dueKinds);
     }
 
+    [Fact]
+    public void AiQuotaTrackerService_AntigravityAndClaudeIsolation_NeverOverwritesWithStaleGlobalCliFiles()
+    {
+        var fakeTime = new FakeTimeProvider();
+        var bus = new TestHudBus();
+        var cfg = new AppConfig
+        {
+            UserExplicitAccountsOnlyV4 = true,
+            RealAccountsMigratedV3 = true,
+            AiQuotaSeeded = true,
+            AiQuotaSlots = []
+        };
+
+        using var tracker = new AiQuotaTrackerService(cfg, () => { }, bus, fakeTime);
+        Assert.Empty(tracker.GetSnapshots());
+
+        var agySlot = tracker.AddSlot(
+            provider: "Antigravity",
+            label: "Antigravity · studio",
+            accountIdentifier: "studio@example.com",
+            planTier: "AI Pro",
+            quotaUnit: "pct",
+            totalQuota: 100,
+            localSourceMode: "antigravity");
+        Assert.NotNull(agySlot);
+
+        var claudeSlot = tracker.AddSlot(
+            provider: "Claude",
+            label: "Claude · claude-active",
+            accountIdentifier: "claude-active@example.com",
+            planTier: "Pro",
+            quotaUnit: "msg",
+            totalQuota: 45,
+            localSourceMode: "claude");
+        Assert.NotNull(claudeSlot);
+
+        var staleCliSnapshot = new LocalAiCliUsageSnapshot(
+            CapturedAtUtc: fakeTime.GetUtcNow(),
+            Codex: new LocalCodexTelemetry(false, false, null, null, null, null, null, null, null, null, null, 0, 0, null),
+            Claude: new LocalClaudeTelemetry(true, true, "claude-stale@example.com", "Stale", "Pro", 2, 5000, null, 10, 25000),
+            Gemini: new LocalGeminiTelemetry(true, true, "gemini-stale@example.com", 5, null));
+
+        tracker.SyncWithLocalCli(staleCliSnapshot);
+
+        var snaps = tracker.GetSnapshots();
+        var updatedAgy = snaps.First(s => s.Id == agySlot!.Id);
+        var updatedClaude = snaps.First(s => s.Id == claudeSlot!.Id);
+
+        Assert.Equal("studio@example.com", updatedAgy.AccountIdentifier);
+        Assert.Equal("Antigravity · studio", updatedAgy.Label);
+        Assert.Equal("claude-active@example.com", updatedClaude.AccountIdentifier);
+        Assert.Equal("Claude · claude-active", updatedClaude.Label);
+    }
+
     private static async Task CreateTestJpegWithCameraModelAsync(string path, string model)
     {
         byte[] bgra = new byte[32 * 32 * 4];

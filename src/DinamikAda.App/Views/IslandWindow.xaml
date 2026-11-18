@@ -68,7 +68,7 @@
                     <TranslateTransform x:Name="MainOffsetTransform" X="0" Y="0" />
                 </Grid.RenderTransform>
 
-                <!-- Unscaled hit surface updated ONLY on motion settle to eliminate hover-edge flicker -->
+                <!-- The hit surface follows the shell geometry without the hover scale. -->
                 <Path x:Name="NotchHitPath"
                       Fill="#01000000"
                       IsHitTestVisible="True"
@@ -779,12 +779,13 @@
                                         </Canvas>
 
                                         <StackPanel x:Name="TabButtonsPanel" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button x:Name="TabBtnNow" Style="{StaticResource PillTabButtonStyle}" Content="Feed" Tag="Now" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
-                                            <Button x:Name="TabBtnAudio" Style="{StaticResource PillTabButtonStyle}" Content="Audio" Tag="Audio" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
-                                            <Button x:Name="TabBtnControl" Style="{StaticResource PillTabButtonStyle}" Content="Control" Tag="Control" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
-                                            <Button x:Name="TabBtnShelf" Style="{StaticResource PillTabButtonStyle}" Content="Shelf" Tag="Shelf" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
-                                            <Button x:Name="TabBtnSystem" Style="{StaticResource PillTabButtonStyle}" Content="System" Tag="System" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
-                                            <Button x:Name="TabBtnWidgets" Style="{StaticResource PillTabButtonStyle}" Content="Widgets" Tag="Widgets" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            <Button x:Name="TabBtnNow" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="Feed" Tag="Now" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            <Button x:Name="TabBtnAudio" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="Audio" Tag="Audio" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            <Button x:Name="TabBtnControl" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="Control" Tag="Control" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            <Button x:Name="TabBtnShelf" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="Shelf" Tag="Shelf" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            <Button x:Name="TabBtnSystem" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="System" Tag="System" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            <Button x:Name="TabBtnWidgets" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="Widgets" Tag="Widgets" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            <Button x:Name="TabBtnAiQuota" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="AI Kota" Tag="AiQuota" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
                                         </StackPanel>
                                     </Grid>
 
@@ -1947,58 +1948,193 @@
                                                                Margin="0,6,0,6"
                                                                Visibility="Collapsed" />
                                                 </Grid>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </Grid>
 
-                                                <!-- Local Multi-Account AI Subscription & Reset Tracker -->
-                                                <Border x:Name="AiQuotaSectionBorder"
-                                                        Margin="0,4,0,2"
-                                                        Padding="10,8,10,6"
-                                                        CornerRadius="14"
-                                                        Background="#A60C1018"
-                                                        BorderBrush="#24FFFFFF"
-                                                        BorderThickness="0.8">
+                                    <!-- 7. AI SUBSCRIPTION & QUOTA TRACKER TAB -->
+                                    <Grid x:Name="TabAiQuotaPanel" Visibility="Collapsed">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Row 0: Clean Header (No colliding text!) -->
+                                        <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button x:Name="BtnAiDockLiveToggle"
+                                                        Style="{StaticResource PillTabButtonStyle}"
+                                                        Padding="8,2.5"
+                                                        FontSize="9.3"
+                                                        Margin="0,0,5,0"
+                                                        Foreground="{StaticResource AccentCyanBrush}"
+                                                        Content="Ada/Dock: Açık"
+                                                        Click="OnAiDockLiveToggleClick" />
+                                                <Button x:Name="BtnAiScanCli"
+                                                        Style="{StaticResource PillTabButtonStyle}"
+                                                        Padding="8,2.5"
+                                                        FontSize="9.3"
+                                                        Foreground="#FF64D2FF"
+                                                        Content="↻ Canlı Yenile"
+                                                        ToolTip="Eklediğiniz hesapların canlı kota verilerini yeniler"
+                                                        Click="OnAiScanCliClick" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock x:Name="AiQuotaHeaderText"
+                                                           Text="AI Kota &amp; Abonelikler"
+                                                           FontFamily="{StaticResource UiTextFont}"
+                                                           FontSize="12.2"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           VerticalAlignment="Center" />
+                                                <Border x:Name="AiQuotaSummaryPill"
+                                                        Margin="8,0,0,0"
+                                                        Padding="7.5,1.8"
+                                                        CornerRadius="7"
+                                                        Background="#1C30D158"
+                                                        VerticalAlignment="Center">
+                                                    <TextBlock x:Name="AiQuotaSummaryText"
+                                                               Text="0 Hesap"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="9.3"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource AccentGreenBrush}" />
+                                                </Border>
+                                                <TextBlock x:Name="AiQuotaCliDetectedText"
+                                                           Text=""
+                                                           Visibility="Collapsed" />
+                                            </StackPanel>
+                                        </DockPanel>
+
+                                        <!-- Row 1: Dedicated Per-AI Provider Launcher Bar (Click any AI to open its popup) -->
+                                        <Border Grid.Row="1"
+                                                Margin="0,0,0,7"
+                                                Padding="6,4"
+                                                CornerRadius="10"
+                                                Background="#14FFFFFF"
+                                                BorderBrush="#22FFFFFF"
+                                                BorderThickness="0.8">
+                                            <DockPanel>
+                                                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="Hesap Ekle:"
+                                                               FontFamily="{StaticResource UiTextFont}"
+                                                               FontSize="9.2"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               VerticalAlignment="Center"
+                                                               Margin="2,0,7,0" />
+                                                    <Button x:Name="BtnAiConnectChatGpt"
+                                                            Style="{StaticResource DarkActionButtonStyle}"
+                                                            Background="#FF0E261F"
+                                                            BorderBrush="#6610A37F"
+                                                            Foreground="#FF30D158"
+                                                            Padding="8,2.5"
+                                                            FontSize="9.4"
+                                                            FontWeight="SemiBold"
+                                                            Margin="0,0,4,0"
+                                                            Content="+ ChatGPT"
+                                                            Tag="ChatGPT"
+                                                            Click="OnAiQuickOpenProviderClick" />
+                                                    <Button x:Name="BtnAiConnectClaude"
+                                                            Style="{StaticResource DarkActionButtonStyle}"
+                                                            Background="#FF281913"
+                                                            BorderBrush="#66D97757"
+                                                            Foreground="#FFFF9F0A"
+                                                            Padding="8,2.5"
+                                                            FontSize="9.4"
+                                                            FontWeight="SemiBold"
+                                                            Margin="0,0,4,0"
+                                                            Content="+ Claude"
+                                                            Tag="Claude"
+                                                            Click="OnAiQuickOpenProviderClick" />
+                                                    <Button x:Name="BtnAiConnectAntigravity"
+                                                            Style="{StaticResource DarkActionButtonStyle}"
+                                                            Background="#FF0F2233"
+                                                            BorderBrush="#6638BDF8"
+                                                            Foreground="#FF38BDF8"
+                                                            Padding="8,2.5"
+                                                            FontSize="9.4"
+                                                            FontWeight="SemiBold"
+                                                            Margin="0,0,4,0"
+                                                            Content="+ Antigravity"
+                                                            Tag="Antigravity"
+                                                            Click="OnAiQuickOpenProviderClick" />
+                                                    <Button x:Name="BtnAiConnectGemini"
+                                                            Style="{StaticResource DarkActionButtonStyle}"
+                                                            Background="#FF121E36"
+                                                            BorderBrush="#664E8DF5"
+                                                            Foreground="#FF64D2FF"
+                                                            Padding="8,2.5"
+                                                            FontSize="9.4"
+                                                            FontWeight="SemiBold"
+                                                            Margin="0,0,4,0"
+                                                            Content="+ Gemini"
+                                                            Tag="Gemini"
+                                                            Click="OnAiQuickOpenProviderClick" />
+                                                    <Button x:Name="BtnAiConnectCursor"
+                                                            Style="{StaticResource DarkActionButtonStyle}"
+                                                            Background="#FF1E1430"
+                                                            BorderBrush="#66A855F7"
+                                                            Foreground="#FFC084FC"
+                                                            Padding="8,2.5"
+                                                            FontSize="9.4"
+                                                            FontWeight="SemiBold"
+                                                            Margin="0,0,4,0"
+                                                            Content="+ Cursor"
+                                                            Tag="Cursor"
+                                                            Click="OnAiQuickOpenProviderClick" />
+                                                    <Button x:Name="BtnAiAddAccount"
+                                                            Style="{StaticResource PillTabButtonStyle}"
+                                                            Padding="7.5,2.5"
+                                                            FontSize="9.2"
+                                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                                            Content="+ Özel / API"
+                                                            Tag="Custom"
+                                                            Click="OnAiQuickOpenProviderClick" />
+                                                </StackPanel>
+                                                <StackPanel x:Name="AiQuotaFilterPanel"
+                                                            Orientation="Horizontal"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Center"
+                                                            Visibility="Collapsed" />
+                                            </DockPanel>
+                                        </Border>
+
+                                        <!-- Row 2: Grouped AI Accounts (Only entered AIs are shown; zero empty clutter!) -->
+                                        <ScrollViewer x:Name="AiQuotaScrollViewer" Grid.Row="2" Style="{StaticResource ObsidianScrollViewerStyle}" HorizontalScrollBarVisibility="Disabled">
+                                            <Grid>
+                                                <StackPanel x:Name="AiQuotaWrapPanel" Orientation="Vertical" />
+                                                <Border x:Name="AiQuotaEmptyCard"
+                                                        CornerRadius="12"
+                                                        Background="#10FFFFFF"
+                                                        BorderBrush="#22FFFFFF"
+                                                        BorderThickness="0.8"
+                                                        Padding="18,16"
+                                                        Margin="0,12,0,8"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        MaxWidth="460"
+                                                        Visibility="Collapsed">
                                                     <StackPanel>
-                                                        <DockPanel Margin="0,0,0,7">
-                                                            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                                                                <TextBlock x:Name="AiQuotaHeaderText"
-                                                                           Text="AI Abonelik &amp; Kota Takibi"
-                                                                           FontFamily="{StaticResource UiTextFont}"
-                                                                           FontSize="11.2"
-                                                                           FontWeight="SemiBold"
-                                                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                                                           VerticalAlignment="Center" />
-                                                                <Border x:Name="AiQuotaSummaryPill"
-                                                                        Margin="8,0,0,0"
-                                                                        Padding="7,1.5"
-                                                                        CornerRadius="7"
-                                                                        Background="#1C30D158"
-                                                                        VerticalAlignment="Center">
-                                                                    <TextBlock x:Name="AiQuotaSummaryText"
-                                                                               Text="4/4 Hazır"
-                                                                               FontFamily="{StaticResource UiTextFont}"
-                                                                               FontSize="9.2"
-                                                                               FontWeight="SemiBold"
-                                                                               Foreground="{StaticResource AccentGreenBrush}" />
-                                                                </Border>
-                                                            </StackPanel>
-                                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                                                <Button x:Name="BtnAiAddChatGpt" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Margin="0,0,4,0" Foreground="#FF10A37F" Content="+ ChatGPT" Click="OnAiQuickAddProviderClick" Tag="ChatGPT" />
-                                                                <Button x:Name="BtnAiAddClaude" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Margin="0,0,4,0" Foreground="#FFD97757" Content="+ Claude" Click="OnAiQuickAddProviderClick" Tag="Claude" />
-                                                                <Button x:Name="BtnAiAddGemini" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Margin="0,0,4,0" Foreground="#FF64D2FF" Content="+ Gemini" Click="OnAiQuickAddProviderClick" Tag="Gemini" />
-                                                                <Button x:Name="BtnAiAddCustom" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Content="+ Özel" Click="OnAiAddCustomClick" />
-                                                            </StackPanel>
-                                                        </DockPanel>
-                                                        <WrapPanel x:Name="AiQuotaWrapPanel" Orientation="Horizontal" />
+                                                        <TextBlock Text="Henüz Eklenmiş Bir Yapay Zeka Hesabı Yok"
+                                                                   FontFamily="{StaticResource UiFont}"
+                                                                   FontSize="11.8"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                                   HorizontalAlignment="Center"
+                                                                   Margin="0,0,0,5" />
                                                         <TextBlock x:Name="AiQuotaEmptyText"
-                                                                   Text="Henüz takip edilen AI hesabı yok. Yukarıdan hızlıca ekleyin."
+                                                                   Text="Yukarıdaki bar üzerinden kullandığınız yapay zekaya (+ ChatGPT, + Claude, + Antigravity, + Gemini) tıklayarak hesabınızı açılan pencerede bağlayın. Girmediğiniz yapay zekalar burada yer kaplamaz."
                                                                    FontFamily="{StaticResource UiTextFont}"
-                                                                   FontSize="10.2"
+                                                                   FontSize="10.0"
                                                                    Foreground="{StaticResource TextMutedBrush}"
                                                                    HorizontalAlignment="Center"
-                                                                   Margin="0,6,0,4"
-                                                                   Visibility="Collapsed" />
+                                                                   TextAlignment="Center"
+                                                                   TextWrapping="Wrap" />
                                                     </StackPanel>
                                                 </Border>
-                                            </StackPanel>
+                                            </Grid>
                                         </ScrollViewer>
                                     </Grid>
                                 </Grid>
@@ -2191,128 +2327,237 @@
                                 <Border x:Name="AiQuotaEditOverlay"
                                         Grid.Row="0"
                                         Grid.RowSpan="2"
-                                        Background="#EC050609"
+                                        Background="#EE050609"
                                         CornerRadius="16"
                                         Visibility="Collapsed"
                                         MouseLeftButtonDown="OnOverlayBackdropMouseDown">
-                                    <Border Width="376"
+                                    <Border Width="512"
                                             HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
-                                            CornerRadius="16"
+                                            CornerRadius="15"
                                             Background="#FF141822"
                                             BorderBrush="#42FFFFFF"
                                             BorderThickness="1"
-                                            Padding="14,12"
+                                            Padding="12,9"
                                             MouseLeftButtonDown="OnOverlayCardSwallowMouseDown">
                                         <StackPanel>
-                                            <Grid Margin="0,0,0,8">
+                                            <Grid Margin="0,0,0,5">
                                                 <TextBlock x:Name="AiQuotaEditTitleText"
-                                                           Text="AI Hesabı Ekle / Düzenle"
+                                                           Text="AI Abonelik Hesabı Ekle / Düzenle"
                                                            FontFamily="{StaticResource UiFont}"
-                                                           FontSize="12.5"
+                                                           FontSize="12"
                                                            FontWeight="SemiBold"
                                                            Foreground="{StaticResource TextPrimaryBrush}"
                                                            VerticalAlignment="Center" />
                                                 <Button x:Name="BtnAiEditClose"
                                                         Style="{StaticResource IconCircleButtonStyle}"
                                                         Background="#FF232836"
-                                                        Width="24" Height="24"
+                                                        Width="22" Height="22"
                                                         FontFamily="{StaticResource IconFont}"
-                                                        FontSize="10"
+                                                        FontSize="9.5"
                                                         Content="&#xE711;"
                                                         HorizontalAlignment="Right"
                                                         Click="OnAiEditCloseClick" />
                                             </Grid>
 
-                                            <TextBlock x:Name="AiQuotaEditProviderLabel"
-                                                       Text="Platform"
-                                                       FontFamily="{StaticResource UiTextFont}"
-                                                       FontSize="9.6"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                                       Margin="0,0,0,4" />
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                                <Button x:Name="BtnAiEditProvChatGpt" Style="{StaticResource PillTabButtonStyle}" Padding="8,3" FontSize="10" Margin="0,0,5,0" Content="ChatGPT" Click="OnAiEditProviderPickClick" Tag="ChatGPT" />
-                                                <Button x:Name="BtnAiEditProvClaude" Style="{StaticResource PillTabButtonStyle}" Padding="8,3" FontSize="10" Margin="0,0,5,0" Content="Claude" Click="OnAiEditProviderPickClick" Tag="Claude" />
-                                                <Button x:Name="BtnAiEditProvGemini" Style="{StaticResource PillTabButtonStyle}" Padding="8,3" FontSize="10" Margin="0,0,5,0" Content="Gemini" Click="OnAiEditProviderPickClick" Tag="Gemini" />
-                                                <Button x:Name="BtnAiEditProvCustom" Style="{StaticResource PillTabButtonStyle}" Padding="8,3" FontSize="10" Content="Diğer" Click="OnAiEditProviderPickClick" Tag="Custom" />
+                                            <!-- Platform Picker -->
+                                            <ScrollViewer Style="{StaticResource ObsidianScrollViewerStyle}"
+                                                          MaxHeight="242"
+                                                          HorizontalScrollBarVisibility="Disabled"
+                                                          VerticalScrollBarVisibility="Auto"
+                                                          Margin="0,0,0,5">
+                                            <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                                <TextBlock x:Name="AiQuotaEditProviderLabel" Text="Yapay Zeka:" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                                <Button x:Name="BtnAiEditProvChatGpt" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Margin="0,0,3,0" Content="ChatGPT" Click="OnAiEditProviderPickClick" Tag="ChatGPT" />
+                                                <Button x:Name="BtnAiEditProvClaude" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Margin="0,0,3,0" Content="Claude" Click="OnAiEditProviderPickClick" Tag="Claude" />
+                                                <Button x:Name="BtnAiEditProvAntigravity" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Margin="0,0,3,0" Content="Antigravity" Click="OnAiEditProviderPickClick" Tag="Antigravity" />
+                                                <Button x:Name="BtnAiEditProvGemini" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Margin="0,0,3,0" Content="Gemini" Click="OnAiEditProviderPickClick" Tag="Gemini" />
+                                                <Button x:Name="BtnAiEditProvCursor" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Margin="0,0,3,0" Content="Cursor" Click="OnAiEditProviderPickClick" Tag="Cursor" />
+                                                <Button x:Name="BtnAiEditProvCopilot" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Margin="0,0,3,0" Content="Copilot" Click="OnAiEditProviderPickClick" Tag="Copilot" />
+                                                <Button x:Name="BtnAiEditProvCustom" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Content="Diğer" Click="OnAiEditProviderPickClick" Tag="Custom" />
                                             </StackPanel>
 
-                                            <Grid Margin="0,0,0,8">
+                                            <!-- Provider-Specific Official OAuth Banner -->
+                                            <Border x:Name="AiQuotaEditOAuthBanner"
+                                                    CornerRadius="10"
+                                                    Background="#FF0E221D"
+                                                    BorderBrush="#5510A37F"
+                                                    BorderThickness="0.9"
+                                                    Padding="10,6"
+                                                    Margin="0,0,0,6">
+                                                <DockPanel>
+                                                    <Button x:Name="BtnAiEditOAuthLogin"
+                                                            DockPanel.Dock="Right"
+                                                            Style="{StaticResource DarkActionButtonStyle}"
+                                                            Background="#FF14352B"
+                                                            BorderBrush="#8810A37F"
+                                                            Foreground="#FF30D158"
+                                                            Padding="11,4"
+                                                            FontSize="9.8"
+                                                            FontWeight="SemiBold"
+                                                            VerticalAlignment="Center"
+                                                            Content="🔑 OpenAI ile Giriş Yap"
+                                                            Click="OnAiEditOAuthLoginClick" />
+                                                    <StackPanel VerticalAlignment="Center" Margin="0,0,8,0">
+                                                        <TextBlock x:Name="AiQuotaEditOAuthTitleText"
+                                                                   Text="Hızlı Otomatik Hesap Bağlantısı"
+                                                                   FontFamily="{StaticResource UiFont}"
+                                                                   FontSize="10.0"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                                        <TextBlock x:Name="AiQuotaEditOAuthHintText"
+                                                                   Text="Tarayıcıdan hesabınıza giriş yapın; e-posta ve kota otomatik çekilir."
+                                                                   FontFamily="{StaticResource UiTextFont}"
+                                                                   FontSize="8.8"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </Border>
+
+                                            <!-- Quick Preset Templates (collapsed for clean UI, kept for code compatibility) -->
+                                            <StackPanel Orientation="Horizontal" Visibility="Collapsed">
+                                                <TextBlock x:Name="AiQuotaEditPresetLabel" Text="Şablon:" />
+                                            </StackPanel>
+
+                                            <!-- Identity Row -->
+                                            <Grid Margin="0,0,0,5">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="96" />
+                                                    <ColumnDefinition Width="1.2*" />
+                                                    <ColumnDefinition Width="0.72*" />
+                                                    <ColumnDefinition Width="1.35*" />
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                                    <TextBlock x:Name="AiQuotaEditNameLabel"
-                                                               Text="Hesap Etiketi"
-                                                               FontFamily="{StaticResource UiTextFont}"
-                                                               FontSize="9.6"
-                                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                                               Margin="0,0,0,3" />
-                                                    <TextBox x:Name="AiQuotaEditNameBox"
-                                                             MaxLength="36"
-                                                             Background="#FF0B0E14"
-                                                             Foreground="{StaticResource TextPrimaryBrush}"
-                                                             CaretBrush="{StaticResource AccentCyanBrush}"
-                                                             BorderBrush="#36FFFFFF"
-                                                             BorderThickness="0.8"
-                                                             Padding="7,4"
-                                                             FontFamily="{StaticResource UiTextFont}"
-                                                             FontSize="11" />
+                                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                    <TextBlock x:Name="AiQuotaEditNameLabel" Text="Hesap Etiketi" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                    <TextBox x:Name="AiQuotaEditNameBox" MaxLength="36" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" />
                                                 </StackPanel>
-                                                <StackPanel Grid.Column="1">
-                                                    <TextBlock x:Name="AiQuotaEditWindowLabel"
-                                                               Text="Süre (dk)"
-                                                               FontFamily="{StaticResource UiTextFont}"
-                                                               FontSize="9.6"
-                                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                                               Margin="0,0,0,3" />
-                                                    <TextBox x:Name="AiQuotaEditMinutesBox"
-                                                             MaxLength="5"
-                                                             Text="180"
-                                                             Background="#FF0B0E14"
-                                                             Foreground="{StaticResource TextPrimaryBrush}"
-                                                             CaretBrush="{StaticResource AccentCyanBrush}"
-                                                             BorderBrush="#36FFFFFF"
-                                                             BorderThickness="0.8"
-                                                             Padding="7,4"
-                                                             FontFamily="{StaticResource UiFont}"
-                                                             FontSize="11" />
+                                                <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                                                    <TextBlock x:Name="AiQuotaEditPlanLabel" Text="Plan / Paket" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                    <TextBox x:Name="AiQuotaEditPlanBox" MaxLength="20" Text="Plus" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock x:Name="AiQuotaEditEmailLabel" Text="E-posta / Kullanıcı Notu" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                    <TextBox x:Name="AiQuotaEditEmailBox" MaxLength="64" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" />
                                                 </StackPanel>
                                             </Grid>
 
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                                <Button Style="{StaticResource PillTabButtonStyle}" Padding="7,2.5" FontSize="9.5" Margin="0,0,5,0" Content="3s (180d)" Click="OnAiEditWindowPresetClick" Tag="180" />
-                                                <Button Style="{StaticResource PillTabButtonStyle}" Padding="7,2.5" FontSize="9.5" Margin="0,0,5,0" Content="5s (300d)" Click="OnAiEditWindowPresetClick" Tag="300" />
-                                                <Button Style="{StaticResource PillTabButtonStyle}" Padding="7,2.5" FontSize="9.5" Margin="0,0,5,0" Content="24s (1440d)" Click="OnAiEditWindowPresetClick" Tag="1440" />
+                                            <!-- Quota Limit & Remaining Row -->
+                                            <Grid Margin="0,0,0,5">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="74" />
+                                                    <ColumnDefinition Width="74" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="70" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                    <TextBlock x:Name="AiQuotaEditTotalLabel" Text="Toplam Hak" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                    <TextBox x:Name="AiQuotaEditTotalBox" MaxLength="8" Text="80" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                                                    <TextBlock x:Name="AiQuotaEditRemainingLabel" Text="Kalan" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                    <TextBox x:Name="AiQuotaEditRemainingBox" MaxLength="8" Text="80" Background="#FF0B0E14" Foreground="{StaticResource AccentGreenBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Margin="0,0,6,0">
+                                                    <TextBlock x:Name="AiQuotaEditUnitLabel" Text="Birim" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                    <StackPanel Orientation="Horizontal" Height="23">
+                                                        <Button x:Name="BtnAiUnitUse" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Margin="0,0,3,0" Content="Adet" Click="OnAiEditUnitPickClick" Tag="use" />
+                                                        <Button x:Name="BtnAiUnitPct" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Margin="0,0,3,0" Content="%" Click="OnAiEditUnitPickClick" Tag="pct" />
+                                                        <Button x:Name="BtnAiUnitMsg" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Margin="0,0,3,0" Content="Mesaj" Click="OnAiEditUnitPickClick" Tag="msg" />
+                                                        <Button x:Name="BtnAiUnitCredit" Style="{StaticResource PillTabButtonStyle}" Padding="6,2" FontSize="9.2" Content="Kredi" Click="OnAiEditUnitPickClick" Tag="credit" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="3">
+                                                    <TextBlock x:Name="AiQuotaEditThresholdLabel" Text="Uyarı (%)" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                    <TextBox x:Name="AiQuotaEditThresholdBox" MaxLength="3" Text="20" Background="#FF0B0E14" Foreground="{StaticResource AccentAmberBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <!-- Window Reset & Monthly Billing Row -->
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="74" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="96" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                    <TextBlock x:Name="AiQuotaEditWindowLabel" Text="Süre (dk)" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                    <TextBox x:Name="AiQuotaEditMinutesBox" MaxLength="5" Text="180" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Bottom" Orientation="Horizontal" Margin="0,0,8,1">
+                                                    <Button Style="{StaticResource PillTabButtonStyle}" Padding="5,2" FontSize="8.8" Margin="0,0,2.5,0" Content="3s" Click="OnAiEditWindowPresetClick" Tag="180" />
+                                                    <Button Style="{StaticResource PillTabButtonStyle}" Padding="5,2" FontSize="8.8" Margin="0,0,2.5,0" Content="5s" Click="OnAiEditWindowPresetClick" Tag="300" />
+                                                    <Button Style="{StaticResource PillTabButtonStyle}" Padding="5,2" FontSize="8.8" Margin="0,0,2.5,0" Content="24s" Click="OnAiEditWindowPresetClick" Tag="1440" />
+                                                    <Button Style="{StaticResource PillTabButtonStyle}" Padding="5,2" FontSize="8.8" Content="30g" Click="OnAiEditWindowPresetClick" Tag="43200" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Margin="0,0,6,0">
+                                                    <TextBlock x:Name="AiQuotaEditBillingLabel" Text="Yenilenme Günü" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                    <TextBox x:Name="AiQuotaEditBillingDayBox" MaxLength="2" Text="" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" ToolTip="Ayın yenilenme günü (1-31)" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="3">
+                                                    <TextBlock x:Name="AiQuotaEditPriceLabel" Text="Fiyat / Not" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+                                                    <TextBox x:Name="AiQuotaEditPriceBox" MaxLength="20" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <!-- Local CLI / Live OAuth / API Link + Notify Switch -->
+                                            <DockPanel Margin="0,0,0,5">
                                                 <CheckBox x:Name="AiQuotaEditNotifyCheck"
+                                                          DockPanel.Dock="Right"
                                                           IsChecked="True"
                                                           Content="Adada bildir"
                                                           Foreground="{StaticResource TextSecondaryBrush}"
                                                           FontFamily="{StaticResource UiTextFont}"
-                                                          FontSize="10"
-                                                          VerticalAlignment="Center"
-                                                          Margin="6,0,0,0" />
-                                            </StackPanel>
+                                                          FontSize="9.4"
+                                                          VerticalAlignment="Center" />
+                                                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="AiQuotaEditCliLabel" Text="Kaynak:" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                                    <Button x:Name="BtnAiCliManual" Style="{StaticResource PillTabButtonStyle}" Padding="5.5,2" FontSize="8.8" Margin="0,0,3,0" Content="Manuel" Click="OnAiEditCliPickClick" Tag="manual" />
+                                                    <Button x:Name="BtnAiCliCodex" Style="{StaticResource PillTabButtonStyle}" Padding="5.5,2" FontSize="8.8" Margin="0,0,3,0" Content="ChatGPT" Click="OnAiEditCliPickClick" Tag="codex" />
+                                                    <Button x:Name="BtnAiCliClaude" Style="{StaticResource PillTabButtonStyle}" Padding="5.5,2" FontSize="8.8" Margin="0,0,3,0" Content="Claude" Click="OnAiEditCliPickClick" Tag="claude" />
+                                                    <Button x:Name="BtnAiCliAntigravity" Style="{StaticResource PillTabButtonStyle}" Padding="5.5,2" FontSize="8.8" Margin="0,0,3,0" Content="Antigravity" Click="OnAiEditCliPickClick" Tag="antigravity" />
+                                                    <Button x:Name="BtnAiCliGemini" Style="{StaticResource PillTabButtonStyle}" Padding="5.5,2" FontSize="8.8" Margin="0,0,3,0" Content="Gemini" Click="OnAiEditCliPickClick" Tag="gemini" />
+                                                    <Button x:Name="BtnAiCliApi" Style="{StaticResource PillTabButtonStyle}" Padding="5.5,2" FontSize="8.8" Content="API Key" Click="OnAiEditCliPickClick" Tag="api" />
+                                                </StackPanel>
+                                            </DockPanel>
 
+                                            <!-- Optional DPAPI-Encrypted API Key Row (shown when 'api' mode selected) -->
+                                            <Grid x:Name="AiQuotaEditApiKeyPanel" Visibility="Collapsed" Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock x:Name="AiQuotaEditApiKeyLabel" Grid.Column="0" Text="API Key:" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource AccentCyanBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <PasswordBox x:Name="AiQuotaEditApiKeyBox" Grid.Column="1" MaxLength="180" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,2.5" FontFamily="{StaticResource UiFont}" FontSize="9.8" AutomationProperties.LabeledBy="{Binding ElementName=AiQuotaEditApiKeyLabel}" ToolTip="OpenRouter (sk-or-...) veya DeepSeek API anahtarı (Windows DPAPI ile şifrelenir)" />
+                                            </Grid>
+                                            </StackPanel>
+                                            </ScrollViewer>
+
+                                            <!-- Footer Actions -->
+                                            <TextBlock x:Name="AiQuotaEditError" Visibility="Collapsed" TextWrapping="Wrap"
+                                                       Margin="0,0,0,5" FontSize="10.5" Foreground="#FFFFB4AB"
+                                                       AutomationProperties.LiveSetting="Assertive" />
                                             <Grid>
-                                                <Button x:Name="BtnAiEditDelete"
-                                                        HorizontalAlignment="Left"
-                                                        Style="{StaticResource DarkActionButtonStyle}"
-                                                        Background="#FF2A161A"
-                                                        BorderBrush="#44FF453A"
-                                                        Foreground="#FFFF6961"
-                                                        Padding="10,4"
-                                                        FontSize="10.2"
-                                                        Content="Sil"
-                                                        Click="OnAiEditDeleteClick" />
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                                    <Button x:Name="BtnAiEditDelete"
+                                                            Style="{StaticResource DarkActionButtonStyle}"
+                                                            Background="#FF2A161A"
+                                                            BorderBrush="#44FF453A"
+                                                            Foreground="#FFFF6961"
+                                                            Padding="9,3.5"
+                                                            FontSize="9.8"
+                                                            Margin="0,0,6,0"
+                                                            Content="Hesabı Sil"
+                                                            Click="OnAiEditDeleteClick" />
+                                                </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                                     <Button x:Name="BtnAiEditCancel"
                                                             Style="{StaticResource DarkActionButtonStyle}"
                                                             Background="#FF232836"
                                                             BorderBrush="#38FFFFFF"
-                                                            Padding="10,4"
-                                                            FontSize="10.2"
+                                                            Padding="10,3.5"
+                                                            FontSize="10"
                                                             Margin="0,0,6,0"
                                                             Content="İptal"
                                                             Click="OnAiEditCloseClick" />
@@ -2321,8 +2566,8 @@
                                                             Background="#FF122A48"
                                                             BorderBrush="#660A84FF"
                                                             Foreground="{StaticResource AccentCyanBrush}"
-                                                            Padding="12,4"
-                                                            FontSize="10.2"
+                                                            Padding="12,3.5"
+                                                            FontSize="10"
                                                             FontWeight="SemiBold"
                                                             Content="Kaydet"
                                                             Click="OnAiEditSaveClick" />
@@ -2356,23 +2601,19 @@
                     MouseLeftButtonDown="OnSatelliteMouseLeftButtonDown"
                     MouseRightButtonUp="OnMainAssemblyMouseRightButtonUp">
                 <Canvas.RenderTransform>
-                    <TranslateTransform x:Name="SatelliteTranslateTransform" X="0" Y="0" />
+                    <TransformGroup>
+                        <ScaleTransform x:Name="SatelliteScaleTransform" CenterX="30" />
+                        <TranslateTransform x:Name="SatelliteTranslateTransform" />
+                    </TransformGroup>
                 </Canvas.RenderTransform>
 
-                <!-- Unscaled Satellite Hit Surface -->
                 <Path x:Name="SatelliteHitPath"
                       Fill="#01000000"
-                      IsHitTestVisible="True"
+                      IsHitTestVisible="False"
+                      Cursor="Hand"
                       Stretch="None" />
 
                 <Grid x:Name="SatelliteVisualGroup" IsHitTestVisible="False">
-                    <Grid.RenderTransform>
-                        <TransformGroup>
-                            <ScaleTransform x:Name="SatelliteScaleTransform" ScaleX="1" ScaleY="1" CenterX="30" CenterY="0" />
-                            <ScaleTransform x:Name="SatelliteHoverScaleTransform" ScaleX="1" ScaleY="1" CenterX="30" CenterY="0" />
-                        </TransformGroup>
-                    </Grid.RenderTransform>
-
                     <Path x:Name="SatelliteShellPath"
                           Fill="{StaticResource NotchOledShellBrush}"
                           Stretch="None" />

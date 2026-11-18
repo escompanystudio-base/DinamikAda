@@ -11,6 +11,7 @@ public static class Strings
     public static string TabShelf(string lang) => Pick(lang, "Raf", "Shelf");
     public static string TabSystem(string lang) => Pick(lang, "Sistem", "System");
     public static string TabWidgets(string lang) => Pick(lang, "Araçlar", "Widgets");
+    public static string TabAiQuota(string lang) => Pick(lang, "AI Kota", "AI Quota");
     public static string SearchHint(string lang) => Pick(lang, "Uygulama, pencere, komut (= hesap, > kabuk, @ pencere)...", "Search apps, windows, commands (= math, > shell, @ win)...");
     public static string QuietIsland(string lang) => Pick(lang, "Sessiz Ada", "Quiet Island");
     public static string DropHint(string lang) => Pick(lang, "Dosyayı veya metni adaya bırak", "Drop files or text onto the island");
@@ -190,6 +191,24 @@ public static class Strings
     public static string RestoreWindowsTaskbar(string lang) => Pick(lang, "Windows Görev Çubuğunu Geri Getir", "Restore Windows Taskbar");
     public static string HideWindowsTaskbarMenu(string lang) => Pick(lang, "Windows Görev Çubuğunu Gizle", "Hide Windows Taskbar");
     public static string DockStartLabel(string lang) => Pick(lang, "Başlat Menüsü", "Start Menu");
+    public static string StartMenuBrandBadge(string lang) => Pick(lang, "Başlat", "Start");
+    public static string StartMenuSearchPlaceholder(string lang) => Pick(lang, "Uygulama ara…", "Search apps…");
+    public static string StartMenuQuickModules(string lang) => Pick(lang, "DinamikAda Modülleri", "DinamikAda Modules");
+    public static string StartMenuAppsSection(string lang) => Pick(lang, "Uygulamalar", "Apps");
+    public static string StartMenuAppsCount(string lang, int count) => Pick(lang, $"{count} uygulama", $"{count} apps");
+    public static string StartMenuNoMatches(string lang) => Pick(lang, "Eşleşen uygulama bulunamadı", "No matching apps found");
+    public static string StartMenuClassicWin(string lang) => Pick(lang, "Klasik Windows Başlat", "Classic Windows Start");
+    public static string StartMenuModuleIsland(string lang) => Pick(lang, "Ada Akışı", "Island Feed");
+    public static string StartMenuModuleAi(string lang) => Pick(lang, "AI Kota", "AI Quota");
+    public static string StartMenuModuleSystem(string lang) => Pick(lang, "Sistem", "System");
+    public static string StartMenuModuleCommand(string lang) => Pick(lang, "Komut", "Command");
+    public static string StartMenuExplorer(string lang) => Pick(lang, "Gezgin", "Explorer");
+    public static string StartMenuTaskMgr(string lang) => Pick(lang, "Görev Yön.", "Task Mgr");
+    public static string StartMenuLock(string lang) => Pick(lang, "Ekranı Kilitle", "Lock Screen");
+    public static string StartMenuPowerOptions(string lang) => Pick(lang, "Güç Seçenekleri", "Power Options");
+    public static string StartMenuSleep(string lang) => Pick(lang, "Uyku", "Sleep");
+    public static string StartMenuRestart(string lang) => Pick(lang, "Yeniden Başlat", "Restart");
+    public static string StartMenuShutdown(string lang) => Pick(lang, "Bilgisayarı Kapat", "Shut Down");
     public static string DockIslandSyncLabel(string lang) => Pick(lang, "Üst Adayı Aç", "Toggle Top Island");
     public static string DockTrashLabel(string lang) => Pick(lang, "Çöp Kutusu", "Recycle Bin");
     public static string DockEmptyTrash(string lang) => Pick(lang, "Çöp Kutusunu Boşalt", "Empty Recycle Bin");
@@ -214,24 +233,51 @@ public static class Strings
     public static string AiQuotaSectionTitle(string lang) => Pick(lang, "AI Abonelik & Kota Takibi", "AI Subscriptions & Quota");
     public static string AiQuotaReadyBadge(string lang) => Pick(lang, "HAZIR", "READY");
     public static string AiQuotaCooldownBadge(string lang) => Pick(lang, "BEKLEMEDE", "COOLDOWN");
+    public static string AiQuotaExhaustedBadge(string lang) => Pick(lang, "TÜKENDİ", "EXHAUSTED");
     public static string AiQuotaMarkExhaustedBtn(string lang) => Pick(lang, "Limit Doldu", "Hit Limit");
-    public static string AiQuotaMarkReadyBtn(string lang) => Pick(lang, "Hazır Yap", "Mark Ready");
-    public static string AiQuotaAddCustomBtn(string lang) => Pick(lang, "+ Özel", "+ Custom");
-    public static string AiQuotaEditTitle(string lang) => Pick(lang, "AI Hesabı Ekle / Düzenle", "Add / Edit AI Account");
+    public static string AiQuotaMarkReadyBtn(string lang) => Pick(lang, "Sıfırla / Hazır", "Reset / Ready");
+    public static string AiQuotaAddAccountBtn(string lang) => Pick(lang, "+ Hesap Ekle", "+ Add Account");
+    public static string AiQuotaScanCliBtn(string lang) => Pick(lang, "CLI Tara", "Scan CLI");
+    public static string AiQuotaEditTitle(string lang) => Pick(lang, "AI Abonelik Hesabı Ekle / Düzenle", "Add / Edit AI Subscription");
     public static string AiQuotaAccountNameLabel(string lang) => Pick(lang, "Hesap Etiketi", "Account Label");
+    public static string AiQuotaIdentifierLabel(string lang) => Pick(lang, "E-posta / Kullanıcı Notu", "Email / Account Note");
+    public static string AiQuotaPlanTierLabel(string lang) => Pick(lang, "Plan / Paket", "Plan / Tier");
+    public static string AiQuotaPriceLabel(string lang) => Pick(lang, "Fiyat / Not", "Price / Note");
+    public static string AiQuotaTotalLimitLabel(string lang) => Pick(lang, "Toplam Hak", "Total Quota");
+    public static string AiQuotaRemainingInputLabel(string lang) => Pick(lang, "Kalan Kullanım", "Remaining Uses");
+    public static string AiQuotaUnitLabel(string lang) => Pick(lang, "Birim", "Unit");
+    public static string AiQuotaBillingDayLabel(string lang) => Pick(lang, "Yenilenme Günü (1-31)", "Billing Day (1-31)");
+    public static string AiQuotaThresholdLabel(string lang) => Pick(lang, "Kritik Uyarı (%)", "Low Alert (%)");
+    public static string AiQuotaLocalSourceLabel(string lang) => Pick(lang, "Yerel CLI Senkron", "Local CLI Sync");
     public static string AiQuotaProviderLabel(string lang) => Pick(lang, "Platform", "Provider");
     public static string AiQuotaWindowMinutesLabel(string lang) => Pick(lang, "Yenilenme Süresi (dk)", "Reset Window (min)");
-    public static string AiQuotaNotifyResetLabel(string lang) => Pick(lang, "Kota açılınca adada bildir", "Notify on Island when quota resets");
+    public static string AiQuotaNotifyResetLabel(string lang) => Pick(lang, "Kota açılınca veya azalınca adada bildir", "Notify on Island on reset or low quota");
     public static string AiQuotaUnlockedTitle(string lang, string accountLabel) =>
         Pick(lang, $"Kota Yenilendi · {accountLabel}", $"Quota Reset · {accountLabel}");
     public static string AiQuotaUnlockedSub(string lang, string provider) =>
         Pick(lang, $"{provider} hesabı yeniden kullanıma hazır", $"{provider} account is ready to use again");
+    public static string AiQuotaLowTitle(string lang, string accountLabel) =>
+        Pick(lang, $"Kota Azaldı · {accountLabel}", $"Low AI Quota · {accountLabel}");
     public static string AiQuotaEmpty(string lang) =>
-        Pick(lang, "Henüz takip edilen AI hesabı yok. Yukarıdan hızlıca ekleyin.", "No AI accounts added yet. Use quick buttons above.");
+        Pick(lang, "Henüz takip edilen AI hesabı yok. '+ Hesap Ekle' ile tek tek girin veya 'CLI Tara' ile yerel hesapları aktarın.", "No AI accounts tracked yet. Click '+ Add Account' or 'Scan CLI' to import local tools.");
     public static string AiQuotaAllReadySummary(string lang, int total) =>
         Pick(lang, $"{total}/{total} Hazır", $"{total}/{total} Ready");
     public static string AiQuotaMixedSummary(string lang, int ready, int total, string nextClock) =>
         Pick(lang, $"{ready}/{total} Hazır · Sonraki {nextClock}", $"{ready}/{total} Ready · Next {nextClock}");
+    public static string AiQuotaRemainingCount(string lang, string remainingText, string totalText, string unit)
+    {
+        bool isEn = string.Equals(lang, "en", StringComparison.OrdinalIgnoreCase);
+        if (unit == "pct") return isEn ? $"{remainingText}% left" : $"%{remainingText} kaldı";
+        string u = unit switch
+        {
+            "msg" => isEn ? "msgs" : "mesaj",
+            "credit" => isEn ? "credits" : "kredi",
+            _ => isEn ? "uses" : "kullanım"
+        };
+        return isEn
+            ? $"{remainingText} / {totalText} {u} left"
+            : $"{remainingText} / {totalText} {u} kaldı";
+    }
 
     public static string Get(string lang, string key) => key switch
     {
@@ -241,6 +287,7 @@ public static class Strings
         nameof(TabShelf) => TabShelf(lang),
         nameof(TabSystem) => TabSystem(lang),
         nameof(TabWidgets) => TabWidgets(lang),
+        nameof(TabAiQuota) => TabAiQuota(lang),
         nameof(SearchHint) => SearchHint(lang),
         nameof(QuietIsland) => QuietIsland(lang),
         nameof(DropHint) => DropHint(lang),

@@ -106,6 +106,16 @@ public sealed class LauncherService
         await rebuildTask.WaitAsync(ct).ConfigureAwait(false);
     }
 
+    public IReadOnlyList<AppLaunchItem> GetIndexedAppsSnapshot()
+    {
+        lock (_indexSync)
+        {
+            return _indexedApps.ToList();
+        }
+    }
+
+    public Task<CommandExecutionResult> LaunchInstalledAppAsync(AppLaunchItem app) => LaunchAppAsync(app);
+
     private async Task RunIndexBuildLoopAsync(bool includeStoreApps)
     {
         // Never pass caller typing CancellationTokens into indexing, otherwise cancelling a search
@@ -483,6 +493,7 @@ public sealed class LauncherService
             ("island:tab-shelf", Strings.Pick(lang, "Dosya & Pano Kasası", "File Shelf & Clipboard"), Strings.Pick(lang, "Sürükle-bırak rafı ve pano geçmişi", "Drag-and-drop shelf and clipboard history"), "\uE8F1", () => { _navigateTabAction(ExpandedTabId.Shelf); return Task.CompletedTask; }),
             ("island:tab-system", Strings.Pick(lang, "Sistem Telemetri & Kapatıcı", "System Telemetry & Tasks"), Strings.Pick(lang, "CPU, GPU, RAM, Ağ ve yanıt vermeyen uygulamalar", "CPU, GPU, RAM, Network, and hung app terminator"), "\uE9D9", () => { _navigateTabAction(ExpandedTabId.System); return Task.CompletedTask; }),
             ("island:tab-widgets", Strings.Pick(lang, "Widget Merkezi", "Widget Hub"), Strings.Pick(lang, "Modüler widget kartları ve canlı kaynaklar", "Modular widget cards and live feeds"), "\uE8A9", () => { _navigateTabAction(ExpandedTabId.Widgets); return Task.CompletedTask; }),
+            ("island:tab-aiquota", Strings.Pick(lang, "AI Abonelik & Kota Takibi", "AI Subscription & Quota"), Strings.Pick(lang, "Hesapların kalan kullanımları, sıfırlanma ve CLI kota özeti", "Per-account AI usage remaining, reset timers and CLI telemetry"), "\uE945", () => { _navigateTabAction(ExpandedTabId.AiQuota); return Task.CompletedTask; }),
             ("act:pomo", Strings.Pick(lang, "Pomodoro Başlat (25 dk)", "Start Pomodoro (25 min)"), Strings.Pick(lang, "Odak zamanlayıcısı başlat", "Start a focus countdown timer"), "\uE916", () => _builtInActionRunner("timer:pomo")),
             ("act:timer5", Strings.Pick(lang, "5 Dakika Zamanlayıcı", "5-Minute Timer"), Strings.Pick(lang, "Hızlı geri sayım başlat", "Start a quick countdown"), "\uE916", () => _builtInActionRunner("timer:5m")),
             ("act:quiet", Strings.Pick(lang, "Sessiz Ada Aç/Kapat", "Toggle Quiet Island"), Strings.Pick(lang, "Bildirim ve HUD bannerlarını sustur", "Mute notifications and transient HUD banners"), "\uE7ED", () => _builtInActionRunner("toggle:quiet")),

@@ -5,9 +5,11 @@ set "ROOT=%~dp0"
 set "APP_DIR=%ROOT%artifacts\app"
 set "PUBLISHED=%APP_DIR%\DinamikAda.App.exe"
 set "BUILD_SCRIPT=%ROOT%scripts\build.ps1"
+set "VERIFY_SCRIPT=%ROOT%scripts\verify.ps1"
 set "PROJECT=%ROOT%src\DinamikAda.App\DinamikAda.App.csproj"
 
 set "FORCE_REBUILD=0"
+set "RUN_VERIFY=0"
 set "APP_ARGS="
 
 :parse_args
@@ -18,6 +20,10 @@ if /I "%~1"=="--rebuild" (
     set "FORCE_REBUILD=1"
 ) else if /I "%~1"=="-Rebuild" (
     set "FORCE_REBUILD=1"
+) else if /I "%~1"=="--verify" (
+    set "RUN_VERIFY=1"
+) else if /I "%~1"=="/verify" (
+    set "RUN_VERIFY=1"
 ) else (
     if defined APP_ARGS (
         set "APP_ARGS=%APP_ARGS% "%~1""
@@ -29,21 +35,23 @@ shift
 goto parse_args
 :args_done
 
+if "%RUN_VERIFY%"=="1" (
+    echo DinamikAda test, render-audit ve smoke-test dogrulamasi calistiriliyor...
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%VERIFY_SCRIPT%" -RenderAudit -Smoke
+    if errorlevel 1 (
+        echo Dogrulama testleri basarisiz oldu.
+        pause
+        exit /b 1
+    )
+    exit /b 0
+)
+
 set "DA_ROOT=%ROOT%"
 set "DA_PUBLISHED=%PUBLISHED%"
 set "DA_FORCE_REBUILD=%FORCE_REBUILD%"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ErrorActionPreference = 'Stop';" ^
-  "$procs = Get-Process -Name 'DinamikAda.App' -ErrorAction SilentlyContinue;" ^
-  "if ($procs) {" ^
-  "  foreach ($p in $procs) { try { [void]$p.CloseMainWindow() } catch {} }" ^
-  "  $deadline = [DateTime]::UtcNow.AddMilliseconds(450);" ^
-  "  while ([DateTime]::UtcNow -lt $deadline) { if (-not (Get-Process -Name 'DinamikAda.App' -ErrorAction SilentlyContinue)) { break }; Start-Sleep -Milliseconds 50 }" ^
-  "  Get-Process -Name 'DinamikAda.App' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue;" ^
-  "  $deadline2 = [DateTime]::UtcNow.AddSeconds(3);" ^
-  "  while ([DateTime]::UtcNow -lt $deadline2) { if (-not (Get-Process -Name 'DinamikAda.App' -ErrorAction SilentlyContinue)) { break }; Start-Sleep -Milliseconds 50 }" ^
-  "}" ^
   "$root = $env:DA_ROOT;" ^
   "$exe = $env:DA_PUBLISHED;" ^
   "$dll = [IO.Path]::ChangeExtension($exe, '.dll');" ^

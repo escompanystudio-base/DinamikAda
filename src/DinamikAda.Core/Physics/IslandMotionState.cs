@@ -138,29 +138,17 @@ public sealed class IslandMotionState
     public double ContentRevealTier3 => SpringDamperSolver.SmoothStep(0.36, 0.94, Math.Clamp(ContentReveal.Value, 0.0, 1.0));
 
     /// <summary>
-    /// Sequential crossfade multiplier for outgoing compact/dormant content while an overlay opens,
-    /// ensuring zero visual overlap before overlay cards reveal.
+    /// Compact surfaces use the same opacity curve in both directions so a reversal
+    /// starts at exactly the previous frame's opacity.
     /// </summary>
-    public double OverlayCompactFadeOut => 1.0 - SpringDamperSolver.SmoothStep(0.02, 0.24, Math.Clamp(ContentReveal.Value, 0.0, 1.0));
-
-    /// <summary>
-    /// Sequential crossfade gate for incoming compact/dormant content while an overlay collapses,
-    /// keeping compact UI invisible until the overlay fades out and preventing double-exposed text.
-    /// </summary>
-    public double CollapseCompactGate => SpringDamperSolver.SmoothStep(0.46, 0.06, Math.Clamp(ContentReveal.Value, 0.0, 1.0));
-
-    /// <summary>
-    /// Soft exit curve for collapsing overlays so cards vanish in the first half of the close
-    /// before shell height shrinks through them.
-    /// </summary>
-    public double OverlayCollapseFadeOut => SpringDamperSolver.SmoothStep(0.52, 0.94, Math.Clamp(ContentReveal.Value, 0.0, 1.0));
+    public double CompactOverlayGate => 1.0 - SpringDamperSolver.SmoothStep(0.02, 0.24, ContentReveal.Value);
 
     public double TabContentOpacity => SpringDamperSolver.SmoothStep(0.0, 1.0, TabContentSlide.Value);
     public double TabContentTranslateY => (1.0 - TabContentOpacity) * 6.0;
     public double TabContentScale => 0.985 + 0.015 * TabContentOpacity;
 
-    public double SatelliteOpacity => Math.Clamp(SatelliteScale.Value, 0.0, 1.0);
-    public double SatelliteEffectiveScale => 0.65 + 0.35 * Math.Clamp(SatelliteScale.Value, 0.0, 1.12);
+    public double SatelliteOpacity => SpringDamperSolver.SmoothStep(0.04, 1.0, SatelliteScale.Value) * CompactOverlayGate;
+    public double SatelliteEffectiveScale => 0.90 + 0.10 * Math.Clamp(SatelliteScale.Value, 0.0, 1.0);
 
     public void SetHoverScale(double targetScale)
     {
@@ -361,10 +349,6 @@ public sealed class IslandMotionState
             }
             else
             {
-                if (stateChanged)
-                {
-                    CompactContentReveal.SnapTo(0.0);
-                }
                 CompactContentReveal.Retarget(1.0, stiffness: 340.0, dampingRatio: 0.92);
             }
         }

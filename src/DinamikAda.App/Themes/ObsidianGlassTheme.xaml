@@ -200,6 +200,9 @@
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource ActionPressedBlueBrush}"/>
                             <Setter TargetName="Bd" Property="RenderTransform" Value="{StaticResource PressedScale96Transform}"/>
                         </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentCyanBrush}"/>
+                        </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Bd" Property="Opacity" Value="0.40"/>
                         </Trigger>
