@@ -1,70 +1,127 @@
-# DinamikAda kullanım kılavuzu
+# DinamikAda — Kullanım ve Mimari Kılavuzu
 
-## İlk açılış
+[English README](../README.md) · [Hızlı Başlangıç](#h%C4%B1zl%C4%B1-ba%C5%9Flang%C4%B1%C3%A7) · [Özellik Turu](#%C3%B6zellik-turu) · [Explorer.exe Görev Çubuğu](#explorerexe-g%C3%B6rev-%C3%A7ubu%C4%9Fu-modu) · [AI Kota](#ai-kota--abonelik-takibi)
 
-1. GitHub’da **Code → Download ZIP** ile projeyi indirip çıkar veya depoyu klonla.
-2. Windows 11 x64 üzerinde .NET 8 SDK’yı kur ve **DinamikAda-Baslat.bat** dosyasını aç. İlk çalıştırmada uygulama derlenir.
-3. Üst adaya tıklayarak medya, ses, sistem ve **AI Kota** sekmelerini aç. Komut paleti kısayolu **Ctrl+Shift+Space**.
-4. **Ayarlar → Alt Dock** bölümünden alt bar modunu seç. Değişiklikler için **Kaydet**’e bas.
+<div align="center">
+  <img src="./screenshots/dinamikada-overview.png" alt="DinamikAda genel masaüstü görünümü: Üst Ada + Explorer.exe App Dock + Katlanabilir Sistem Tepsisi" width="100%"/>
+</div>
 
-## Explorer görev çubuğu
+DinamikAda; Windows 11 üzerinde üst **Dinamik Ada (MacBook Notch)** deneyimini, gerçek **`explorer.exe` yüzer görev çubuğu** yamalarını ve çok hesaplı **AI Kota** takibini tek bir native çatı altında birleştirir.
 
-1. [Windhawk](https://windhawk.net/) ve beraberindeki derleyici kurulu olsun.
-2. DinamikAda açıksa bildirim alanındaki simgesinden **Çıkış**’ı seç. Ardından **DinamikAda-Explorer-Kur.bat** dosyasını çalıştır.
-3. **Ayarlar → Alt Dock** bölümünde **Windows’un kendi görev çubuğunu DinamikAda tasarımıyla kullan** seçeneğini kontrol et. Aynı ekrandan **Akıllı Gizleme** ve simge büyütmeyi ayarlayabilirsin.
-4. Pencere büyütülüyken fareyi **ekranın tam alt ortasına** götür. Uygulama sırası açılır. Bir simgenin üzerine geldiğinde simge hafifçe yükselir.
-5. Sağ uçtaki oka tıklayarak sistem tepsisini küçült. Aynı düğme tepsiyi geri açar. Gizli simgelere erişmek için önce tepsiyi aç. Ses ayarı için **Win+A** kullan.
+---
 
-![Explorer uygulama sırası ve sağ tepsinin sade görünümü](screenshots/explorer-taskbar.png)
+## Özellik Turu
 
-![Alt kenardan açılan dock, imleç geçerken sırayla yükselen simgeler ve dock’un kapanışı](screenshots/explorer-dock-full-cycle.gif)
+> *Not: İşletim sisteminizde veya GitHub ayarlarında "Azaltılmış Hareket" (Reduced Motion) açıksa GitHub GIF'leri ilk karede duraklatabilir — animasyonu tam boy izlemek için altındaki **GIF'i Tam Boyut Aç** bağlantısına tıklayabilirsiniz.*
 
-![Sağ tepsiyi küçültme ve açma](screenshots/explorer-tray.gif)
+### 1. Üst Dinamik Ada (7 Sekme + Komut Paleti)
+Kompakt medya/AI kapsülünden pürüzsüz yay animasyonuyla açılan 7 sekmeli komuta merkezi (**Akış**, **Ses**, **Denetim**, **Raf / QR**, **Sistem**, **Araçlar**, **AI Kota**) ve klavye odaklı **Komut Paleti**.
 
-[Dock GIF’ini aç](https://raw.githubusercontent.com/escompanystudio-base/DinamikAda/main/docs/screenshots/explorer-dock-full-cycle.gif)
+<div align="center">
+  <img src="./screenshots/upper-island-motion.gif" alt="Üst Dinamik Ada tüm sekmeler ve Komut Paleti turu" width="800"/>
+  <br/>
+  <sub><a href="./screenshots/upper-island-motion.gif">GIF'i Tam Boyut Aç</a></sub>
+</div>
 
-### Müziğe göre renk geçişi
+- **Akış:** Canlı Spotify/sistem medyası, `48 kHz · 24-bit` kaynak bilgisi, kaynak değiştirici (`< 1/2 >`), **Odak Zamanlayıcı** (`+5m` / `+25m`) ve etkileşimli Windows bildirim akışı.
+- **Ses:** Uygulama bazlı ses mikseri ve tek tıkla ses çıkış aygıtı yönlendirmesi.
+- **Denetim & Araçlar:** Hızlı sistem anahtarları, zamanlanmış kapatma/yeniden başlatma sayacı, USB kısayolu ve anlık ekran **Renk Seçici (Color Picker)** HUD bildirimleri.
+- **Raf & QR:** Sürükle-bırak geçici dosya rafı ve tek tıkla QR kod ile paylaşım.
+- **Sistem:** Canlı CPU, RAM, GPU (`VRAM`, sıcaklık, fan hızı), Ağ hızı, Disk I/O, `1.1.1.1` ping ölçümü, RAM/Disk temizleme ve yanıt vermeyen süreç yönetimi.
 
-DinamikAda, Windows medya oturumunun paylaştığı albüm kapağından renkleri alır. Yeni kapak gecikirse üst ada önceki paleti kısa süre korur ve kapak geldiğinde yeni renklere yumuşakça geçer. AI kapsülü ve açık ada sekmeleri de aynı paleti kullanır.
+---
 
-![Üst adanın açılışı, Akış, Ses ve Denetim sekmeleri ile kapanışın tamamı](screenshots/upper-island-motion.gif)
+### 2. AI Kota & Çoklu Hesap Takibi
+Tek bir sekmeden tüm yapay zeka aboneliklerinizi gerçek zamanlı izleyin:
+- **ChatGPT:** `5 saatlik` ve **Haftalık (`7g`)** kalan kota barları ve net yenilenme saatleri.
+- **Google Antigravity:** Tek tık **Google OAuth** girişi + **Gemini Models**, **Claude & GPT** ve **Gemini 4 Argon** havuzlarının `5s` + `7g` ayrı kırılımları.
+- **Claude, Gemini CLI, Cursor, GitHub Copilot ve Özel API:** Birden fazla hesabı etiketleyin, kritik eşik uyarısı (%) belirleyin ve verileri PC yeniden başlatsanız bile lokalde kalıcı olarak koruyun.
 
-Explorer modunda renkler alt dock, sistem tepsisi, gizli simgeler, Başlat menüsü, bildirim ve takvim panelleri ile Hızlı Ayarlar’a da yansır.
+<div align="center">
+  <img src="./screenshots/ai-quota-showcase.gif" alt="AI Kota sekmesi: ChatGPT 5 saatlik + haftalık barlar, Antigravity havuzları, Claude ve hesap düzenleyici" width="800"/>
+  <br/>
+  <sub><a href="./screenshots/ai-quota-showcase.gif">GIF'i Tam Boyut Aç</a></sub>
+</div>
 
-![Parça değişirken açık medya paneli, alt dock ve sağ tepsi birlikte renk değiştiriyor](screenshots/music-colors.gif)
+---
 
-![Parça değişirken Başlat menüsünün renk geçişi](screenshots/music-start-menu.gif)
+### 3. `explorer.exe` Görev Çubuğu Modu (Windhawk)
 
-### Explorer modunu güncelleme
+<div align="center">
+  <img src="./screenshots/explorer-taskbar.png" alt="Gerçek explorer.exe üzerinde ortalanmış App Dock ve sağ Sistem Tepsisi" width="100%"/>
+</div>
 
-- Son kodu indir veya **git pull** çalıştır. DinamikAda’dan çık ve **DinamikAda-Windows-Barina-Don.bat** dosyasını çalıştır. Ardından **DinamikAda-Explorer-Kur.bat** ile yerel bileşenleri derle ve modu yeniden etkinleştir.
-- Windhawk özel bir dizindeyse PowerShell’den aşağıdaki komutları çalıştır. İlk komuttaki dizini kendi kurulum yolunla değiştir.
+- DinamikAda kendi sahte görev çubuğu yerine **gerçek Windows 11 `explorer.exe`** görev çubuğunu iki yüzer adaya (ortada **App Dock**, sağda **Sistem Tepsisi**) böler; arada kalan alanlar `GetWindowRgn` ile alt pencerelere tıklamayı ve pencere önizlemelerini sorunsuz iletir.
+- Alt kenardaki 48 px çalışma alanı kilidini kaldırır; pencereler ekranı tam boy kullanır, fare alt kenara geldiğinde dock akıcı şekilde yükselir (`Auto-Reveal`) ve uzaklaştığınızda gizlenir.
+- İkon üzerine gelindiğinde dalga efekti (`wave lift`) ve yerel Windows araç ipuçları çalışmaya devam eder.
+- Sağ taraftaki Sistem Tepsisi daraltma oku (`<` / `>`) ile gereksiz mikrofon/ses simgelerini gizleyip sadeleştirebilirsiniz.
 
-~~~powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-explorer-taskbar.ps1 -WindhawkDirectory "D:\Apps\Windhawk"
-.\DinamikAda-Baslat.bat --explorer-taskbar
-~~~
+<table>
+  <tr>
+    <td width="64%" align="center">
+      <img src="./screenshots/explorer-dock-full-cycle.gif" alt="Explorer App Dock açılış, dalgalı hover ve otomatik gizlenme döngüsü" width="100%"/>
+      <br/>
+      <sub>App Dock tam döngü (<a href="./screenshots/explorer-dock-full-cycle.gif">GIF'i Tam Boyut Aç</a>)</sub>
+    </td>
+    <td width="36%" align="center">
+      <img src="./screenshots/explorer-tray.gif" alt="Explorer Sistem Tepsisi açma/daraltma" width="100%"/>
+      <br/>
+      <sub>Tepsi daralt/genişlet (<a href="./screenshots/explorer-tray.gif">GIF'i Tam Boyut Aç</a>)</sub>
+    </td>
+  </tr>
+</table>
 
-- Windows güncellemesinden sonra görünüm veya açılma bozulursa **DinamikAda-Windows-Barina-Don.bat** ile standart bara dön. Uyumlu bir DinamikAda sürümü geldiğinde Explorer kurulumunu yeniden çalıştır.
-- DinamikAda’nın ayrı dock’una geçmek için **Ayarlar → Alt Dock** bölümünde Explorer modunu kapatıp dock’u etkinleştir.
+---
 
-## AI Kota ve birden fazla hesap
+### 4. Kesintisiz Albüm Kapağı Rengi (Ada + Görev Çubuğu + Başlat Menüsü)
+Çalan müziğin baskın kapak renkleri gerçek zamanlı örneklenir ve `%LOCALAPPDATA%\DinamikAda\ExplorerHost\animation-state.ini` üzerinden yerel Windows kabuğuna aktarılır:
+- **Üst Ada**, **Explorer App Dock**, **Sistem Tepsisi** ve **Windows 11 Başlat Menüsü (`StartMenuExperienceHost`)** şarkı değiştikçe aynı renk paletiyle nefes alır.
 
-1. Üst adayı aç, **AI Kota** sekmesine gir ve sağlayıcının **Ekle** düğmesine bas.
-2. Her hesap için ayrı kart aç. Tarayıcı eski oturumu öneriyorsa **başka bir hesap kullan** seçeneğiyle doğru hesabı seç.
-3. Karttaki hesap adresini ve veri kaynağını kontrol et. Bir hesap ikinci kez görünüyorsa veya giriş başka bir hesaba aitse ilgili karttaki **Yeniden bağla** düğmesini kullan.
-4. **ChatGPT / Codex** kartında sağlayıcının döndürdüğü 5 saatlik ve haftalık Codex kotasını ve yenilenme zamanlarını ayrı ayrı görebilirsin.
-5. **Claude** kartında canlı ölçüm için uyumlu bir Claude Code oturumu gerekir. Karttaki kullanım simgesi tarayıcıda Claude kullanım sayfasını açar.
-6. **Antigravity** kartındaki model havuzlarını ayrı ayrı kontrol et. Kayıtlı veri gösteriliyorsa son ölçüm zamanı kartta yer alır.
+<div align="center">
+  <img src="./screenshots/music-colors.gif" alt="Üst Ada, Explorer Dock ve Sistem Tepsisinde eşzamanlı albüm kapağı renk geçişi" width="100%"/>
+  <br/>
+  <sub><a href="./screenshots/music-colors.gif">GIF'i Tam Boyut Aç</a></sub>
+</div>
 
-## Genel kontroller
+<br/>
 
-| İşlem | Nereden ulaşılır |
-| --- | --- |
-| Oynatma ve medya oturumu seçme | Üst ada → Şimdi |
-| Uygulama sesini ve çıkış aygıtını ayarlama | Üst ada → Ses |
-| Parlaklık, güç ve uyku ayarları | Üst ada → Kontrol |
-| Uygulama veya açık pencere arama | **Ctrl+Shift+Space** |
-| Standart Windows görev çubuğunu geri getirme | DinamikAda’dan çık → **DinamikAda-Windows-Barina-Don.bat** |
+<div align="center">
+  <img src="./screenshots/music-start-menu.gif" alt="Windows 11 Başlat Menüsünde sürekli albüm kapağı rengi" width="680"/>
+  <br/>
+  <sub>Windows 11 Başlat Menüsü senkronizasyonu (<a href="./screenshots/music-start-menu.gif">GIF'i Tam Boyut Aç</a>)</sub>
+</div>
 
-[Proje ana sayfası](../README.md)
+---
+
+### 5. Bağımsız Alt Dock, Başlat Launcher ve Açılır Pencereler
+Explorer modu dışında veya özel düzenlerde kullanılabilen bağımsız **Alt Dock**, uygulama arayıcılı **Başlat Launchpad**, entegre **Takvim**, **Arka Plan Uygulamaları** tepsisi ve detaylı **Ayarlar** penceresi.
+
+<div align="center">
+  <img src="./screenshots/standalone-dock-launchpad.gif" alt="Bağımsız Alt Dock, Başlat menüsü, Takvim, Arka Plan Uygulamaları ve Ayarlar" width="720"/>
+  <br/>
+  <sub><a href="./screenshots/standalone-dock-launchpad.gif">GIF'i Tam Boyut Aç</a></sub>
+</div>
+
+---
+
+## Hızlı Başlangıç
+
+1. Projeyi başlatmak için kök dizindeki başlatıcıyı çalıştırın:
+   ```powershell
+   .\DinamikAda-Baslat.bat
+   ```
+2. **Ayarlar -> Görev Çubuğu & Dock** bölümünden **Explorer.exe Doğal Ada (Windhawk)** modunu etkinleştirin veya bağımsız dock modunu seçin.
+3. Kurulum sonrası doğrulama ve Explorer döngü testi için:
+   ```powershell
+   .\DinamikAda-Baslat.bat --verify
+   .\scripts\verify-explorer-taskbar.ps1 -RevealCycle
+   ```
+4. Varsayılan Windows görev çubuğuna istediğiniz an geri dönmek için Ayarlar içinden modu kapatmanız yeterlidir; çalışma alanı (`SPI_SETWORKAREA`) otomatik olarak geri yüklenir.
+
+---
+
+## AI Kota & Hesaplar
+
+- **Kalıcı Kayıt:** Eklenen tüm hesaplar, etiketler, eşikler ve son senkronize kullanım değerleri yerel uygulama veri klasöründe saklanır; DinamikAda kapatılıp açıldığında veya PC yeniden başlatıldığında kaybolmaz.
+- **Google Antigravity OAuth:** Düzenle / Ekle penceresindeki **Google (Antigravity) ile Giriş Yap** düğmesi doğrudan tarayıcıda OAuth akışını başlatır ve bağlanan gerçek hesabı kartla eşleştirir.
+- **Üst Kapsül Özeti:** Aktif seçili AI hesaplarınız üst adadaki kompakt kapsülde anlık yeşil/sarı/kırmızı yüzde durumu ile görünür.
