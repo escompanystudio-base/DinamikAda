@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="DinamikAda — Ayarlar"
-        Width="656"
+        Width="720"
         Height="720"
-        MinWidth="580"
-        MinHeight="460"
+        MinWidth="440"
+        MinHeight="370"
         WindowStartupLocation="Manual"
         Background="#FF050608"
         Foreground="#FFF5F5F7"
@@ -19,6 +19,38 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/Themes/ObsidianGlassTheme.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="SettingsSectionButton" TargetType="RadioButton">
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Margin" Value="0,0,6,5"/>
+                <Setter Property="Padding" Value="12,7"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="Chip" Background="#FF151A22" BorderBrush="#FF252D39"
+                                    BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Chip" Property="Background" Value="#FF202C3C"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Chip" Property="Background" Value="#FF112C43"/>
+                                    <Setter TargetName="Chip" Property="BorderBrush" Value="#FF377CAC"/>
+                                    <Setter Property="Foreground" Value="#FFBDEAFF"/>
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Chip" Property="BorderBrush" Value="#FFA7DEFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </Window.Resources>
 
@@ -37,6 +69,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
@@ -49,14 +82,22 @@
                                Foreground="{StaticResource AccentCyanBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock x:Name="TxtHeaderTitle" Text="DinamikAda Ayarları" FontFamily="{StaticResource UiFont}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <TextBlock x:Name="TxtHeaderSubtitle" Text="MacBook çentik görünümü, çoklu monitör yerleşimi, yenileme hızı ve modül izinleri" FontFamily="{StaticResource UiTextFont}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                    <TextBlock x:Name="TxtHeaderTitle" Text="DinamikAda Ayarları" FontFamily="{StaticResource UiFont}" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock x:Name="TxtHeaderSubtitle" Text="Adanın görünümünü ve çalışma biçimini ayarlayın." FontFamily="{StaticResource UiTextFont}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </DockPanel>
 
+            <WrapPanel Grid.Row="1" Margin="0,0,0,9">
+                <RadioButton x:Name="NavAppearance" GroupName="SettingsSection" IsChecked="True" Style="{StaticResource SettingsSectionButton}" Content="Görünüm" Checked="OnSettingsSectionChanged"/>
+                <RadioButton x:Name="NavDock" GroupName="SettingsSection" Style="{StaticResource SettingsSectionButton}" Content="Alt Dock" Checked="OnSettingsSectionChanged"/>
+                <RadioButton x:Name="NavInteraction" GroupName="SettingsSection" Style="{StaticResource SettingsSectionButton}" Content="Etkileşim" Checked="OnSettingsSectionChanged"/>
+                <RadioButton x:Name="NavModules" GroupName="SettingsSection" Style="{StaticResource SettingsSectionButton}" Content="Modüller" Checked="OnSettingsSectionChanged"/>
+                <RadioButton x:Name="NavIntegrations" GroupName="SettingsSection" Style="{StaticResource SettingsSectionButton}" Content="Entegrasyonlar" Checked="OnSettingsSectionChanged"/>
+            </WrapPanel>
+
             <!-- Inline Error / Validation Banner -->
             <Border x:Name="BannerInlineError"
-                    Grid.Row="1"
+                    Grid.Row="2"
                     Visibility="Collapsed"
                     Margin="0,0,0,10"
                     Background="#2BFF453A"
@@ -68,15 +109,15 @@
                            FontFamily="{StaticResource UiTextFont}"
                            FontSize="11.5"
                            Foreground="#FFFFDCD8"
-                           TextWrapping="Wrap"/>
+                           TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive"/>
             </Border>
 
             <!-- Scrollable Obsidian Bento Sections -->
-            <ScrollViewer Grid.Row="2" Style="{StaticResource ObsidianScrollViewerStyle}" Padding="0,0,6,0">
+            <ScrollViewer x:Name="SettingsScroller" Grid.Row="3" Style="{StaticResource ObsidianScrollViewerStyle}" Padding="0,0,6,0">
                 <StackPanel>
 
                     <!-- Section 0: Live MacBook Display Bezel Preview -->
-                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,12">
+                    <Border x:Name="PreviewSection" Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,12">
                         <StackPanel>
                             <DockPanel Margin="0,0,0,10">
                                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
@@ -177,7 +218,7 @@
                     </Border>
 
                     <!-- Section 1: Placement & Monitors -->
-                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
+                    <Border x:Name="PlacementSection" Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                 <Border Width="22" Height="22" CornerRadius="7" Background="#240A84FF" Margin="0,0,8,0">
@@ -188,8 +229,8 @@
 
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="220"/>
-                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="2*" MaxWidth="210" MinWidth="120"/>
+                                    <ColumnDefinition Width="3*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -204,41 +245,41 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <TextBlock x:Name="LblLanguage" Grid.Row="0" Grid.Column="0" Text="Dil" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <ComboBox x:Name="ComboLanguage" Grid.Row="0" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnLanguageSelectionChanged"/>
+                                <TextBlock x:Name="LblLanguage" Grid.Row="0" Grid.Column="0" Text="Dil" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <ComboBox x:Name="ComboLanguage" AutomationProperties.LabeledBy="{Binding ElementName=LblLanguage}" Grid.Row="0" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnLanguageSelectionChanged"/>
 
-                                <TextBlock x:Name="LblDockMode" Grid.Row="1" Grid.Column="0" Text="Yerleşim Konumu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <ComboBox x:Name="ComboDockMode" Grid.Row="1" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
+                                <TextBlock x:Name="LblDockMode" Grid.Row="1" Grid.Column="0" Text="Yerleşim Konumu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <ComboBox x:Name="ComboDockMode" AutomationProperties.LabeledBy="{Binding ElementName=LblDockMode}" Grid.Row="1" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
 
-                                <TextBlock x:Name="LblNotchScalePreset" Grid.Row="2" Grid.Column="0" Text="Çentik Boyutu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <ComboBox x:Name="ComboNotchScalePreset" Grid.Row="2" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
+                                <TextBlock x:Name="LblNotchScalePreset" Grid.Row="2" Grid.Column="0" Text="Çentik Boyutu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <ComboBox x:Name="ComboNotchScalePreset" AutomationProperties.LabeledBy="{Binding ElementName=LblNotchScalePreset}" Grid.Row="2" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
 
-                                <TextBlock x:Name="LblMonitorMode" Grid.Row="3" Grid.Column="0" Text="Monitör Modu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <ComboBox x:Name="ComboMonitorMode" Grid.Row="3" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
+                                <TextBlock x:Name="LblMonitorMode" Grid.Row="3" Grid.Column="0" Text="Monitör Modu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <ComboBox x:Name="ComboMonitorMode" AutomationProperties.LabeledBy="{Binding ElementName=LblMonitorMode}" Grid.Row="3" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
 
-                                <TextBlock x:Name="LblPinnedMonitor" Grid.Row="4" Grid.Column="0" Text="Hedef Monitör" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <ComboBox x:Name="ComboPinnedMonitor" Grid.Row="4" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
+                                <TextBlock x:Name="LblPinnedMonitor" Grid.Row="4" Grid.Column="0" Text="Hedef Monitör" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <ComboBox x:Name="ComboPinnedMonitor" AutomationProperties.LabeledBy="{Binding ElementName=LblPinnedMonitor}" Grid.Row="4" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
 
-                                <TextBlock x:Name="LblDetent" Grid.Row="5" Grid.Column="0" Text="Yatay Hizalama" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <ComboBox x:Name="ComboDetent" Grid.Row="5" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
+                                <TextBlock x:Name="LblDetent" Grid.Row="5" Grid.Column="0" Text="Yatay Hizalama" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <ComboBox x:Name="ComboDetent" AutomationProperties.LabeledBy="{Binding ElementName=LblDetent}" Grid.Row="5" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
 
-                                <TextBlock x:Name="LblCustomRatio" Grid.Row="6" Grid.Column="0" Text="Yatay Konum (%)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <TextBlock x:Name="LblCustomRatio" Grid.Row="6" Grid.Column="0" Text="Yatay Konum (%)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
                                 <Grid Grid.Row="6" Grid.Column="1" Margin="0,4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="60"/>
                                     </Grid.ColumnDefinitions>
-                                    <Slider x:Name="SliderCustomRatio" Style="{StaticResource ObsidianSliderStyle}" Minimum="8" Maximum="92" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                    <Slider x:Name="SliderCustomRatio" AutomationProperties.LabeledBy="{Binding ElementName=LblCustomRatio}" Style="{StaticResource ObsidianSliderStyle}" Minimum="8" Maximum="92" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
                                     <TextBlock x:Name="ValCustomRatio" Grid.Column="1" Text="50%" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                 </Grid>
 
-                                <TextBlock x:Name="LblCustomFreeTop" Grid.Row="7" Grid.Column="0" Text="Serbest Üst Mesafe (dp)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <TextBlock x:Name="LblCustomFreeTop" Grid.Row="7" Grid.Column="0" Text="Serbest Üst Mesafe (dp)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
                                 <Grid Grid.Row="7" Grid.Column="1" Margin="0,4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="60"/>
                                     </Grid.ColumnDefinitions>
-                                    <Slider x:Name="SliderCustomFreeTop" Style="{StaticResource ObsidianSliderStyle}" Minimum="0" Maximum="2000" TickFrequency="2" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                    <Slider x:Name="SliderCustomFreeTop" AutomationProperties.LabeledBy="{Binding ElementName=LblCustomFreeTop}" Style="{StaticResource ObsidianSliderStyle}" Minimum="0" Maximum="2000" TickFrequency="2" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
                                     <TextBlock x:Name="ValCustomFreeTop" Grid.Column="1" Text="12 dp" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                 </Grid>
 
@@ -249,7 +290,7 @@
                     </Border>
 
                     <!-- Section 1.5: Synchronized macOS Bottom Dock & Taskbar Replacement -->
-                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
+                    <Border x:Name="DockSection" Visibility="Collapsed" Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                 <Border Width="22" Height="22" CornerRadius="7" Background="#2464D2FF" Margin="0,0,8,0">
@@ -258,6 +299,8 @@
                                 <TextBlock x:Name="HdrBottomDockSection" Text="Alt Dock &amp; Görev Çubuğu" FontFamily="{StaticResource UiFont}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                             </StackPanel>
 
+                            <CheckBox x:Name="ChkExplorerTaskbar" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,2,0,4" Content="Windows'un kendi görev çubuğunu DinamikAda tasarımıyla kullan" Click="OnBottomDockToggleChanged"/>
+                            <TextBlock x:Name="LblExplorerTaskbarStatus" Style="{StaticResource NotchSubtitleTextStyle}" TextWrapping="Wrap" Margin="0,2,0,10"/>
                             <CheckBox x:Name="ChkEnableBottomDock" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,2,0,4" Content="macOS Tarzı Senkron Alt Dock" Click="OnBottomDockToggleChanged"/>
                             <CheckBox x:Name="ChkHideWindowsTaskbar" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Windows Görev Çubuğunu Gizle (Alt Dock Açıkken)"/>
                             <CheckBox x:Name="ChkDockMagnification" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Üzerine Gelince Simge Büyütme Animasyonu"/>
@@ -265,19 +308,19 @@
 
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="220"/>
-                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="2*" MaxWidth="210" MinWidth="120"/>
+                                    <ColumnDefinition Width="3*"/>
                                     <ColumnDefinition Width="60"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="LblDockIconSize" Grid.Column="0" Text="Alt Dock Simge Boyutu (dp)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center"/>
-                                <Slider x:Name="SliderDockIconSize" Grid.Column="1" Style="{StaticResource ObsidianSliderStyle}" Minimum="26" Maximum="48" TickFrequency="2" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                <TextBlock x:Name="LblDockIconSize" Grid.Column="0" Text="Alt Dock Simge Boyutu (dp)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                <Slider x:Name="SliderDockIconSize" AutomationProperties.LabeledBy="{Binding ElementName=LblDockIconSize}" Grid.Column="1" Style="{StaticResource ObsidianSliderStyle}" Minimum="26" Maximum="48" TickFrequency="2" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
                                 <TextBlock x:Name="ValDockIconSize" Grid.Column="2" Text="32 dp" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
                         </StackPanel>
                     </Border>
 
                     <!-- Section 2: Performance, Refresh Rate & Interaction -->
-                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
+                    <Border x:Name="MotionSection" Visibility="Collapsed" Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                 <Border Width="22" Height="22" CornerRadius="7" Background="#2430D158" Margin="0,0,8,0">
@@ -288,8 +331,8 @@
 
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="220"/>
-                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="2*" MaxWidth="210" MinWidth="120"/>
+                                    <ColumnDefinition Width="3*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -302,45 +345,45 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <TextBlock x:Name="LblTargetFpsCap" Grid.Row="0" Grid.Column="0" Text="Kare Hızı Sınırı" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <ComboBox x:Name="ComboTargetFpsCap" Grid.Row="0" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
+                                <TextBlock x:Name="LblTargetFpsCap" Grid.Row="0" Grid.Column="0" Text="Kare Hızı Sınırı" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <ComboBox x:Name="ComboTargetFpsCap" AutomationProperties.LabeledBy="{Binding ElementName=LblTargetFpsCap}" Grid.Row="0" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4" SelectionChanged="OnPlacementChoiceChanged"/>
 
                                 <TextBlock x:Name="TxtRefreshRateHint" Grid.Row="1" Grid.Column="1" Text="Aktif ekran tazeleme hızı algılanıyor..." FontFamily="{StaticResource UiTextFont}" FontSize="10.5" Foreground="{StaticResource AccentCyanBrush}" Margin="2,0,0,6" TextWrapping="Wrap"/>
 
-                                <TextBlock x:Name="LblExpandTrigger" Grid.Row="2" Grid.Column="0" Text="Genişletme Tetikleyici" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <ComboBox x:Name="ComboExpandTrigger" Grid.Row="2" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4"/>
+                                <TextBlock x:Name="LblExpandTrigger" Grid.Row="2" Grid.Column="0" Text="Genişletme Tetikleyici" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <ComboBox x:Name="ComboExpandTrigger" AutomationProperties.LabeledBy="{Binding ElementName=LblExpandTrigger}" Grid.Row="2" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4"/>
 
-                                <TextBlock x:Name="LblHoverDwell" Grid.Row="3" Grid.Column="0" Text="Üzerinde Bekleme (ms)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <TextBlock x:Name="LblHoverDwell" Grid.Row="3" Grid.Column="0" Text="Üzerinde Bekleme (ms)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
                                 <Grid Grid.Row="3" Grid.Column="1" Margin="0,4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="60"/>
                                     </Grid.ColumnDefinitions>
-                                    <Slider x:Name="SliderHoverDwell" Style="{StaticResource ObsidianSliderStyle}" Minimum="40" Maximum="2000" TickFrequency="20" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                    <Slider x:Name="SliderHoverDwell" AutomationProperties.LabeledBy="{Binding ElementName=LblHoverDwell}" Style="{StaticResource ObsidianSliderStyle}" Minimum="40" Maximum="2000" TickFrequency="20" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
                                     <TextBlock x:Name="ValHoverDwell" Grid.Column="1" Text="240 ms" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                 </Grid>
 
-                                <TextBlock x:Name="LblCollapseDelay" Grid.Row="4" Grid.Column="0" Text="Daralma Gecikmesi (ms)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <TextBlock x:Name="LblCollapseDelay" Grid.Row="4" Grid.Column="0" Text="Daralma Gecikmesi (ms)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
                                 <Grid Grid.Row="4" Grid.Column="1" Margin="0,4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="60"/>
                                     </Grid.ColumnDefinitions>
-                                    <Slider x:Name="SliderCollapseDelay" Style="{StaticResource ObsidianSliderStyle}" Minimum="80" Maximum="5000" TickFrequency="20" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                    <Slider x:Name="SliderCollapseDelay" AutomationProperties.LabeledBy="{Binding ElementName=LblCollapseDelay}" Style="{StaticResource ObsidianSliderStyle}" Minimum="80" Maximum="5000" TickFrequency="20" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
                                     <TextBlock x:Name="ValCollapseDelay" Grid.Column="1" Text="320 ms" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                 </Grid>
 
-                                <TextBlock x:Name="LblHotkey" Grid.Row="5" Grid.Column="0" Text="Genel Kısayol Tuşu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
+                                <TextBlock x:Name="LblHotkey" Grid.Row="5" Grid.Column="0" Text="Genel Kısayol Tuşu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
                                 <StackPanel Grid.Row="5" Grid.Column="1" Margin="0,4">
-                                    <TextBox x:Name="TxtHotkey" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32"/>
-                                    <TextBlock x:Name="TxtHotkeyHint" Text="Örn: Ctrl+Shift+Space, Alt+Space, Win+Shift+D" Style="{StaticResource NotchMutedLabelStyle}" Margin="2,3,0,0"/>
+                                    <TextBox x:Name="TxtHotkey" AutomationProperties.LabeledBy="{Binding ElementName=LblHotkey}" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32"/>
+                                    <TextBlock x:Name="TxtHotkeyHint" Text="Örn: Ctrl+Shift+Space, Alt+Space, Win+Shift+D" Style="{StaticResource NotchMutedLabelStyle}" Margin="2,3,0,0" TextWrapping="Wrap"/>
                                 </StackPanel>
 
-                                <TextBlock x:Name="LblMicMuteHotkey" Grid.Row="6" Grid.Column="0" Text="Mikrofon Susturma Kısayolu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <TextBox x:Name="TxtMicMuteHotkey" Grid.Row="6" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32" Margin="0,4"/>
+                                <TextBlock x:Name="LblMicMuteHotkey" Grid.Row="6" Grid.Column="0" Text="Mikrofon Susturma Kısayolu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <TextBox x:Name="TxtMicMuteHotkey" AutomationProperties.LabeledBy="{Binding ElementName=LblMicMuteHotkey}" Grid.Row="6" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32" Margin="0,4"/>
 
-                                <TextBlock x:Name="LblColorPickerHotkey" Grid.Row="7" Grid.Column="0" Text="Renk Seçici Kısayolu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <TextBox x:Name="TxtColorPickerHotkey" Grid.Row="7" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32" Margin="0,4"/>
+                                <TextBlock x:Name="LblColorPickerHotkey" Grid.Row="7" Grid.Column="0" Text="Renk Seçici Kısayolu" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <TextBox x:Name="TxtColorPickerHotkey" AutomationProperties.LabeledBy="{Binding ElementName=LblColorPickerHotkey}" Grid.Row="7" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32" Margin="0,4"/>
                             </Grid>
 
                             <Separator Margin="0,10,0,8" Background="#16FFFFFF" Height="1"/>
@@ -354,7 +397,7 @@
                     </Border>
 
                     <!-- Section 3: Fullscreen Behavior -->
-                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
+                    <Border x:Name="FullscreenSection" Visibility="Collapsed" Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                 <Border Width="22" Height="22" CornerRadius="7" Background="#24FF9F0A" Margin="0,0,8,0">
@@ -365,8 +408,8 @@
 
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="220"/>
-                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="2*" MaxWidth="210" MinWidth="120"/>
+                                    <ColumnDefinition Width="3*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -376,20 +419,20 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <TextBlock x:Name="LblGamePolicy" Grid.Row="0" Grid.Column="0" Text="Oyunlar" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <ComboBox x:Name="ComboGamePolicy" Grid.Row="0" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4"/>
+                                <TextBlock x:Name="LblGamePolicy" Grid.Row="0" Grid.Column="0" Text="Oyunlar" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <ComboBox x:Name="ComboGamePolicy" AutomationProperties.LabeledBy="{Binding ElementName=LblGamePolicy}" Grid.Row="0" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4"/>
 
-                                <TextBlock x:Name="LblVideoPolicy" Grid.Row="1" Grid.Column="0" Text="Tam Ekran Video" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <ComboBox x:Name="ComboVideoPolicy" Grid.Row="1" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4"/>
+                                <TextBlock x:Name="LblVideoPolicy" Grid.Row="1" Grid.Column="0" Text="Tam Ekran Video" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <ComboBox x:Name="ComboVideoPolicy" AutomationProperties.LabeledBy="{Binding ElementName=LblVideoPolicy}" Grid.Row="1" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4"/>
 
-                                <TextBlock x:Name="LblProductivityPolicy" Grid.Row="2" Grid.Column="0" Text="Diğer Tam Ekran Uygulamalar" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <ComboBox x:Name="ComboProductivityPolicy" Grid.Row="2" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4"/>
+                                <TextBlock x:Name="LblProductivityPolicy" Grid.Row="2" Grid.Column="0" Text="Diğer Tam Ekran Uygulamalar" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <ComboBox x:Name="ComboProductivityPolicy" AutomationProperties.LabeledBy="{Binding ElementName=LblProductivityPolicy}" Grid.Row="2" Grid.Column="1" Style="{StaticResource ObsidianComboBoxStyle}" Height="31" Margin="0,4"/>
 
-                                <TextBlock x:Name="LblWhitelistExes" Grid.Row="3" Grid.Column="0" Text="Her Zaman Kompakt (.exe)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <TextBox x:Name="TxtWhitelistExes" Grid.Row="3" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32" Margin="0,4" ToolTip="Virgülle ayrılmış: vlc.exe, potplayermini64.exe"/>
+                                <TextBlock x:Name="LblWhitelistExes" Grid.Row="3" Grid.Column="0" Text="Her Zaman Kompakt (.exe)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <TextBox x:Name="TxtWhitelistExes" AutomationProperties.LabeledBy="{Binding ElementName=LblWhitelistExes}" Grid.Row="3" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32" Margin="0,4" ToolTip="Virgülle ayrılmış: vlc.exe, potplayermini64.exe"/>
 
-                                <TextBlock x:Name="LblHideExes" Grid.Row="4" Grid.Column="0" Text="Her Zaman Gizle (.exe)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,6"/>
-                                <TextBox x:Name="TxtHideExes" Grid.Row="4" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32" Margin="0,4" ToolTip="Virgülle ayrılmış: cs2.exe, valorant.exe"/>
+                                <TextBlock x:Name="LblHideExes" Grid.Row="4" Grid.Column="0" Text="Her Zaman Gizle (.exe)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,6,10,6"/>
+                                <TextBox x:Name="TxtHideExes" AutomationProperties.LabeledBy="{Binding ElementName=LblHideExes}" Grid.Row="4" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="32" Margin="0,4" ToolTip="Virgülle ayrılmış: cs2.exe, valorant.exe"/>
                             </Grid>
 
                             <Separator Margin="0,8,0,6" Background="#16FFFFFF" Height="1"/>
@@ -400,7 +443,7 @@
                     </Border>
 
                     <!-- Section 4: Modules, Tabs & Startup -->
-                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
+                    <Border x:Name="ModulesSection" Visibility="Collapsed" Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                 <Border Width="22" Height="22" CornerRadius="7" Background="#24BF5AF2" Margin="0,0,8,0">
@@ -410,27 +453,29 @@
                             </StackPanel>
 
                             <TextBlock x:Name="LblPinnedTabs" Text="Görünür Sekmeler (en az 1)" Style="{StaticResource NotchSubtitleTextStyle}" Margin="0,0,0,6"/>
-                            <UniformGrid Columns="3" Margin="0,0,0,8">
+                            <UniformGrid Columns="4" Margin="0,0,0,8">
                                 <CheckBox x:Name="ChkTabNow" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
                                 <CheckBox x:Name="ChkTabAudio" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
                                 <CheckBox x:Name="ChkTabControl" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
                                 <CheckBox x:Name="ChkTabShelf" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
                                 <CheckBox x:Name="ChkTabSystem" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
                                 <CheckBox x:Name="ChkTabWidgets" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
+                                <CheckBox x:Name="ChkTabAiQuota" Style="{StaticResource ObsidianCheckBoxStyle}" Margin="0,3" Click="OnPinnedTabChanged"/>
                             </UniformGrid>
 
                             <Grid Margin="0,2,0,8">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="220"/>
-                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="2*" MaxWidth="210" MinWidth="120"/>
+                                    <ColumnDefinition Width="3*"/>
                                     <ColumnDefinition Width="52"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="LblMaxClipboard" Grid.Column="0" Text="Maks. Pano Öğesi" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center"/>
-                                <Slider x:Name="SliderMaxClipboard" Grid.Column="1" Style="{StaticResource ObsidianSliderStyle}" Minimum="5" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                <TextBlock x:Name="LblMaxClipboard" Grid.Column="0" Text="Maks. Pano Öğesi" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                <Slider x:Name="SliderMaxClipboard" AutomationProperties.LabeledBy="{Binding ElementName=LblMaxClipboard}" Grid.Column="1" Style="{StaticResource ObsidianSliderStyle}" Minimum="5" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
                                 <TextBlock x:Name="ValMaxClipboard" Grid.Column="2" Text="30" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
 
                             <CheckBox x:Name="ChkShowTelemetryPill" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Kompakt Kapsülde CPU/RAM Özeti Göster"/>
+                            <CheckBox x:Name="ChkShowAiQuotaSummary" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Adada &amp; Dock'ta Canlı AI Kota Özeti / Düşük Kota Uyarısı"/>
                             <CheckBox x:Name="ChkMicPrivacyAlert" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Mikrofon Aktif Uyarısını Adada Göster"/>
                             <CheckBox x:Name="ChkMirrorOsNotifications" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Windows Bildirimlerini Adada Aynala"/>
                             <CheckBox x:Name="ChkClipboardVault" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Şifreli Pano Kasası (DPAPI)"/>
@@ -442,11 +487,16 @@
                             <CheckBox x:Name="ChkUsbDriveHud" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="USB / Harici Disk Tak-Çıkar HUD &amp; Güvenle Çıkar"/>
                             <CheckBox x:Name="ChkDevBridgeEnabled" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Geliştirici Bildirim Köprüsü (HTTP + Named Pipe)"/>
                             <CheckBox x:Name="ChkLaunchAtStartup" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Windows ile Başlat"/>
+                        </StackPanel>
+                    </Border>
 
-                            <Grid Margin="0,8,0,0">
+                    <Border x:Name="SourcesSection" Visibility="Collapsed" Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
+                        <StackPanel>
+                            <TextBlock x:Name="HdrSourcesSection" Text="Veri kaynakları ve bağlantı" FontFamily="{StaticResource UiFont}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                            <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="220"/>
-                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="2*" MaxWidth="210" MinWidth="120"/>
+                                    <ColumnDefinition Width="3*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -455,22 +505,22 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                <TextBlock x:Name="LblCalendarSources" Grid.Row="0" Grid.Column="0" Text="Takvim .ics Kaynakları" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,5"/>
-                                <TextBox x:Name="TxtCalendarSources" Grid.Row="0" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3" ToolTip="Yerel .ics dosya yolu veya https:// takvim URL (satır veya noktalı virgül ile ayırın)"/>
-                                <TextBlock x:Name="LblDownloadsPath" Grid.Row="1" Grid.Column="0" Text="İzlenen İndirme Klasörü" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,5"/>
-                                <TextBox x:Name="TxtDownloadsPath" Grid.Row="1" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3" ToolTip="Boş = Varsayılan Windows İndirilenler klasörü"/>
-                                <TextBlock x:Name="LblLyricsFolders" Grid.Row="2" Grid.Column="0" Text="Şarkı Sözü Klasörleri (.lrc)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,5"/>
-                                <TextBox x:Name="TxtLyricsFolders" Grid.Row="2" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3" ToolTip="Boş = Müzik klasörün · Ek .lrc klasörlerini ';' ile ayırın"/>
-                                <TextBlock x:Name="LblPingHost" Grid.Row="3" Grid.Column="0" Text="Ping Hedefi (IP / Alan Adı)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,5"/>
-                                <TextBox x:Name="TxtPingHost" Grid.Row="3" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3"/>
-                                <TextBlock x:Name="LblDevBridgePort" Grid.Row="4" Grid.Column="0" Text="Geliştirici Köprüsü Portu (127.0.0.1)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" Margin="0,5"/>
-                                <TextBox x:Name="TxtDevBridgePort" Grid.Row="4" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3"/>
+                                <TextBlock x:Name="LblCalendarSources" Grid.Row="0" Grid.Column="0" Text="Takvim .ics Kaynakları" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,5,10,5"/>
+                                <TextBox x:Name="TxtCalendarSources" AutomationProperties.LabeledBy="{Binding ElementName=LblCalendarSources}" Grid.Row="0" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3" ToolTip="Yerel .ics dosya yolu veya https:// takvim URL (satır veya noktalı virgül ile ayırın)"/>
+                                <TextBlock x:Name="LblDownloadsPath" Grid.Row="1" Grid.Column="0" Text="İzlenen İndirme Klasörü" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,5,10,5"/>
+                                <TextBox x:Name="TxtDownloadsPath" AutomationProperties.LabeledBy="{Binding ElementName=LblDownloadsPath}" Grid.Row="1" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3" ToolTip="Boş = Varsayılan Windows İndirilenler klasörü"/>
+                                <TextBlock x:Name="LblLyricsFolders" Grid.Row="2" Grid.Column="0" Text="Şarkı Sözü Klasörleri (.lrc)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,5,10,5"/>
+                                <TextBox x:Name="TxtLyricsFolders" AutomationProperties.LabeledBy="{Binding ElementName=LblLyricsFolders}" Grid.Row="2" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3" ToolTip="Boş = Müzik klasörün · Ek .lrc klasörlerini ';' ile ayırın"/>
+                                <TextBlock x:Name="LblPingHost" Grid.Row="3" Grid.Column="0" Text="Ping Hedefi (IP / Alan Adı)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,5,10,5"/>
+                                <TextBox x:Name="TxtPingHost" AutomationProperties.LabeledBy="{Binding ElementName=LblPingHost}" Grid.Row="3" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3"/>
+                                <TextBlock x:Name="LblDevBridgePort" Grid.Row="4" Grid.Column="0" Text="Geliştirici Köprüsü Portu (127.0.0.1)" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,5,10,5"/>
+                                <TextBox x:Name="TxtDevBridgePort" AutomationProperties.LabeledBy="{Binding ElementName=LblDevBridgePort}" Grid.Row="4" Grid.Column="1" Style="{StaticResource ObsidianTextBoxStyle}" MinHeight="30" Margin="0,3"/>
                             </Grid>
                         </StackPanel>
                     </Border>
 
                     <!-- Section 5: Package Identity & Plugins -->
-                    <Border Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,6" Padding="15,13">
+                    <Border x:Name="IdentitySection" Visibility="Collapsed" Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,6" Padding="15,13">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <Border Width="22" Height="22" CornerRadius="7" Background="#2464D2FF" Margin="0,0,8,0">
@@ -494,11 +544,14 @@
             </ScrollViewer>
 
             <!-- Action Footer -->
-            <DockPanel Grid.Row="3" Margin="0,14,0,0">
+            <StackPanel Grid.Row="4" Margin="0,12,0,0">
+                <TextBlock x:Name="TxtSettingsNotice" Visibility="Collapsed" FontSize="12" Foreground="{StaticResource AccentCyanBrush}"
+                           Margin="0,0,0,8" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+                <DockPanel>
                 <Button x:Name="BtnResetDefaults"
                         DockPanel.Dock="Left"
                         Style="{StaticResource DarkActionButtonStyle}"
-                        Height="34"
+                        Height="38"
                         Padding="14,0"
                         Content="Varsayılanlara Sıfırla"
                         Click="OnResetDefaultsClick"/>
@@ -506,19 +559,22 @@
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button x:Name="BtnCancel"
                             Style="{StaticResource DarkActionButtonStyle}"
-                            Height="34"
-                            MinWidth="92"
+                            Height="38"
+                            MinWidth="76"
                             Margin="0,0,8,0"
                             Content="İptal"
+                            IsCancel="True"
                             Click="OnCancelClick"/>
                     <Button x:Name="BtnSave"
                             Style="{StaticResource AccentHeroButtonStyle}"
-                            Height="34"
-                            MinWidth="114"
+                            Height="38"
+                            MinWidth="96"
                             Content="Kaydet"
+                            IsDefault="True"
                             Click="OnSaveClick"/>
                 </StackPanel>
-            </DockPanel>
+                </DockPanel>
+            </StackPanel>
         </Grid>
     </Grid>
 </Window>

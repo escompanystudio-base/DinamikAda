@@ -334,6 +334,17 @@ public sealed class GsmtcMediaService : IMediaControlBackend
             {
                 _lastTrackSignature = sig;
                 byte[]? fetched = await ReadThumbnailBytesAsync(mediaProps?.Thumbnail, ct);
+                if (fetched is null && trackChanged && _current.HasSession && string.Equals(chosenId, _current.SessionId, StringComparison.Ordinal))
+                {
+                    // Many GSMTC sources (Spotify/browsers) update Title/Artist slightly before resolving Thumbnail.
+                    await Task.Delay(90, ct);
+                    var retryProps = await chosen.TryGetMediaPropertiesAsync().AsTask(ct);
+                    if (retryProps?.Thumbnail is not null)
+                    {
+                        mediaProps = retryProps;
+                        fetched = await ReadThumbnailBytesAsync(mediaProps.Thumbnail, ct);
+                    }
+                }
                 byte[]? fetchedHash = ComputeThumbnailHash(fetched);
 
                 if (fetched is null)

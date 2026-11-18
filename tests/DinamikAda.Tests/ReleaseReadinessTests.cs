@@ -564,7 +564,9 @@ public sealed class ReleaseReadinessTests
 
         using var svc = new AiQuotaTrackerService(cfg, () => saveCount++, hudBus.Object, clock);
         svc.Start();
+        Assert.Empty(cfg.AiQuotaSlots); // Start() must never auto-seed accounts without user consent
 
+        svc.SeedStarterSlotsIfNeeded();
         Assert.True(cfg.AiQuotaSeeded);
         Assert.Equal(4, cfg.AiQuotaSlots.Count);
         Assert.True(saveCount >= 1);
@@ -611,14 +613,273 @@ public sealed class ReleaseReadinessTests
         Assert.False(svc.HasActiveCooldowns);
 
         // Verify Config Sanitize bounds up to MaxSlotCount and clamps window minutes
-        for (int i = 0; i < 15; i++)
+        for (int i = 0; i < 30; i++)
         {
-            svc.AddSlot("Custom", $"Custom #{i}", resetWindowMinutes: 20000);
+            svc.AddSlot("Custom", $"Custom #{i}", resetWindowMinutes: 90000);
         }
         cfg.Sanitize();
         Assert.Equal(AiQuotaSlotConfig.MaxSlotCount, cfg.AiQuotaSlots.Count);
         Assert.All(cfg.AiQuotaSlots, s =>
             Assert.InRange(s.ResetWindowMinutes, AiQuotaSlotConfig.MinWindowMinutes, AiQuotaSlotConfig.MaxWindowMinutes));
+    }
+
+    [Fact]
+    public async Task AiQuotaTracker_UsageCountsLowThresholdAndLocalCliReaders_WorkEndToEnd()
+    {
+        var clock = new MutableUtcTimeProvider(new DateTimeOffset(2026, 11, 17, 10, 0, 0, TimeSpan.Zero));
+        var huds = new List<TransientHudEvent>();
+        var hudBus = new Mock<ITransientHudBus>();
+        hudBus.Setup(h => h.Publish(It.IsAny<TransientHudEvent>())).Callback<TransientHudEvent>(huds.Add);
+
+        string tempRoot = Path.Combine(Path.GetTempPath(), "DinamikAda_AiCliTest_" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            // Seed fake Codex, Claude Code, and Gemini CLI non-secret files
+            string codexRoot = Path.Combine(tempRoot, ".codex");
+            string codexSess = Path.Combine(codexRoot, "sessions", "2026", "11", "17");
+            Directory.CreateDirectory(codexSess);
+            File.WriteAllText(Path.Combine(codexRoot, "config.toml"), "model = \"gpt-6.1-sol\"\n");
+            long priResetEpoch = clock.GetUtcNow().AddMinutes(210).ToUnixTimeSeconds();
+            long secResetEpoch = clock.GetUtcNow().AddDays(4).ToUnixTimeSeconds();
+            File.WriteAllText(
+                Path.Combine(codexSess, "rollout-demo.jsonl"),
+                "{\"timestamp\":\"2026-11-17T09:50:00Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"total_tokens\":125000}},\"rate_limits\":{\"plan_type\":\"plus\",\"primary\":{\"used_percent\":42.0,\"window_minutes\":300,\"resets_at\":" + priResetEpoch + "},\"secondary\":{\"used_percent\":18.0,\"window_minutes\":10080,\"resets_at\":" + secResetEpoch + "}}}}\n");
+
+            string claudeCfg = Path.Combine(tempRoot, ".claude.json");
+            File.WriteAllText(claudeCfg, "{\"oauthAccount\":{\"emailAddress\":\"dev@example.com\",\"displayName\":\"Dev\",\"organizationType\":\"claude_pro\"}}");
+            string claudeProj = Path.Combine(tempRoot, ".claude", "projects", "demo");
+            Directory.CreateDirectory(claudeProj);
+            string ts1 = clock.GetUtcNow().AddMinutes(-40).ToString("O");
+            string ts2 = clock.GetUtcNow().AddMinutes(-15).ToString("O");
+            File.WriteAllText(
+                Path.Combine(claudeProj, "s1.jsonl"),
+                "{\"type\":\"assistant\",\"timestamp\":\"" + ts1 + "\",\"message\":{\"id\":\"m1\",\"model\":\"claude-opus-5\",\"usage\":{\"input_tokens\":100,\"output_tokens\":400,\"cache_read_input_tokens\":2000,\"cache_creation_input_tokens\":500}}}\n" +
+                "{\"type\":\"assistant\",\"timestamp\":\"" + ts1 + "\",\"message\":{\"id\":\"m1\",\"model\":\"claude-opus-5\",\"usage\":{\"input_tokens\":100,\"output_tokens\":400,\"cache_read_input_tokens\":2000,\"cache_creation_input_tokens\":500}}}\n" +
+                "{\"type\":\"assistant\",\"timestamp\":\"" + ts2 + "\",\"message\":{\"id\":\"m2\",\"model\":\"claude-opus-5\",\"usage\":{\"input_tokens\":50,\"output_tokens\":250,\"cache_read_input_tokens\":700,\"cache_creation_input_tokens\":0}}}\n");
+
+            string gemAcc = Path.Combine(tempRoot, ".gemini", "google_accounts.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(gemAcc)!);
+            File.WriteAllText(gemAcc, "{\"active\":\"gem@example.com\"}");
+            string gemChats = Path.Combine(tempRoot, ".gemini", "tmp", "proj", "chats");
+            Directory.CreateDirectory(gemChats);
+            File.WriteAllText(
+                Path.Combine(gemChats, "c1.jsonl"),
+                "{\"timestamp\":\"" + ts2 + "\",\"type\":\"gemini\",\"text\":\"ok\"}\n");
+
+            var paths = new LocalAiCliPaths(
+                codexRoot,
+                claudeCfg,
+                Path.Combine(tempRoot, ".claude", "projects"),
+                gemAcc,
+                Path.Combine(tempRoot, ".gemini", "tmp"));
+
+            var cfg = new AppConfig { Language = "tr", AiQuotaSeeded = true };
+            using var svc = new AiQuotaTrackerService(cfg, () => { }, hudBus.Object, clock, paths);
+
+            // Manual account: 10 uses total, alert <= 20% (<=2 left), billing day 25
+            var custom = svc.AddSlot(
+                "ChatGPT",
+                label: "ChatGPT Kişisel",
+                resetWindowMinutes: 180,
+                notifyOnReset: true,
+                accountIdentifier: "manual@example.com",
+                planTier: "Plus",
+                billingDayOfMonth: 25,
+                priceLabel: "$20/ay",
+                quotaUnit: "use",
+                totalQuota: 10,
+                remainingQuota: 10,
+                criticalThresholdPercent: 20,
+                localSourceMode: "manual");
+            Assert.NotNull(custom);
+            Assert.Equal(10, custom.RemainingQuota);
+            Assert.NotNull(custom.DaysUntilBillingRenewal);
+
+            // Consume 5 -> 5 left (50%): ready, rolling window started, no low warning yet
+            Assert.True(svc.ConsumeUsage(custom.Id, 5));
+            Assert.Empty(huds);
+            var after5 = svc.GetSnapshots().Single(s => s.Id == custom.Id);
+            Assert.Equal(5, after5.RemainingQuota);
+            Assert.False(after5.IsLow);
+            Assert.NotNull(after5.NextResetUtc);
+
+            // Consume 3 -> 2 left (20%): crosses critical threshold -> fires Low HUD warning once
+            Assert.True(svc.ConsumeUsage(custom.Id, 3));
+            Assert.Single(huds);
+            Assert.Contains("Azaldı", huds[0].Title);
+            var after8 = svc.GetSnapshots().Single(s => s.Id == custom.Id);
+            Assert.True(after8.IsLow);
+            Assert.True(after8.IsReady);
+
+            // Consume 2 -> 0 left -> exhausted
+            Assert.True(svc.ConsumeUsage(custom.Id, 2));
+            var emptySnap = svc.GetSnapshots().Single(s => s.Id == custom.Id);
+            Assert.True(emptySnap.IsExhausted);
+            Assert.False(emptySnap.IsReady);
+
+            // Reset window expires -> resets UsedQuota back to 0 (10/10 left)
+            clock.Advance(TimeSpan.FromMinutes(181));
+            svc.ReevaluateDueResets();
+            var resetSnap = svc.GetSnapshots().Single(s => s.Id == custom.Id);
+            Assert.True(resetSnap.IsReady);
+            Assert.Equal(10, resetSnap.RemainingQuota);
+            Assert.Equal(0, resetSnap.UsedQuota);
+
+            // Import & sync local CLI tools
+            int imported = svc.ImportDetectedLocalCliAccounts();
+            Assert.Equal(3, imported);
+
+            var snaps = svc.GetSnapshots();
+            var codex = snaps.Single(s => s.LocalSourceMode == "codex");
+            Assert.False(codex.IsCliSynced); // A recorded CLI event is not a live response.
+            Assert.Equal("Plus", codex.PlanTier);
+            Assert.Equal(58.0, codex.RemainingPercent, precision: 1);
+            Assert.Equal("gpt-6.1-sol", codex.ActiveModelName);
+            Assert.Equal(82.0, codex.WeeklyRemainingPercent);
+
+            var claude = snaps.Single(s => s.LocalSourceMode == "claude");
+            Assert.False(claude.HasQuotaData);
+            Assert.Equal("dev@example.com", claude.AccountIdentifier);
+            Assert.False(claude.IsReady);
+            Assert.False(claude.IsExhausted);
+
+            var gemini = snaps.Single(s => s.LocalSourceMode == "gemini");
+            Assert.False(gemini.HasQuotaData);
+            Assert.Equal("gem@example.com", gemini.AccountIdentifier);
+            Assert.False(gemini.IsReady);
+
+            // Native Win32 DPAPI roundtrip
+            string enc = LocalAiCliUsageReader.ProtectSecret("sk-or-v1-secret-test-key");
+            Assert.False(string.IsNullOrWhiteSpace(enc));
+            Assert.Equal("sk-or-v1-secret-test-key", LocalAiCliUsageReader.UnprotectSecret(enc));
+
+            // Provider-specific OAuth mode mapping (Antigravity/Gemini must NEVER fall back to OpenAI codex)
+            Assert.Equal("antigravity", AiQuotaTrackerService.GetDefaultOAuthModeForProvider("Antigravity"));
+            Assert.Equal("gemini", AiQuotaTrackerService.GetDefaultOAuthModeForProvider("Gemini"));
+            Assert.Equal("claude", AiQuotaTrackerService.GetDefaultOAuthModeForProvider("Claude"));
+            Assert.Equal("codex", AiQuotaTrackerService.GetDefaultOAuthModeForProvider("ChatGPT"));
+            Assert.Equal("manual", AiQuotaTrackerService.GetDefaultOAuthModeForProvider("Cursor"));
+
+            // Adding a 2nd OAuth ChatGPT slot assigns an isolated profile directory instead of colliding on "default"
+            var secondCodex = svc.AddSlot("ChatGPT", label: "ChatGPT #2", localSourceMode: "codex");
+            Assert.NotNull(secondCodex);
+            var secondCfg = cfg.AiQuotaSlots.Single(s => s.Id == secondCodex.Id);
+            Assert.NotEqual("default", secondCfg.ProfileDirectory);
+            Assert.Contains("ai_profiles", secondCfg.ProfileDirectory);
+
+            // An older config must preserve manually added and explicitly imported accounts.
+            var savedSlots = svc.GetSnapshots().Select(s => (s.Id, s.AccountIdentifier, s.RemainingQuota)).ToArray();
+            cfg.UserExplicitAccountsOnlyV4 = false;
+            await svc.MigrateAndSyncRealAccountsAsync(allowLiveSubprocess: false);
+            Assert.True(cfg.UserExplicitAccountsOnlyV4);
+            Assert.Equal(savedSlots, svc.GetSnapshots().Select(s => (s.Id, s.AccountIdentifier, s.RemainingQuota)).ToArray());
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AiQuotaTracker_CodexSuppressesDuplicateAndRejectsMismatchedQuota()
+    {
+        var now = new DateTimeOffset(2026, 11, 18, 10, 0, 0, TimeSpan.Zero);
+        var config = new AppConfig();
+        var duplicate = new AiQuotaSlotConfig
+        {
+            Id = "default", Provider = "ChatGPT", LocalSourceMode = "codex",
+            ProfileDirectory = "default", AccountIdentifier = "first@example.com",
+            TotalQuota = 100, UsedQuota = 4, HasReportedPrimaryQuota = true, WeeklyUsedPercent = 37
+        };
+        var isolated = new AiQuotaSlotConfig
+        {
+            Id = "isolated", Provider = "ChatGPT", LocalSourceMode = "codex",
+            ProfileDirectory = "isolated-profile", AccountIdentifier = "FIRST@example.com",
+            TotalQuota = 100, UsedQuota = 4, HasReportedPrimaryQuota = true, WeeklyUsedPercent = 37
+        };
+        config.AiQuotaSlots = [duplicate, isolated];
+        using var tracker = new AiQuotaTrackerService(config, () => { }, Mock.Of<ITransientHudBus>(), new MutableUtcTimeProvider(now));
+
+        var skipped = tracker.GetSnapshots().Single(s => s.Id == duplicate.Id);
+        Assert.True(skipped.RequiresReconnect);
+        Assert.False(skipped.HasQuotaData);
+        Assert.Equal(1, tracker.GetSummary().ReadyCount);
+
+        var reading = new LocalCodexTelemetry(true, true, "wrong@example.com", "Plus", null,
+            40, 300, now.AddHours(5), 60, 10080, now.AddDays(7), 0, 0, now,
+            HasLiveQuota: true, AccountReadSucceeded: true);
+        tracker.ApplyCodexReading(isolated, reading, now);
+
+        var mismatch = tracker.GetSnapshots().Single(s => s.Id == isolated.Id);
+        Assert.True(mismatch.RequiresReconnect);
+        Assert.False(mismatch.HasQuotaData);
+        Assert.Equal("FIRST@example.com", mismatch.AccountIdentifier);
+        Assert.True(tracker.GetSnapshots().Single(s => s.Id == duplicate.Id).HasQuotaData);
+    }
+
+    [Fact]
+    public void AiQuotaTracker_CodexWeeklyLimitBlocksUntilProviderReportsARefresh()
+    {
+        var now = new DateTimeOffset(2026, 11, 17, 10, 0, 0, TimeSpan.Zero);
+        var clock = new MutableUtcTimeProvider(now);
+        var bus = new Mock<ITransientHudBus>();
+        var slot = new AiQuotaSlotConfig
+        {
+            Id = "weekly",
+            Provider = "ChatGPT",
+            LocalSourceMode = "codex",
+            QuotaUnit = "pct",
+            TotalQuota = 100,
+            UsedQuota = 0,
+            HasReportedPrimaryQuota = true,
+            WeeklyUsedPercent = 100,
+            WeeklyResetUtcTicks = now.AddDays(2).UtcTicks
+        };
+        var config = new AppConfig { AiQuotaSlots = [slot] };
+        using var tracker = new AiQuotaTrackerService(config, () => { }, bus.Object, clock);
+        tracker.Start();
+
+        var blocked = Assert.Single(tracker.GetSnapshots());
+        Assert.Equal(100, blocked.RemainingPercent);
+        Assert.Equal(0, blocked.EffectiveRemainingPercent);
+        Assert.True(blocked.IsExhausted);
+        Assert.Equal(now.AddDays(2), blocked.BlockingResetUtc);
+        Assert.True(tracker.HasActiveCooldowns);
+
+        clock.Advance(TimeSpan.FromDays(3));
+        tracker.ReevaluateDueResets();
+        var expired = Assert.Single(tracker.GetSnapshots());
+        Assert.True(expired.QuotaAwaitingRefresh);
+        Assert.False(expired.IsReady);
+        Assert.False(expired.IsExhausted);
+        Assert.Equal(0.0, expired.WeeklyRemainingPercent);
+        bus.Verify(h => h.Publish(It.IsAny<TransientHudEvent>()), Times.Never);
+    }
+
+    [Fact]
+    public void AiQuotaTracker_AntigravityFullCachedWindowDoesNotCreateCooldown()
+    {
+        var observed = new DateTimeOffset(2026, 11, 18, 6, 53, 43, TimeSpan.Zero);
+        using var quota = JsonDocument.Parse($$"""
+        {
+          "last_updated": {{observed.ToUnixTimeSeconds()}},
+          "quota_groups": [
+            {
+              "display_name": "Gemini",
+              "buckets": [
+                { "bucket_id": "gemini-weekly", "window": "weekly", "remaining_fraction": 1.0, "reset_time": "{{observed.AddDays(7).AddSeconds(1):O}}" },
+                { "bucket_id": "gemini-5h", "window": "5h", "remaining_fraction": 0.2, "reset_time": null }
+              ]
+            }
+          ]
+        }
+        """);
+        var bucket = Assert.Single(LocalAiCliUsageReader.ParseAntigravityToolsQuota(quota.RootElement, observed));
+        Assert.Equal(100, bucket.WeeklyRemainingPercent);
+        Assert.Null(bucket.WeeklyResetUtc);
+        Assert.Equal(20, bucket.FiveHourRemainingPercent);
+        Assert.Null(bucket.FiveHourResetUtc);
     }
 
     [Fact]
@@ -803,16 +1064,16 @@ public sealed class ReleaseReadinessTests
             windowExePath: @"C:\WINDOWS\explorer.exe",
             windowTitle: "Masaüstü"));
         Assert.True(WindowRestoreGeometry.MatchesPinnedAppIdentity(
-            targetExePath: @"C:\Users\emrea\AppData\Local\Discord\Update.exe",
+            targetExePath: @"C:\Users\Example\AppData\Local\Discord\Update.exe",
             iconSourcePath: null,
             displayName: "Discord",
-            windowExePath: @"C:\Users\emrea\AppData\Local\Discord\app-1.0.9268\Discord.exe",
+            windowExePath: @"C:\Users\Example\AppData\Local\Discord\app-1.0.9268\Discord.exe",
             windowTitle: "Discord"));
         Assert.True(WindowRestoreGeometry.MatchesPinnedAppIdentity(
-            targetExePath: @"C:\Users\emrea\AppData\Local\Programs\Antigravity\Antigravity.exe",
+            targetExePath: @"C:\Users\Example\AppData\Local\Programs\Antigravity\Antigravity.exe",
             iconSourcePath: null,
             displayName: "Antigravity",
-            windowExePath: @"C:\Users\emrea\AppData\Local\Programs\Antigravity\Antigravity.exe",
+            windowExePath: @"C:\Users\Example\AppData\Local\Programs\Antigravity\Antigravity.exe",
             windowTitle: "Windows 11 Dynamic Island App"));
 
         // Dock flowing aurora orbit stays smoothly bounded inside the pill regardless of phase
@@ -822,5 +1083,233 @@ public sealed class ReleaseReadinessTests
             Assert.InRange(ox, 0.05, 0.95);
             Assert.InRange(oy, 0.10, 0.90);
         }
+    }
+
+    [Fact]
+    public void AiQuotaTracker_AntigravityMultiModelBuckets_ParseMergeIsolateAndPersist()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), $"dinamikada_ag_test_{Guid.NewGuid():N}");
+        string accountsDir = Path.Combine(tempRoot, "accounts");
+        Directory.CreateDirectory(accountsDir);
+
+        try
+        {
+            var nowUtc = new DateTimeOffset(2026, 11, 17, 9, 0, 0, TimeSpan.Zero);
+            long validExpiryUnix = nowUtc.AddHours(1).ToUnixTimeSeconds();
+            string wkGeminiReset = nowUtc.AddDays(3).AddHours(14).ToString("O");
+            string wkClaudeReset = nowUtc.AddDays(6).AddHours(15).ToString("O");
+            string wkArgonReset = nowUtc.AddDays(4).ToString("O");
+            string fhActiveReset = nowUtc.AddHours(4).ToString("O");
+
+            string account1Json = $$"""
+            {
+              "email": "studio@example.com",
+              "token": {
+                "access_token": "tok-acct-1",
+                "expiry_timestamp": {{validExpiryUnix}},
+                "project_id": "proj-1"
+              },
+              "quota": {
+                "subscription_tier": "AI Pro",
+                "quota_groups": [
+                  {
+                    "display_name": "Gemini Models",
+                    "description": "Gemini 4 Hydrogen, Gemini 3.8 Flash",
+                    "buckets": [
+                      { "bucket_id": "gemini-weekly", "window": "weekly", "remaining_fraction": 0.40, "reset_time": "{{wkGeminiReset}}" },
+                      { "bucket_id": "gemini-5h", "window": "5h", "remaining_fraction": 1.0, "reset_time": null }
+                    ]
+                  },
+                  {
+                    "display_name": "Claude and GPT models",
+                    "description": "Claude Opus 5.5, Claude Sonnet 5.5, GPT-OSS 120B",
+                    "buckets": [
+                      { "bucket_id": "3p-weekly", "window": "weekly", "remaining_fraction": 0.33, "reset_time": "{{wkClaudeReset}}" },
+                      { "bucket_id": "3p-5h", "window": "5h", "remaining_fraction": 1.0, "reset_time": null }
+                    ]
+                  },
+                  {
+                    "display_name": "Gemini 4 Argon",
+                    "description": "Gemini 4 Argon",
+                    "buckets": [
+                      { "bucket_id": "gemini-argon-wtu-weekly", "window": "weekly", "remaining_fraction": 0.43, "reset_time": "{{wkArgonReset}}" }
+                    ]
+                  }
+                ]
+              }
+            }
+            """;
+
+            string account2Json = $$"""
+            {
+              "email": "personal@example.com",
+              "token": {
+                "access_token": "tok-acct-2",
+                "expiry_timestamp": {{validExpiryUnix}},
+                "project_id": "proj-2"
+              },
+              "quota": {
+                "subscription_tier": "AI Pro",
+                "quota_groups": [
+                  {
+                    "display_name": "Gemini Models",
+                    "description": "Gemini 4 Hydrogen, Gemini 3.8 Flash",
+                    "buckets": [
+                      { "bucket_id": "gemini-weekly", "window": "weekly", "remaining_fraction": 1.0, "reset_time": null },
+                      { "bucket_id": "gemini-5h", "window": "5h", "remaining_fraction": 1.0, "reset_time": null }
+                    ]
+                  },
+                  {
+                    "display_name": "Claude and GPT models",
+                    "description": "Claude Opus 5.5, Claude Sonnet 5.5, GPT-OSS 120B",
+                    "buckets": [
+                      { "bucket_id": "3p-weekly", "window": "weekly", "remaining_fraction": 1.0, "reset_time": null },
+                      { "bucket_id": "3p-5h", "window": "5h", "remaining_fraction": 1.0, "reset_time": null }
+                    ]
+                  }
+                ]
+              }
+            }
+            """;
+
+            File.WriteAllText(Path.Combine(accountsDir, "acct1.json"), account1Json);
+            File.WriteAllText(Path.Combine(accountsDir, "acct2.json"), account2Json);
+
+            // 1) Per-email isolation across .antigravity_tools files
+            var t1 = LocalAiCliUsageReader.TryReadAntigravityToolsAccount("studio@example.com", nowUtc, out string? tok1, out string? pj1, accountsDir);
+            var t2 = LocalAiCliUsageReader.TryReadAntigravityToolsAccount("personal@example.com", nowUtc, out string? tok2, out string? pj2, accountsDir);
+
+            Assert.NotNull(t1);
+            Assert.NotNull(t2);
+            Assert.Equal("tok-acct-1", tok1);
+            Assert.Equal("proj-1", pj1);
+            Assert.Equal("tok-acct-2", tok2);
+            Assert.Equal("proj-2", pj2);
+            Assert.Equal(3, t1!.ModelBuckets.Length);
+            Assert.Equal(2, t2!.ModelBuckets.Length);
+            Assert.Equal(40.0, t1.ModelBuckets.Single(b => b.BucketKey == "gemini").WeeklyRemainingPercent, 1);
+            Assert.Equal(33.0, t1.ModelBuckets.Single(b => b.BucketKey == "claude_gpt").WeeklyRemainingPercent, 1);
+            Assert.Equal(43.0, t1.ModelBuckets.Single(b => b.BucketKey == "gemini_argon").WeeklyRemainingPercent, 1);
+            Assert.Equal(100.0, t2.ModelBuckets.Single(b => b.BucketKey == "gemini").WeeklyRemainingPercent, 1);
+
+            // 2) Live CloudCode fetchAvailableModels merge (<= 6h updates 5h window, > 6h updates weekly window)
+            string cloudCodeJson = $$"""
+            {
+              "models": {
+                "gemini-3-8-flash": { "quotaInfo": { "remainingFraction": 0.91, "resetTime": "{{fhActiveReset}}" } },
+                "claude-sonnet-5-5": { "quotaInfo": { "remainingFraction": 0.25, "resetTime": "{{wkClaudeReset}}" } }
+              }
+            }
+            """;
+            var merged = LocalAiCliUsageReader.MergeCloudCodeAvailableModels(t1.ModelBuckets, cloudCodeJson, nowUtc);
+            var gemMerged = merged.Single(b => b.BucketKey == "gemini");
+            var claudeMerged = merged.Single(b => b.BucketKey == "claude_gpt");
+            var argonMerged = merged.Single(b => b.BucketKey == "gemini_argon");
+            Assert.Equal(40.0, gemMerged.WeeklyRemainingPercent, 1);
+            Assert.Equal(91.0, gemMerged.FiveHourRemainingPercent!.Value, 1);
+            Assert.Equal(25.0, claudeMerged.WeeklyRemainingPercent, 1);
+            Assert.Equal(43.0, argonMerged.WeeklyRemainingPercent, 1);
+
+            // 3) AiQuotaTrackerService snapshot semantics + config roundtrip
+            var time = new MutableUtcTimeProvider(nowUtc);
+            var hudBus = new Mock<ITransientHudBus>();
+            var emptyPaths = new LocalAiCliPaths(
+                Path.Combine(tempRoot, "none-codex"),
+                Path.Combine(tempRoot, "none-claude.json"),
+                Path.Combine(tempRoot, "none-claude-proj"),
+                Path.Combine(tempRoot, "none-gem-acc.json"),
+                Path.Combine(tempRoot, "none-gem-tmp"));
+            string cfgPath = Path.Combine(tempRoot, "config.json");
+            var store = new AppConfigStore(cfgPath);
+            var cfg = store.Load();
+            var slotCfg = new AiQuotaSlotConfig
+            {
+                Id = "ag_1",
+                Provider = "Antigravity",
+                Label = "Antigravity · studio",
+                AccountIdentifier = "studio@example.com",
+                PlanTier = "AI Pro",
+                QuotaUnit = "pct",
+                TotalQuota = 100,
+                CriticalThresholdPercent = 20,
+                LocalSourceMode = "antigravity",
+                ModelBuckets =
+                [
+                    new AiQuotaModelBucketConfig
+                    {
+                        BucketKey = "gemini",
+                        DisplayName = "Gemini Models",
+                        ModelsSummary = "Gemini 4 Hydrogen, Gemini 3.8 Flash",
+                        WeeklyRemainingPercent = 40.0,
+                        WeeklyResetUtcTicks = nowUtc.AddDays(3).Ticks,
+                        FiveHourRemainingPercent = 85.0,
+                        FiveHourResetUtcTicks = nowUtc.AddHours(2).Ticks,
+                        AccentHex = "#38BDF8"
+                    },
+                    new AiQuotaModelBucketConfig
+                    {
+                        BucketKey = "claude_gpt",
+                        DisplayName = "Claude & GPT",
+                        ModelsSummary = "Claude Opus 5.5",
+                        WeeklyRemainingPercent = 0.0,
+                        WeeklyResetUtcTicks = nowUtc.AddDays(5).Ticks,
+                        FiveHourRemainingPercent = 100.0,
+                        AccentHex = "#F59E0B"
+                    }
+                ]
+            };
+            cfg.AiQuotaSlots.Add(slotCfg);
+            store.Save(cfg);
+
+            var loadedCfg = store.Load();
+            using var svc = new AiQuotaTrackerService(loadedCfg, () => store.Save(loadedCfg), hudBus.Object, time, emptyPaths);
+            var snap = svc.GetSnapshots().Single(s => s.Id == "ag_1");
+            Assert.Equal(2, snap.ModelBuckets.Length);
+            Assert.False(snap.IsExhausted); // Gemini pool still at 40%, so account is NOT exhausted
+            Assert.False(snap.IsLow);
+            Assert.Equal(40.0, snap.RemainingQuota, 1);
+
+            // After the reported reset time, preserve the last value until another measurement arrives.
+            time.Advance(TimeSpan.FromHours(3));
+            var snapAfter = svc.GetSnapshots().Single(s => s.Id == "ag_1");
+            Assert.Equal(85.0, snapAfter.ModelBuckets.Single(b => b.BucketKey == "gemini").FiveHourRemainingPercent!.Value, 1);
+            Assert.True(snapAfter.QuotaAwaitingRefresh);
+            Assert.False(snapAfter.IsExhausted);
+
+            // Re-Verify ALL buckets at 0% marks IsExhausted = true
+            var reloaded = store.Load();
+            Assert.Equal(2, reloaded.AiQuotaSlots.Single(s => s.Id == "ag_1").ModelBuckets.Count);
+            reloaded.AiQuotaSlots[0].ModelBuckets[0].WeeklyRemainingPercent = 0;
+            reloaded.AiQuotaSlots[0].ModelBuckets[0].FiveHourResetUtcTicks = 0;
+            using var svcEmpty = new AiQuotaTrackerService(reloaded, () => store.Save(reloaded), hudBus.Object, time, emptyPaths);
+            Assert.True(svcEmpty.GetSnapshots().Single(s => s.Id == "ag_1").IsExhausted);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void DockStartLaunchpad_StringsAndNonBlockingLightDismiss_WorkCorrectly()
+    {
+        Assert.False(string.IsNullOrWhiteSpace(Strings.StartMenuBrandBadge("tr")));
+        Assert.False(string.IsNullOrWhiteSpace(Strings.StartMenuSearchPlaceholder("tr")));
+        Assert.False(string.IsNullOrWhiteSpace(Strings.StartMenuClassicWin("en")));
+
+        // Clicking an underlying dock item or desktop window outside StartLaunchCard must dismiss popup without blocking click pass-through
+        Assert.True(WindowRestoreGeometry.ShouldLightDismissPopup(
+            isOpen: true, waitingInitialRelease: false, prevAnyButtonDown: false, curAnyButtonDown: true,
+            isEscapeDown: false, insideCard: false, insideToggleButton: false, foregroundChanged: false, contextMenuOpen: false));
+
+        // Clicking inside StartLaunchCard (e.g. search box or app tiles) must keep popup open
+        Assert.False(WindowRestoreGeometry.ShouldLightDismissPopup(
+            isOpen: true, waitingInitialRelease: false, prevAnyButtonDown: false, curAnyButtonDown: true,
+            isEscapeDown: false, insideCard: true, insideToggleButton: false, foregroundChanged: false, contextMenuOpen: false));
+
+        // Clicking the Start Dock button itself uses PreviewMouseLeftButtonDown toggle logic (avoiding double-open)
+        Assert.False(WindowRestoreGeometry.ShouldLightDismissPopup(
+            isOpen: true, waitingInitialRelease: false, prevAnyButtonDown: false, curAnyButtonDown: true,
+            isEscapeDown: false, insideCard: false, insideToggleButton: true, foregroundChanged: false, contextMenuOpen: false));
     }
 }

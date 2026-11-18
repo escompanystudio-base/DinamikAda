@@ -47,9 +47,34 @@ public partial class SettingsWindow : Window
         CenterOnIslandMonitorWorkArea();
     }
 
+    private void OnSettingsSectionChanged(object sender, RoutedEventArgs e)
+    {
+        if (IdentitySection is null || sender is not System.Windows.Controls.RadioButton selected) return;
+        static Visibility ShowIf(bool condition) => condition ? Visibility.Visible : Visibility.Collapsed;
+        PreviewSection.Visibility = PlacementSection.Visibility = ShowIf(selected == NavAppearance);
+        DockSection.Visibility = ShowIf(selected == NavDock);
+        MotionSection.Visibility = FullscreenSection.Visibility = ShowIf(selected == NavInteraction);
+        ModulesSection.Visibility = ShowIf(selected == NavModules);
+        SourcesSection.Visibility = IdentitySection.Visibility = ShowIf(selected == NavIntegrations);
+        SettingsScroller.ScrollToTop();
+    }
+
+    private void FocusInvalidField(System.Windows.Controls.RadioButton section, FrameworkElement field)
+    {
+        section.IsChecked = true;
+        SettingsScroller.UpdateLayout();
+        field.BringIntoView();
+        field.Focus();
+    }
+
+    private IReadOnlyList<MonitorDescriptor> GetSettingsMonitors() => _orch.IsSmokeOrAuditMode
+        ? [new MonitorDescriptor(0, "DEMO", "Demo Display", true, 0, 0, 1920, 1080, 1.0, 120)]
+        : _orch.MonitorLayout.GetMonitors();
+
     private unsafe void CenterOnIslandMonitorWorkArea()
     {
-        var monitors = _orch.MonitorLayout.GetMonitors();
+        if (_orch.IsSmokeOrAuditMode) return;
+        var monitors = GetSettingsMonitors();
         MonitorDescriptor? targetMon = null;
         double workLeftDip = 0;
         double workTopDip = 0;
@@ -60,6 +85,7 @@ public partial class SettingsWindow : Window
         int workWPx = 0;
         int workHPx = 0;
         bool hasWorkPx = false;
+        double targetScale = 1.0;
 
         nint probeMon = _islandHwnd != 0
             ? NativeMethods.MonitorFromWindow(_islandHwnd, NativeMethods.MONITOR_DEFAULTTONEAREST)
@@ -79,9 +105,8 @@ public partial class SettingsWindow : Window
             var info = new NativeMethods.MONITORINFOEXW { cbSize = (uint)sizeof(NativeMethods.MONITORINFOEXW) };
             if (NativeMethods.GetMonitorInfoW(probeMon, ref info))
             {
-                uint dpiX = 96;
-                _ = NativeMethods.GetDpiForMonitor(probeMon, NativeMethods.MDT_EFFECTIVE_DPI, out dpiX, out _);
-                double scale = Math.Max(1.0, dpiX / 96.0);
+                int dpiResult = NativeMethods.GetDpiForMonitor(probeMon, NativeMethods.MDT_EFFECTIVE_DPI, out uint dpiX, out _);
+                double scale = targetScale = dpiResult == 0 && dpiX > 0 ? dpiX / 96.0 : 1.0;
                 workLeftPx = info.rcWork.Left;
                 workTopPx = info.rcWork.Top;
                 workWPx = Math.Max(1, info.rcWork.Width);
@@ -96,7 +121,7 @@ public partial class SettingsWindow : Window
 
         if (!hasWorkPx && targetMon is not null)
         {
-            double scale = Math.Max(1.0, targetMon.DpiScale);
+            double scale = targetScale = Math.Max(1.0, targetMon.DpiScale);
             workLeftPx = targetMon.LeftPx;
             workTopPx = targetMon.TopPx;
             workWPx = Math.Max(1, targetMon.WidthPx);
@@ -114,19 +139,20 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        double maxH = Math.Max(460.0, workHDip - 24.0);
+        double maxH = Math.Max(1.0, workHDip - 24.0);
+        double maxW = Math.Max(1.0, workWDip - 24.0);
+        MinHeight = Math.Min(MinHeight, maxH);
+        MinWidth = Math.Min(MinWidth, maxW);
         MaxHeight = maxH;
-        if (Height > maxH) Height = maxH;
-        double maxW = Math.Max(580.0, workWDip - 24.0);
-        if (Width > maxW) Width = maxW;
+        MaxWidth = maxW;
+        Height = Math.Min(Height, maxH);
+        Width = Math.Min(Width, maxW);
 
         nint hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if (hwnd != 0)
         {
-            var dpi = VisualTreeHelper.GetDpi(this);
-            double localScale = Math.Max(1.0, dpi.DpiScaleX);
-            int targetW = (int)Math.Round(Math.Min(Width, workWDip - 16.0) * localScale);
-            int targetH = (int)Math.Round(Math.Min(Height, maxH) * localScale);
+            int targetW = Math.Max(1, (int)Math.Round(Width * targetScale));
+            int targetH = Math.Max(1, (int)Math.Round(Height * targetScale));
             int x = workLeftPx + Math.Max(0, (workWPx - targetW) / 2);
             int y = workTopPx + Math.Max(0, (workHPx - targetH) / 2);
             _ = NativeMethods.SetWindowPos(
@@ -141,7 +167,7 @@ public partial class SettingsWindow : Window
         Top = workTopDip + Math.Max(0.0, (workHDip - Height) * 0.5);
     }
 
-    private void LoadFromConfig(AppConfig cfg)
+    private void LoadFromConfig(AppConfig cfg, bool showActiveHotkeys = true)
     {
         _suppressUiEvents = true;
         try
@@ -152,19 +178,20 @@ public partial class SettingsWindow : Window
             SelectConfigChoices(cfg);
 
             SliderCustomRatio.Value = Math.Clamp(Math.Round(cfg.CustomHorizontalRatio * 100.0), 8, 92);
-            SliderCustomFreeTop.Value = Math.Clamp(Math.Round(cfg.CustomFreeTopDip), 0, 400);
+            SliderCustomFreeTop.Value = Math.Clamp(Math.Round(cfg.CustomFreeTopDip), SliderCustomFreeTop.Minimum, SliderCustomFreeTop.Maximum);
             SliderHoverDwell.Value = Math.Clamp(cfg.HoverDwellMs, 40, 2000);
             SliderCollapseDelay.Value = Math.Clamp(cfg.CollapseHysteresisMs, 80, 5000);
             SliderMaxClipboard.Value = Math.Clamp(cfg.MaxClipboardItems, 5, 100);
 
-            TxtHotkey.Text = _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.HotkeyId, out var activeCmd) ? activeCmd : cfg.CommandHotkey;
-            TxtMicMuteHotkey.Text = _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.MicMuteHotkeyId, out var activeMic) ? activeMic : cfg.MicMuteHotkey;
-            TxtColorPickerHotkey.Text = _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.ColorPickerHotkeyId, out var activePicker) ? activePicker : cfg.ColorPickerHotkey;
+            TxtHotkey.Text = showActiveHotkeys && _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.HotkeyId, out var activeCmd) ? activeCmd : cfg.CommandHotkey;
+            TxtMicMuteHotkey.Text = showActiveHotkeys && _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.MicMuteHotkeyId, out var activeMic) ? activeMic : cfg.MicMuteHotkey;
+            TxtColorPickerHotkey.Text = showActiveHotkeys && _hotkeyService.TryGetRegisteredChord(GlobalHotkeyService.ColorPickerHotkeyId, out var activePicker) ? activePicker : cfg.ColorPickerHotkey;
 
             ChkDormantCameraLens.IsChecked = cfg.DormantCameraLensEnabled;
             ChkDynamicAlbumGlow.IsChecked = cfg.DynamicAlbumGlowEnabled;
             ChkEnableBottomDock.IsChecked = cfg.EnableBottomDock;
             ChkHideWindowsTaskbar.IsChecked = cfg.HideWindowsTaskbar;
+            ChkExplorerTaskbar.IsChecked = cfg.UseExplorerTaskbar;
             ChkDockMagnification.IsChecked = cfg.DockMagnificationEnabled;
             ChkDockIntellihide.IsChecked = cfg.DockIntellihideEnabled;
             SliderDockIconSize.Value = Math.Clamp(cfg.DockIconSizeDip, 26, 48);
@@ -177,6 +204,7 @@ public partial class SettingsWindow : Window
             ChkGameModeHide.IsChecked = cfg.GameModeHideIsland;
             ChkGameModePingPill.IsChecked = cfg.GameModeShowPingPill;
             ChkShowTelemetryPill.IsChecked = cfg.ShowTelemetryInPill;
+            ChkShowAiQuotaSummary.IsChecked = cfg.ShowAiQuotaInIslandAndDock;
             ChkMicPrivacyAlert.IsChecked = cfg.ShowMicPrivacyAlert;
             ChkMirrorOsNotifications.IsChecked = cfg.MirrorOsNotifications;
             ChkClipboardVault.IsChecked = cfg.EnableClipboardVault;
@@ -204,6 +232,7 @@ public partial class SettingsWindow : Window
             ChkTabShelf.IsChecked = pinned.Contains(ExpandedTabId.Shelf);
             ChkTabSystem.IsChecked = pinned.Contains(ExpandedTabId.System);
             ChkTabWidgets.IsChecked = pinned.Contains(ExpandedTabId.Widgets);
+            ChkTabAiQuota.IsChecked = pinned.Contains(ExpandedTabId.AiQuota);
 
             ApplyLocalization(_currentLang);
             UpdateSliderReadouts();
@@ -246,7 +275,7 @@ public partial class SettingsWindow : Window
             new ChoiceItem<MonitorPlacementMode>(MonitorPlacementMode.PinnedMonitor, Strings.Pick(lang, "Belirli Monitöre Sabitle", "Pin to Specific Monitor"))
         };
 
-        var monitors = _orch.MonitorLayout.GetMonitors();
+        var monitors = GetSettingsMonitors();
         var monitorChoices = monitors
             .Select(m => new ChoiceItem<string?>(
                 m.DeviceName,
@@ -376,8 +405,14 @@ public partial class SettingsWindow : Window
         TxtHeaderTitle.Text = Strings.SettingsTitle(lang);
         TxtHeaderSubtitle.Text = Strings.Pick(
             lang,
-            "MacBook çentik görünümü, çoklu monitör yerleşimi, yenileme hızı ve modül izinleri",
-            "MacBook notch styling, multi-monitor placement, native refresh rate & module controls");
+            "Adanın görünümünü ve çalışma biçimini ayarlayın.",
+            "Customize how the island looks and behaves.");
+        NavAppearance.Content = Strings.Pick(lang, "Görünüm", "Appearance");
+        NavDock.Content = Strings.Pick(lang, "Alt Dock", "Bottom Dock");
+        NavInteraction.Content = Strings.Pick(lang, "Etkileşim", "Interaction");
+        NavModules.Content = Strings.Pick(lang, "Modüller", "Modules");
+        NavIntegrations.Content = Strings.Pick(lang, "Entegrasyonlar", "Integrations");
+        HdrSourcesSection.Text = Strings.Pick(lang, "Veri kaynakları ve bağlantı", "Data sources and connectivity");
 
         PreviewMenuWindow.Text = Strings.Pick(lang, "Pencere", "Window");
         PreviewMenuAudio.Text = Strings.TabAudio(lang);
@@ -395,6 +430,9 @@ public partial class SettingsWindow : Window
         LblCustomFreeTop.Text = Strings.Pick(lang, "Serbest Üst Mesafe (dp)", "Free Float Top Offset (dp)");
 
         HdrBottomDockSection.Text = Strings.DockSectionHeader(lang);
+        ChkExplorerTaskbar.Content = Strings.Pick(lang,
+            "Windows görev çubuğunda Liquid Glass Dock",
+            "Liquid Glass Dock on the Windows taskbar");
         ChkEnableBottomDock.Content = Strings.EnableBottomDockLabel(lang);
         ChkHideWindowsTaskbar.Content = Strings.HideWindowsTaskbarLabel(lang);
         ChkDockMagnification.Content = Strings.DockMagnificationLabel(lang);
@@ -467,11 +505,16 @@ public partial class SettingsWindow : Window
         ChkTabShelf.Content = Strings.TabShelf(lang);
         ChkTabSystem.Content = Strings.TabSystem(lang);
         ChkTabWidgets.Content = Strings.TabWidgets(lang);
+        ChkTabAiQuota.Content = Strings.TabAiQuota(lang);
         LblMaxClipboard.Text = Strings.Pick(lang, "Maks. Pano Öğesi", "Max Clipboard Items");
         ChkShowTelemetryPill.Content = Strings.Pick(
             lang,
             "Kompakt Kapsülde CPU/RAM Özeti Göster",
             "Show CPU/RAM Summary in Compact Capsule");
+        ChkShowAiQuotaSummary.Content = Strings.Pick(
+            lang,
+            "Adada & Dock'ta Canlı AI Kota Özeti / Düşük Kota Uyarısı",
+            "Live AI Quota Summary & Low-Quota Alerts on Island & Dock");
         ChkMicPrivacyAlert.Content = Strings.Pick(
             lang,
             "Mikrofon Aktif Uyarısını Adada Göster",
@@ -537,7 +580,7 @@ public partial class SettingsWindow : Window
 
     private void UpdateRefreshRateHint(string lang)
     {
-        var monitors = _orch.MonitorLayout.GetMonitors();
+        var monitors = GetSettingsMonitors();
         var monMode = GetSelectedValue(ComboMonitorMode, _orch.Config.MonitorMode);
         var pinnedMon = GetSelectedValue<string?>(ComboPinnedMonitor, _orch.Config.PinnedMonitorDeviceName);
         int selectedFps = GetSelectedValue(ComboTargetFpsCap, _orch.Config.TargetFpsCap);
@@ -695,10 +738,18 @@ public partial class SettingsWindow : Window
 
     private void UpdateConditionalEnablement()
     {
-        bool dockEnabled = ChkEnableBottomDock.IsChecked == true;
+        bool explorerEnabled = ChkExplorerTaskbar.IsChecked == true;
+        bool dockEnabled = ChkEnableBottomDock.IsChecked == true && !explorerEnabled;
+        ChkEnableBottomDock.IsEnabled = !explorerEnabled;
+        bool installed = new DinamikAda.Platform.Win32.Windowing.ExplorerTaskbarService().IsInstalled;
+        LblExplorerTaskbarStatus.Text = Strings.Pick(_currentLang,
+            installed ? "Explorer bileşeni hazır. Başlat, uygulamalar, önizlemeler ve bildirim alanı Windows tarafından yönetilir."
+                : "Kurulum için DinamikAda-Explorer-Kur.bat dosyasını çalıştırın. Bileşen yoksa standart Windows çubuğu görünür.",
+            installed ? "Explorer component ready. Windows manages Start, apps, previews and the system tray."
+                : "Run DinamikAda-Explorer-Kur.bat to install. Without the component, the standard Windows taskbar stays visible.");
         ChkHideWindowsTaskbar.IsEnabled = dockEnabled;
-        ChkDockMagnification.IsEnabled = dockEnabled;
-        ChkDockIntellihide.IsEnabled = dockEnabled;
+        ChkDockMagnification.IsEnabled = dockEnabled || explorerEnabled;
+        ChkDockIntellihide.IsEnabled = dockEnabled || explorerEnabled;
         SliderDockIconSize.IsEnabled = dockEnabled;
         LblDockIconSize.Opacity = dockEnabled ? 1.0 : 0.45;
         ValDockIconSize.Opacity = dockEnabled ? 1.0 : 0.45;
@@ -763,13 +814,14 @@ public partial class SettingsWindow : Window
 
     private List<ExpandedTabId> CollectCheckedTabs()
     {
-        var list = new List<ExpandedTabId>(6);
+        var list = new List<ExpandedTabId>(7);
         if (ChkTabNow.IsChecked == true) list.Add(ExpandedTabId.Now);
         if (ChkTabAudio.IsChecked == true) list.Add(ExpandedTabId.Audio);
         if (ChkTabControl.IsChecked == true) list.Add(ExpandedTabId.Control);
         if (ChkTabShelf.IsChecked == true) list.Add(ExpandedTabId.Shelf);
         if (ChkTabSystem.IsChecked == true) list.Add(ExpandedTabId.System);
         if (ChkTabWidgets.IsChecked == true) list.Add(ExpandedTabId.Widgets);
+        if (ChkTabAiQuota.IsChecked == true) list.Add(ExpandedTabId.AiQuota);
         return list;
     }
 
@@ -783,12 +835,12 @@ public partial class SettingsWindow : Window
     {
         var defaults = new AppConfig { Language = _currentLang };
         defaults.Sanitize();
-        LoadFromConfig(defaults);
-        TxtIdentityActionStatus.Text = Strings.Pick(
+        LoadFromConfig(defaults, showActiveHotkeys: false);
+        TxtSettingsNotice.Text = Strings.Pick(
             _currentLang,
             "Varsayılan ayarlar yüklendi — uygulamak için Kaydet'e basın.",
             "Default values loaded — click Save to apply.");
-        TxtIdentityActionStatus.Visibility = Visibility.Visible;
+        TxtSettingsNotice.Visibility = Visibility.Visible;
     }
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
@@ -808,19 +860,19 @@ public partial class SettingsWindow : Window
         if (!GlobalHotkeyService.TryParseChord(newHotkey, out _, out _))
         {
             ShowInlineError($"{Strings.HotkeyInvalid(_currentLang)} ({newHotkey})");
-            TxtHotkey.Focus();
+            FocusInvalidField(NavInteraction, TxtHotkey);
             return;
         }
         if (!GlobalHotkeyService.TryParseChord(newMicHotkey, out _, out _))
         {
             ShowInlineError($"{Strings.HotkeyInvalid(_currentLang)} ({newMicHotkey})");
-            TxtMicMuteHotkey.Focus();
+            FocusInvalidField(NavInteraction, TxtMicMuteHotkey);
             return;
         }
         if (!GlobalHotkeyService.TryParseChord(newPickerHotkey, out _, out _))
         {
             ShowInlineError($"{Strings.HotkeyInvalid(_currentLang)} ({newPickerHotkey})");
-            TxtColorPickerHotkey.Focus();
+            FocusInvalidField(NavInteraction, TxtColorPickerHotkey);
             return;
         }
 
@@ -832,6 +884,7 @@ public partial class SettingsWindow : Window
                 _currentLang,
                 "Kısayol tuşları birbiriyle çakışamaz.",
                 "Global hotkeys cannot share the same key chord."));
+            FocusInvalidField(NavInteraction, TxtHotkey);
             return;
         }
 
@@ -844,7 +897,7 @@ public partial class SettingsWindow : Window
                 _currentLang,
                 "Geliştirici köprüsü portu 1024 ile 65535 arasında olmalıdır.",
                 "Developer bridge port must be between 1024 and 65535."));
-            TxtDevBridgePort.Focus();
+            FocusInvalidField(NavIntegrations, TxtDevBridgePort);
             return;
         }
 
@@ -852,162 +905,157 @@ public partial class SettingsWindow : Window
             ? "1.1.1.1"
             : TxtPingHost.Text.Trim();
 
-        string previousHotkey = _orch.Config.CommandHotkey;
-        string previousMicHotkey = _orch.Config.MicMuteHotkey;
-        string previousPickerHotkey = _orch.Config.ColorPickerHotkey;
-
-        bool hotkeyChanged = !string.Equals(newHotkey, previousHotkey, StringComparison.OrdinalIgnoreCase);
-        bool micHotkeyChanged = !string.Equals(newMicHotkey, previousMicHotkey, StringComparison.OrdinalIgnoreCase);
-        bool pickerHotkeyChanged = !string.Equals(newPickerHotkey, previousPickerHotkey, StringComparison.OrdinalIgnoreCase);
+        var cfg = _orch.Config;
+        var bindings = new[]
+        {
+            (Id: GlobalHotkeyService.HotkeyId, Chord: newHotkey, Field: TxtHotkey),
+            (Id: GlobalHotkeyService.MicMuteHotkeyId, Chord: newMicHotkey, Field: TxtMicMuteHotkey),
+            (Id: GlobalHotkeyService.ColorPickerHotkeyId, Chord: newPickerHotkey, Field: TxtColorPickerHotkey)
+        };
+        var changes = bindings
+            .Select(b => (b.Id, b.Chord, b.Field,
+                Previous: _hotkeyService.TryGetRegisteredChord(b.Id, out var active) ? active : null))
+            .Where(b => !string.Equals(b.Chord, b.Previous, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
 
         void RollbackHotkeys()
         {
             if (_islandHwnd == 0) return;
-            if (hotkeyChanged) _hotkeyService.Unregister(GlobalHotkeyService.HotkeyId);
-            if (micHotkeyChanged) _hotkeyService.Unregister(GlobalHotkeyService.MicMuteHotkeyId);
-            if (pickerHotkeyChanged) _hotkeyService.Unregister(GlobalHotkeyService.ColorPickerHotkeyId);
-
-            if (hotkeyChanged || !_hotkeyService.IsRegistered)
-                _ = _hotkeyService.TryRegister(GlobalHotkeyService.HotkeyId, _islandHwnd, previousHotkey);
-            if (micHotkeyChanged)
-                _ = _hotkeyService.TryRegister(GlobalHotkeyService.MicMuteHotkeyId, _islandHwnd, previousMicHotkey);
-            if (pickerHotkeyChanged)
-                _ = _hotkeyService.TryRegister(GlobalHotkeyService.ColorPickerHotkeyId, _islandHwnd, previousPickerHotkey);
+            foreach (var change in changes) _hotkeyService.Unregister(change.Id);
+            foreach (var change in changes)
+                if (change.Previous is not null)
+                    _ = _hotkeyService.TryRegister(change.Id, _islandHwnd, change.Previous);
         }
 
         if (_islandHwnd != 0)
         {
-            if (hotkeyChanged) _hotkeyService.Unregister(GlobalHotkeyService.HotkeyId);
-            if (micHotkeyChanged) _hotkeyService.Unregister(GlobalHotkeyService.MicMuteHotkeyId);
-            if (pickerHotkeyChanged) _hotkeyService.Unregister(GlobalHotkeyService.ColorPickerHotkeyId);
-
-            if ((hotkeyChanged || !_hotkeyService.IsRegistered) &&
-                !_hotkeyService.TryRegister(GlobalHotkeyService.HotkeyId, _islandHwnd, newHotkey))
+            // Release the changed chords together so users can swap two shortcuts.
+            foreach (var change in changes) _hotkeyService.Unregister(change.Id);
+            foreach (var change in changes)
             {
+                if (_hotkeyService.TryRegister(change.Id, _islandHwnd, change.Chord)) continue;
                 string detail = string.IsNullOrWhiteSpace(_hotkeyService.LastError)
                     ? Strings.HotkeyInvalid(_currentLang)
                     : $"{Strings.HotkeyInvalid(_currentLang)} ({_hotkeyService.LastError})";
                 RollbackHotkeys();
                 ShowInlineError(detail);
-                TxtHotkey.Focus();
-                return;
-            }
-
-            if (micHotkeyChanged &&
-                !_hotkeyService.TryRegister(GlobalHotkeyService.MicMuteHotkeyId, _islandHwnd, newMicHotkey))
-            {
-                string detail = string.IsNullOrWhiteSpace(_hotkeyService.LastError)
-                    ? Strings.HotkeyInvalid(_currentLang)
-                    : $"{Strings.HotkeyInvalid(_currentLang)} ({_hotkeyService.LastError})";
-                RollbackHotkeys();
-                ShowInlineError(detail);
-                TxtMicMuteHotkey.Focus();
-                return;
-            }
-
-            if (pickerHotkeyChanged &&
-                !_hotkeyService.TryRegister(GlobalHotkeyService.ColorPickerHotkeyId, _islandHwnd, newPickerHotkey))
-            {
-                string detail = string.IsNullOrWhiteSpace(_hotkeyService.LastError)
-                    ? Strings.HotkeyInvalid(_currentLang)
-                    : $"{Strings.HotkeyInvalid(_currentLang)} ({_hotkeyService.LastError})";
-                RollbackHotkeys();
-                ShowInlineError(detail);
-                TxtColorPickerHotkey.Focus();
+                FocusInvalidField(NavInteraction, change.Field);
                 return;
             }
         }
 
+        bool previousStartup = cfg.LaunchAtStartup;
         bool wantStartup = ChkLaunchAtStartup.IsChecked == true;
-        if (wantStartup != _orch.Config.LaunchAtStartup && !TryApplyWindowsStartup(wantStartup, out string? startupError))
+        if (wantStartup != previousStartup && !TryApplyWindowsStartup(wantStartup, out string? startupError))
         {
             RollbackHotkeys();
-
             ShowInlineError(Strings.Pick(
                 _currentLang,
                 $"Windows başlangıç kaydı güncellenemedi: {startupError}",
                 $"Failed to update Windows startup entry: {startupError}"));
+            FocusInvalidField(NavModules, ChkLaunchAtStartup);
             return;
         }
 
-        var cfg = _orch.Config;
-        cfg.Language = GetSelectedValue(ComboLanguage, cfg.Language);
-        cfg.DockPlacement = GetSelectedValue(ComboDockMode, cfg.DockPlacement);
-        cfg.NotchScalePreset = GetSelectedValue(ComboNotchScalePreset, cfg.NotchScalePreset);
-        cfg.DormantCameraLensEnabled = ChkDormantCameraLens.IsChecked == true;
-        cfg.DynamicAlbumGlowEnabled = ChkDynamicAlbumGlow.IsChecked == true;
-        cfg.EnableBottomDock = ChkEnableBottomDock.IsChecked == true;
-        cfg.HideWindowsTaskbar = ChkHideWindowsTaskbar.IsChecked == true;
-        cfg.DockMagnificationEnabled = ChkDockMagnification.IsChecked == true;
-        cfg.DockIntellihideEnabled = ChkDockIntellihide.IsChecked == true;
-        cfg.DockIconSizeDip = (int)Math.Round(SliderDockIconSize.Value);
-        cfg.MonitorMode = GetSelectedValue(ComboMonitorMode, cfg.MonitorMode);
-        if (cfg.MonitorMode == MonitorPlacementMode.PinnedMonitor)
+        try
         {
-            cfg.PinnedMonitorDeviceName = GetSelectedValue<string?>(ComboPinnedMonitor, cfg.PinnedMonitorDeviceName);
+            _orch.ConfigStore.Update(cfg, AssignFormValues);
         }
-        cfg.HorizontalDetent = GetSelectedValue(ComboDetent, cfg.HorizontalDetent);
-        cfg.CustomHorizontalRatio = Math.Round(SliderCustomRatio.Value) / 100.0;
-        cfg.CustomFreeTopDip = Math.Round(SliderCustomFreeTop.Value);
-
-        cfg.TargetFpsCap = GetSelectedValue(ComboTargetFpsCap, cfg.TargetFpsCap);
-        cfg.ExpandTrigger = GetSelectedValue(ComboExpandTrigger, cfg.ExpandTrigger);
-        cfg.HoverDwellMs = (int)Math.Round(SliderHoverDwell.Value);
-        cfg.CollapseHysteresisMs = (int)Math.Round(SliderCollapseDelay.Value);
-        cfg.CommandHotkey = newHotkey;
-        cfg.MicMuteHotkey = newMicHotkey;
-        cfg.ColorPickerHotkey = newPickerHotkey;
-
-        cfg.UseHardwareRendering = ChkHardwareRendering.IsChecked == true;
-        cfg.EnableSpectrumVisualizer = ChkSpectrumVisualizer.IsChecked == true;
-        cfg.AutoDodgeEnabled = ChkAutoDodge.IsChecked == true;
-        cfg.FadeWhenIdle = ChkFadeWhenIdle.IsChecked == true;
-        cfg.QuietIslandEnabled = ChkQuietIsland.IsChecked == true;
-
-        cfg.GameFullscreenPolicy = GetSelectedValue(ComboGamePolicy, cfg.GameFullscreenPolicy);
-        cfg.VideoFullscreenPolicy = GetSelectedValue(ComboVideoPolicy, cfg.VideoFullscreenPolicy);
-        cfg.ProductivityFullscreenPolicy = GetSelectedValue(ComboProductivityPolicy, cfg.ProductivityFullscreenPolicy);
-        cfg.FullscreenWhitelistExes = ParseExeList(TxtWhitelistExes.Text);
-        cfg.FullscreenHideExes = ParseExeList(TxtHideExes.Text);
-        cfg.EnableGameModeAutomation = ChkGameModeAuto.IsChecked == true;
-        cfg.GameModeHideIsland = ChkGameModeHide.IsChecked == true;
-        cfg.GameModeShowPingPill = ChkGameModePingPill.IsChecked == true;
-
-        var tabs = CollectCheckedTabs();
-        if (tabs.Count > 0)
+        catch (Exception ex)
         {
-            cfg.PinnedTabs = tabs;
+            RollbackHotkeys();
+            bool restored = wantStartup == previousStartup || TryApplyWindowsStartup(previousStartup, out _);
+            string details = restored ? string.Empty : Strings.Pick(_currentLang,
+                " Windows başlangıç kaydı geri alınamadı.", " The Windows startup entry could not be restored.");
+            ShowInlineError(Strings.Pick(_currentLang,
+                $"Ayarlar kaydedilemedi: {ex.Message}{details}", $"Could not save settings: {ex.Message}{details}"));
+            return;
         }
-
-        cfg.MaxClipboardItems = (int)Math.Round(SliderMaxClipboard.Value);
-        cfg.ShowTelemetryInPill = ChkShowTelemetryPill.IsChecked == true;
-        cfg.ShowMicPrivacyAlert = ChkMicPrivacyAlert.IsChecked == true;
-        cfg.MirrorOsNotifications = ChkMirrorOsNotifications.IsChecked == true;
-        cfg.EnableClipboardVault = ChkClipboardVault.IsChecked == true;
-        cfg.BluetoothBatteryAlertsEnabled = ChkBtBatteryAlerts.IsChecked == true;
-        cfg.NotchDesktopSwipeEnabled = ChkNotchDesktopSwipe.IsChecked == true;
-        cfg.CalendarEnabled = ChkCalendarEnabled.IsChecked == true;
-        cfg.DownloadsWatchEnabled = ChkDownloadsWatch.IsChecked == true;
-        cfg.LyricsEnabled = ChkLyricsEnabled.IsChecked == true;
-        cfg.UsbDriveHudEnabled = ChkUsbDriveHud.IsChecked == true;
-        cfg.EnableDeveloperBridge = ChkDevBridgeEnabled.IsChecked == true;
-        cfg.CalendarIcsSources = TxtCalendarSources.Text?.Trim() ?? string.Empty;
-        cfg.DownloadsWatchPath = TxtDownloadsPath.Text?.Trim() ?? string.Empty;
-        cfg.LyricsFolders = TxtLyricsFolders.Text?.Trim() ?? string.Empty;
-        cfg.PingHost = newPingHost;
-        cfg.DeveloperBridgePort = newBridgePort;
-        cfg.LaunchAtStartup = wantStartup;
 
         try
         {
-            _orch.SaveConfig();
+            _orch.ApplySavedConfig();
             _orch.Coordinator.EnsureValidPinnedTabSelection();
             _onAppliedCallback();
             Close();
         }
         catch (Exception ex)
         {
-            ShowInlineError(Strings.Pick(_currentLang, $"Ayarlar kaydedilemedi: {ex.Message}", $"Could not save settings: {ex.Message}"));
+            ShowInlineError(Strings.Pick(_currentLang,
+                $"Ayarlar kaydedildi ancak uygulanamadı. DinamikAda’yı yeniden başlatın. ({ex.Message})",
+                $"Settings were saved but could not be applied. Restart DinamikAda. ({ex.Message})"));
+        }
+
+        void AssignFormValues(AppConfig cfg)
+        {
+            cfg.Language = GetSelectedValue(ComboLanguage, cfg.Language);
+            cfg.DockPlacement = GetSelectedValue(ComboDockMode, cfg.DockPlacement);
+            cfg.NotchScalePreset = GetSelectedValue(ComboNotchScalePreset, cfg.NotchScalePreset);
+            cfg.DormantCameraLensEnabled = ChkDormantCameraLens.IsChecked == true;
+            cfg.DynamicAlbumGlowEnabled = ChkDynamicAlbumGlow.IsChecked == true;
+            cfg.EnableBottomDock = ChkEnableBottomDock.IsChecked == true;
+            cfg.UseExplorerTaskbar = ChkExplorerTaskbar.IsChecked == true;
+            cfg.HideWindowsTaskbar = ChkHideWindowsTaskbar.IsChecked == true;
+            cfg.DockMagnificationEnabled = ChkDockMagnification.IsChecked == true;
+            cfg.DockIntellihideEnabled = ChkDockIntellihide.IsChecked == true;
+            cfg.DockIconSizeDip = (int)Math.Round(SliderDockIconSize.Value);
+            cfg.MonitorMode = GetSelectedValue(ComboMonitorMode, cfg.MonitorMode);
+            if (cfg.MonitorMode == MonitorPlacementMode.PinnedMonitor)
+            {
+                cfg.PinnedMonitorDeviceName = GetSelectedValue<string?>(ComboPinnedMonitor, cfg.PinnedMonitorDeviceName);
+            }
+            cfg.HorizontalDetent = GetSelectedValue(ComboDetent, cfg.HorizontalDetent);
+            cfg.CustomHorizontalRatio = Math.Round(SliderCustomRatio.Value) / 100.0;
+            cfg.CustomFreeTopDip = Math.Round(SliderCustomFreeTop.Value);
+
+            cfg.TargetFpsCap = GetSelectedValue(ComboTargetFpsCap, cfg.TargetFpsCap);
+            cfg.ExpandTrigger = GetSelectedValue(ComboExpandTrigger, cfg.ExpandTrigger);
+            cfg.HoverDwellMs = (int)Math.Round(SliderHoverDwell.Value);
+            cfg.CollapseHysteresisMs = (int)Math.Round(SliderCollapseDelay.Value);
+            cfg.CommandHotkey = newHotkey;
+            cfg.MicMuteHotkey = newMicHotkey;
+            cfg.ColorPickerHotkey = newPickerHotkey;
+
+            cfg.UseHardwareRendering = ChkHardwareRendering.IsChecked == true;
+            cfg.EnableSpectrumVisualizer = ChkSpectrumVisualizer.IsChecked == true;
+            cfg.AutoDodgeEnabled = ChkAutoDodge.IsChecked == true;
+            cfg.FadeWhenIdle = ChkFadeWhenIdle.IsChecked == true;
+            cfg.QuietIslandEnabled = ChkQuietIsland.IsChecked == true;
+
+            cfg.GameFullscreenPolicy = GetSelectedValue(ComboGamePolicy, cfg.GameFullscreenPolicy);
+            cfg.VideoFullscreenPolicy = GetSelectedValue(ComboVideoPolicy, cfg.VideoFullscreenPolicy);
+            cfg.ProductivityFullscreenPolicy = GetSelectedValue(ComboProductivityPolicy, cfg.ProductivityFullscreenPolicy);
+            cfg.FullscreenWhitelistExes = ParseExeList(TxtWhitelistExes.Text);
+            cfg.FullscreenHideExes = ParseExeList(TxtHideExes.Text);
+            cfg.EnableGameModeAutomation = ChkGameModeAuto.IsChecked == true;
+            cfg.GameModeHideIsland = ChkGameModeHide.IsChecked == true;
+            cfg.GameModeShowPingPill = ChkGameModePingPill.IsChecked == true;
+
+            var tabs = CollectCheckedTabs();
+            if (tabs.Count > 0)
+            {
+                cfg.PinnedTabs = tabs;
+            }
+
+            cfg.MaxClipboardItems = (int)Math.Round(SliderMaxClipboard.Value);
+            cfg.ShowTelemetryInPill = ChkShowTelemetryPill.IsChecked == true;
+            cfg.ShowAiQuotaInIslandAndDock = ChkShowAiQuotaSummary.IsChecked == true;
+            cfg.ShowMicPrivacyAlert = ChkMicPrivacyAlert.IsChecked == true;
+            cfg.MirrorOsNotifications = ChkMirrorOsNotifications.IsChecked == true;
+            cfg.EnableClipboardVault = ChkClipboardVault.IsChecked == true;
+            cfg.BluetoothBatteryAlertsEnabled = ChkBtBatteryAlerts.IsChecked == true;
+            cfg.NotchDesktopSwipeEnabled = ChkNotchDesktopSwipe.IsChecked == true;
+            cfg.CalendarEnabled = ChkCalendarEnabled.IsChecked == true;
+            cfg.DownloadsWatchEnabled = ChkDownloadsWatch.IsChecked == true;
+            cfg.LyricsEnabled = ChkLyricsEnabled.IsChecked == true;
+            cfg.UsbDriveHudEnabled = ChkUsbDriveHud.IsChecked == true;
+            cfg.EnableDeveloperBridge = ChkDevBridgeEnabled.IsChecked == true;
+            cfg.CalendarIcsSources = TxtCalendarSources.Text?.Trim() ?? string.Empty;
+            cfg.DownloadsWatchPath = TxtDownloadsPath.Text?.Trim() ?? string.Empty;
+            cfg.LyricsFolders = TxtLyricsFolders.Text?.Trim() ?? string.Empty;
+            cfg.PingHost = newPingHost;
+            cfg.DeveloperBridgePort = newBridgePort;
+            cfg.LaunchAtStartup = wantStartup;
         }
     }
 
@@ -1017,7 +1065,14 @@ public partial class SettingsWindow : Window
     {
         string scriptPath = ResolveSparseMsixScriptPath();
         string cmd = $"powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\" -BinDir \"{AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar)}\"";
-        _orch.Clipboard.CopyTextToClipboard(cmd);
+        if (!_orch.Clipboard.CopyTextToClipboard(cmd))
+        {
+            TxtIdentityActionStatus.Visibility = Visibility.Collapsed;
+            ShowInlineError(Strings.Pick(_currentLang,
+                "Pano şu anda kullanılamıyor. Yeniden deneyin.", "Clipboard unavailable. Try again."));
+            return;
+        }
+        HideInlineError();
 
         TxtIdentityActionStatus.Text = Strings.Pick(
             _currentLang,
@@ -1106,10 +1161,11 @@ public partial class SettingsWindow : Window
         BannerInlineError.Visibility = Visibility.Collapsed;
     }
 
-    public RenderTargetBitmap RenderToBitmap()
+    public RenderTargetBitmap RenderToBitmap(double? auditWidth = null, double? auditHeight = null, bool showIntegrations = false)
     {
-        double w = Width;
-        double h = Height;
+        if (showIntegrations) NavIntegrations.IsChecked = true;
+        double w = auditWidth ?? Width;
+        double h = auditHeight ?? Height;
         SettingsRootGrid.Measure(new System.Windows.Size(w, h));
         SettingsRootGrid.Arrange(new System.Windows.Rect(0, 0, w, h));
         SettingsRootGrid.UpdateLayout();

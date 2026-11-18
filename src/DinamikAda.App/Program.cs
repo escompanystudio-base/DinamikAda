@@ -48,10 +48,22 @@ public static class Program
             ? new AppConfigStore(Path.Combine(isolatedConfigDir, "config.json"))
             : new AppConfigStore();
         var initialConfig = configStore.Load();
+        if (isolatedConfigDir is null && args.Contains("--explorer-taskbar", StringComparer.OrdinalIgnoreCase))
+        {
+            initialConfig.UseExplorerTaskbar = true;
+            configStore.Save(initialConfig);
+        }
+        if (isolatedConfigDir is null && args.Contains("--custom-dock", StringComparer.OrdinalIgnoreCase))
+        {
+            initialConfig.UseExplorerTaskbar = false;
+            initialConfig.EnableBottomDock = true;
+            configStore.Save(initialConfig);
+        }
         if (isolatedConfigDir is not null)
         {
             initialConfig.HideWindowsTaskbar = false;
             initialConfig.EnableBottomDock = false;
+            initialConfig.UseExplorerTaskbar = false;
             if (smokeTest && renderAuditDir is null)
             {
                 initialConfig.EnableSpectrumVisualizer = false;
@@ -112,6 +124,7 @@ public static class Program
             var taskbarManager = provider.GetRequiredService<WindowsTaskbarManager>();
             var window = provider.GetRequiredService<IslandWindow>();
             app.MainWindow = window;
+            app.ShutdownMode = ShutdownMode.OnMainWindowClose;
             window.Show();
             orch.StartMessageLoopHooks();
 
@@ -251,6 +264,7 @@ public static class Program
     {
         int exitCode = 0;
         var orch = provider.GetRequiredService<AppOrchestrator>();
+        orch.IsSmokeOrAuditMode = true;
         var window = provider.GetRequiredService<IslandWindow>();
         if (traceMode)
         {
@@ -304,6 +318,19 @@ public static class Program
                         failures.Add($"Unexpected WS_EX style: 0x{exStyle:X}");
                     }
 
+                    // Inspect the live tray without activating or closing another application.
+                    var trayService = new DockAppsService(new AppConfig(), () => { });
+                    var trayApps = await Task.Run(trayService.QueryBackgroundTrayApps);
+                    if (trayApps.Select(item => item.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count() != trayApps.Count)
+                        failures.Add("Background tray returned duplicate application entries.");
+                    if (trayApps.Any(item => item.ProcessId == Environment.ProcessId ||
+                        item.ProcessStartedUtcTicks <= 0 || item.Icon is { IsFrozen: false }))
+                        failures.Add("Background tray returned an invalid process identity or an unfrozen icon.");
+                    var staleTrayItem = new BackgroundTrayAppItem("smoke:stale", "Stale app", "missing.exe", null, uint.MaxValue, 1, 0, null);
+                    if (await DockAppsService.ActivateBackgroundTrayAppAsync(staleTrayItem) != TrayAppActionResult.Stale ||
+                        DockAppsService.RequestCloseTrayWindow(staleTrayItem) != TrayAppActionResult.Stale)
+                        failures.Add("A stale background tray entry was accepted for activation or closing.");
+
                     // Temporarily isolate synthetic state-machine self-test from any fullscreen app behind the test terminal.
                     var savedGamePolicy = orch.Config.GameFullscreenPolicy;
                     var savedVideoPolicy = orch.Config.VideoFullscreenPolicy;
@@ -317,15 +344,27 @@ public static class Program
                     {
                         // Exercise S1 -> S2 -> S2Split -> S3 -> S4 -> S5 -> S6 -> S1
                         orch.Coordinator.RequestCollapse(forceUnpin: true);
-                        orch.Coordinator.PublishLiveActivity(new LiveActivityState("smoke", ActivityKind.Media, 60, "Smoke Track", "Smoke Artist"), "smoke");
+                        orch.Coordinator.PublishLiveActivity(new LiveActivityState("smoke", ActivityKind.Media, 1000, "Smoke Track", "Smoke Artist"), "smoke");
                         PumpFrames();
                         if (orch.Coordinator.Current.State is not (IslandPresentationState.S2Compact or IslandPresentationState.S2Split))
                             failures.Add($"Expected S2Compact/S2Split, got {orch.Coordinator.Current.State}");
 
-                        orch.Coordinator.PublishLiveActivity(new LiveActivityState("smoke:sat", ActivityKind.Timer, 50, "04:59"), "smoke:sat");
+                        orch.Coordinator.PublishLiveActivity(new LiveActivityState("smoke:sat", ActivityKind.CustomWidget, 900, "AI 2/3", TargetTab: ExpandedTabId.AiQuota), "smoke:sat");
                         PumpFrames();
                         if (orch.Coordinator.Current.State != IslandPresentationState.S2Split)
                             failures.Add($"Expected S2Split with dual activity, got {orch.Coordinator.Current.State}");
+                        await Task.Delay(350);
+                        if (!window.IsSatelliteInteractive)
+                            failures.Add("AI satellite was not interactive after the split reveal.");
+                        orch.Coordinator.RequestExpand(ExpandedTabId.AiQuota);
+                        PumpFrames();
+                        if (window.IsSatelliteInteractive)
+                            failures.Add("Outgoing AI satellite still intercepted input during expansion.");
+                        await Task.Delay(40);
+                        orch.Coordinator.RequestCollapse(forceUnpin: true);
+                        await Task.Delay(350);
+                        if (!window.IsSatelliteInteractive)
+                            failures.Add("AI satellite did not recover after a rapid open-close transition.");
                         orch.Coordinator.PublishLiveActivity(null, "smoke:sat");
 
                         orch.Coordinator.Publish(new TransientHudEvent("smoke:hud", HudKind.Volume, "Smoke Volume", "50%", 0.5, DurationMs: 500));
@@ -530,6 +569,7 @@ public static class Program
     {
         Directory.CreateDirectory(outputDir);
         var orch = provider.GetRequiredService<AppOrchestrator>();
+        orch.IsSmokeOrAuditMode = true;
         var coord = orch.Coordinator;
         var window = provider.GetRequiredService<IslandWindow>();
         var hotkeyService = provider.GetRequiredService<GlobalHotkeyService>();
@@ -766,6 +806,10 @@ public static class Program
         coord.PublishLiveActivity(new LiveActivityState("audit:sat", ActivityKind.Timer, 50, "04:32", "Focus", "#FF9F0A", IconGlyph: "\uE916"), "audit:sat");
         CaptureFrame("04_s2_split_satellite.png", coord.Current, 640, 140);
         savedCount++;
+        coord.PublishLiveActivity(new LiveActivityState("audit:sat", ActivityKind.CustomWidget, 50, "AI 2/3", "AI kota durumu", "#10A37F",
+            IconGlyph: "\uE945", TargetTab: ExpandedTabId.AiQuota), "audit:sat");
+        CaptureFrame("39_s2_media_ai_split.png", coord.Current, 640, 140);
+        savedCount++;
 
         // 05: S2 Floating Capsule
         orch.Config.DockPlacement = DockPlacementMode.FloatingTop;
@@ -824,6 +868,8 @@ public static class Program
         // 15: SettingsWindow with Live MacBook Bezel Preview
         var settingsWin = new SettingsWindow(orch, hotkeyService, () => { });
         SavePng(settingsWin.RenderToBitmap(), Path.Combine(outputDir, "15_settings_window.png"));
+        savedCount++;
+        SavePng(settingsWin.RenderToBitmap(440, 430, showIntegrations: true), Path.Combine(outputDir, "37_settings_integrations_narrow.png"));
         savedCount++;
 
         // 16: Desktop PC S4 Control Center (Ethernet + Master Audio + DDC/CI Display + Real Power Scheme)
@@ -1081,16 +1127,45 @@ public static class Program
         SavePng(window.RenderAuditBackdropBitmap(800, 460), Path.Combine(outputDir, "24_s4_tab_control_sched_power.png"));
         savedCount++;
 
-        // 25: S4 Widgets Tab with Quick Color Picker, Window Snap Bar & AI Quota Tracker
+        // 25: S4 Widgets Tab (clean Widget Cards & Color Picker)
+        coord.RequestExpand(ExpandedTabId.Widgets);
+        window.ApplyRenderAuditState(
+            coord.Current,
+            demoSpectrum,
+            demoMedia,
+            desktopDisplays,
+            desktopConn,
+            desktopPrivacy,
+            demoTimers,
+            demoNotifs,
+            demoShelf,
+            demoClip,
+            fullTelemetry,
+            demoWidgets,
+            demoCommands,
+            desktopAudio);
+        SavePng(window.RenderAuditBackdropBitmap(800, 460), Path.Combine(outputDir, "25_s4_tab_widgets_snap.png"));
+        savedCount++;
+
+        // 34 & 35: S4 AI Quota Hub Tab (grouped by entered AI providers only) + Provider-Specific Popup
         var auditUtc = DateTimeOffset.UtcNow;
         AiQuotaSlotSnapshot[] demoAiQuota =
         [
-            new("ai1", "ChatGPT", "ChatGPT #1", "#10A37F", 180, null, TimeSpan.Zero, true, null, true),
-            new("ai2", "Claude", "Claude #1", "#D97757", 300, null, TimeSpan.Zero, true, null, true),
-            new("ai3", "ChatGPT", "ChatGPT #2", "#10A37F", 180, auditUtc.AddMinutes(84), TimeSpan.FromMinutes(84), false, 0.53, true),
-            new("ai4", "Gemini", "Gemini #1", "#4E8DF5", 180, auditUtc.AddMinutes(32), TimeSpan.FromMinutes(32), false, 0.82, true)
+            new("ai1", "ChatGPT", "ChatGPT · Atölye", "#10A37F", "studio-1@example.com", "Plus", 24, 7, "24 Kas", "$20/ay", "pct", 100, 47, 53, 53.0, 20, "codex", "", true, "● OAuth Canlı", "Haftalık: %79 kaldı (↻ 21 Kas)", "gpt-5.3-codex", 300, auditUtc.AddMinutes(239), TimeSpan.FromMinutes(239), true, false, false, 0.20, true, WeeklyRemainingPercent: 79.0, WeeklyResetUtc: auditUtc.AddDays(4).AddHours(16)),
+            new("ai2", "ChatGPT", "ChatGPT · Kişisel", "#10A37F", "studio-2@example.com", "Plus", 15, 28, "15 Ara", "$20/ay", "pct", 100, 0, 100, 100.0, 20, "codex", "", true, "● OAuth Canlı", "Haftalık: %100 kaldı (↻ 24 Kas)", "gpt-5.3-codex", 300, auditUtc.AddMinutes(299), TimeSpan.FromMinutes(299), true, false, false, 0.01, true, WeeklyRemainingPercent: 100.0, WeeklyResetUtc: auditUtc.AddDays(7)),
+            new("ai3", "Antigravity", "Antigravity · Atölye", "#38BDF8", "lab-1@example.com", "AI Pro", 0, null, null, "", "pct", 100, 67, 33, 33.0, 20, "antigravity", "", true, "● OAuth Canlı", "Google OAuth · 3 havuz", "claude-opus-5-5", 300, auditUtc.AddDays(3).AddHours(14), TimeSpan.FromDays(3).Add(TimeSpan.FromHours(14)), true, false, false, 0.33, true, ModelBuckets:
+            [
+                new("gemini", "Gemini Models", "Gemini 4 Hydrogen, Gemini 3.8 Flash", 40.0, auditUtc.AddDays(3).AddHours(14), 100.0, auditUtc.AddHours(5), "#4E8DF5"),
+                new("claude_gpt", "Claude & GPT", "Claude Opus 5.5, Claude Sonnet 5.5, GPT-OSS 120B", 33.0, auditUtc.AddDays(6).AddHours(15), 100.0, auditUtc.AddHours(5), "#D97757"),
+                new("gemini_argon", "Gemini 4 Argon", "Gemini 4 Argon (Pro)", 43.0, auditUtc.AddDays(4), null, null, "#A78BFA")
+            ]),
+            new("ai4", "Antigravity", "Antigravity · Kişisel", "#38BDF8", "lab-2@example.com", "AI Pro", 0, null, null, "", "pct", 100, 0, 100, 100.0, 20, "antigravity", "", true, "● OAuth Canlı", "Google OAuth · 2 havuz", "gemini-4-hydrogen", 300, null, TimeSpan.Zero, true, false, false, null, true, ModelBuckets:
+            [
+                new("gemini", "Gemini Models", "Gemini 4 Hydrogen, Gemini 3.8 Flash", 100.0, null, 100.0, null, "#4E8DF5"),
+                new("claude_gpt", "Claude & GPT", "Claude Opus 5.5, Claude Sonnet 5.5, GPT-OSS 120B", 100.0, null, 100.0, null, "#D97757")
+            ])
         ];
-        coord.RequestExpand(ExpandedTabId.Widgets);
+        coord.RequestExpand(ExpandedTabId.AiQuota);
         window.ApplyRenderAuditState(
             coord.Current,
             demoSpectrum,
@@ -1107,7 +1182,54 @@ public static class Program
             demoCommands,
             desktopAudio,
             demoAiQuota: demoAiQuota);
-        SavePng(window.RenderAuditBackdropBitmap(800, 460), Path.Combine(outputDir, "25_s4_tab_widgets_snap.png"));
+        SavePng(window.RenderAuditBackdropBitmap(800, 460), Path.Combine(outputDir, "34_s4_tab_aiquota.png"));
+        savedCount++;
+
+        var demoReconnect = demoAiQuota[1] with
+        {
+            IsCliSynced = false,
+            CliBadgeText = null,
+            SecondarySummary = null,
+            IsReady = false,
+            HasPrimaryQuota = false,
+            WeeklyRemainingPercent = null,
+            WeeklyResetUtc = null,
+            NextResetUtc = null,
+            RequiresReconnect = true
+        };
+        var demoClaude = demoAiQuota[0] with
+        {
+            Id = "ai5",
+            Provider = "Claude",
+            Label = "Claude · Atölye",
+            AccentHex = "#D97757",
+            AccountIdentifier = "claude@example.com",
+            LocalSourceMode = "claude",
+            CliBadgeText = "Claude Code /usage",
+            SecondarySummary = null,
+            ActiveModelName = null
+        };
+        window.ApplyRenderAuditState(
+            coord.Current,
+            demoSpectrum,
+            demoMedia,
+            desktopDisplays,
+            desktopConn,
+            desktopPrivacy,
+            demoTimers,
+            demoNotifs,
+            demoShelf,
+            demoClip,
+            fullTelemetry,
+            demoWidgets,
+            demoCommands,
+            desktopAudio,
+            demoAiQuota: [demoAiQuota[0], demoReconnect, demoClaude]);
+        SavePng(window.RenderAuditBackdropBitmap(800, 460), Path.Combine(outputDir, "41_s4_tab_aiquota_claude.png"));
+        savedCount++;
+
+        window.OpenAiQuotaEditorForAudit(demoAiQuota[2]);
+        SavePng(window.RenderAuditBackdropBitmap(800, 460), Path.Combine(outputDir, "35_s4_tab_aiquota_editor.png"));
         savedCount++;
 
         // 26: S3 USB Drive Plug HUD with Open Folder & Safe Eject Actions
@@ -1201,12 +1323,20 @@ public static class Program
         SavePng(window.RenderAuditBackdropBitmap(800, 460), Path.Combine(outputDir, "30_s4_notif_detail_overlay.png"));
         savedCount++;
 
+        orch.AiQuota.SeedStarterSlotsIfNeeded();
         var dockAudit = provider.GetRequiredService<DockWindow>();
         SavePng(dockAudit.RenderForAudit(960, 96), Path.Combine(outputDir, "31_bottom_dock.png"));
         savedCount++;
         SavePng(dockAudit.RenderCalendarPopupForAudit(300, 340), Path.Combine(outputDir, "32_dock_calendar_popup.png"));
         savedCount++;
-        SavePng(dockAudit.RenderTrayPopupForAudit(300, 240), Path.Combine(outputDir, "33_dock_tray_popup.png"));
+        SavePng(dockAudit.RenderTrayPopupForAudit(), Path.Combine(outputDir, "33_dock_tray_popup.png"));
+        savedCount++;
+        var emptyTrayAudit = new DockWindow(orch, provider.GetRequiredService<WindowsTaskbarManager>());
+        SavePng(emptyTrayAudit.RenderTrayPopupForAudit(324, 220, empty: true), Path.Combine(outputDir, "40_dock_tray_empty_narrow.png"));
+        savedCount++;
+        SavePng(dockAudit.RenderStartPopupForAudit(), Path.Combine(outputDir, "36_dock_start_popup.png"));
+        savedCount++;
+        SavePng(dockAudit.RenderStartPopupForAudit(450, 540, "visual"), Path.Combine(outputDir, "38_dock_start_search_narrow.png"));
         savedCount++;
 
         Console.WriteLine($"RENDER_AUDIT_PASS: {savedCount} files -> {outputDir}");

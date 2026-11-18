@@ -78,6 +78,7 @@ public sealed class AppOrchestrator : IAsyncDisposable
     private CancellationTokenSource? _devBuildClearCts;
     private int _maintenanceTickCounter;
     private int _bgPollInFlight;
+    private int _aiCliSyncInFlight;
     private int _hooksStarted;
     private volatile bool _disposed;
     private readonly object _lifecycleSync = new();
@@ -176,6 +177,8 @@ public sealed class AppOrchestrator : IAsyncDisposable
         }
     }
 
+    public bool IsSmokeOrAuditMode { get; set; }
+
     private async Task StartCoreAsync(CancellationToken ct)
     {
         if (_disposed) return;
@@ -188,6 +191,21 @@ public sealed class AppOrchestrator : IAsyncDisposable
         AiQuota.Start();
         Widgets.SetPausedWhenCollapsed(Coordinator.Current.State != IslandPresentationState.S4Expanded);
         UpdateWidgetPillActivity(Widgets.GetSnapshots());
+        UpdateAiQuotaPillActivity();
+
+        // Initial AI quota migration & live refresh off-thread immediately (do not wait for slow WinRT/DDC-CI init).
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (_disposed || IsSmokeOrAuditMode) return;
+                await AiQuota.MigrateAndSyncRealAccountsAsync(allowLiveSubprocess: true, token).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Best-effort local log / app-server scan.
+            }
+        }, token);
 
         await Task.WhenAll(
             Media.InitializeAsync(token),
@@ -280,6 +298,7 @@ public sealed class AppOrchestrator : IAsyncDisposable
         Telemetry.SetPingHost(Config.PingHost);
         DeveloperBridge.UpdateSettings(Config.EnableDeveloperBridge, Config.DeveloperBridgePort);
         UpdateMicMutedActivity(Audio.Current);
+        UpdateAiQuotaPillActivity();
         ReconcileGameMode(FullscreenDetector.Current);
         UpdateTelemetrySamplingGates();
         OnPrivacyChanged(this, Privacy.Current);
@@ -310,6 +329,7 @@ public sealed class AppOrchestrator : IAsyncDisposable
         Connectivity.OperationFailed += OnConnectivityOperationFailed;
         Clipboard.EntryCaptured += OnClipboardEntryCaptured;
         Widgets.WidgetsChanged += OnWidgetsChanged;
+        AiQuota.SlotsChanged += OnAiQuotaSlotsChanged;
         Telemetry.TelemetryUpdated += OnTelemetryUpdated;
         LanDrop.FilesReceived += OnLanDropFilesReceived;
         Calendar.ActivityChanged += OnCalendarActivityChanged;
@@ -321,6 +341,73 @@ public sealed class AppOrchestrator : IAsyncDisposable
         UsbDrives.DriveArrived += OnUsbDriveArrived;
         UsbDrives.DriveRemoved += OnUsbDriveRemoved;
         DeveloperBridge.NotificationReceived += OnDeveloperBridgeNotification;
+    }
+
+    private void OnAiQuotaSlotsChanged(object? sender, IReadOnlyList<AiQuotaSlotSnapshot> _) =>
+        UpdateAiQuotaPillActivity();
+
+    private void UpdateAiQuotaPillActivity()
+    {
+        if (!Config.ShowAiQuotaInIslandAndDock)
+        {
+            Coordinator.PublishLiveActivity(null, "ai.quota.pill");
+            return;
+        }
+
+        var snaps = AiQuota.GetSnapshots();
+        var summary = AiQuota.GetSummary();
+        if (summary.TotalCount == 0)
+        {
+            Coordinator.PublishLiveActivity(null, "ai.quota.pill");
+            return;
+        }
+
+        var focusSlot = summary.SoonestCooldown ?? summary.AttentionSlot ??
+            snaps.Where(s => s.IsReady).OrderBy(s => s.EffectiveRemainingPercent).FirstOrDefault() ?? snaps[0];
+        string lang = Config.Language;
+        string primary;
+        string secondary;
+        string accent;
+        double? progress01 = !focusSlot.QuotaAwaitingRefresh && (focusSlot.TotalQuota > 0 || focusSlot.WeeklyRemainingPercent.HasValue)
+            ? Math.Clamp(focusSlot.EffectiveRemainingPercent / 100.0, 0.0, 1.0)
+            : focusSlot.CooldownProgress01;
+        bool critical = summary.ExhaustedCount > 0 || summary.LowCount > 0;
+        int priority = critical ? 52 : 22;
+
+        if (summary.ExhaustedCount > 0)
+        {
+            primary = Strings.Pick(lang, $"AI {summary.ReadyCount}/{summary.TotalCount} Hazır", $"AI {summary.ReadyCount}/{summary.TotalCount} Ready");
+            secondary = focusSlot.BlockingResetUtc is { } reset
+                ? $"{focusSlot.Label} · ↻ {reset.ToLocalTime():dd MMM HH:mm}"
+                : Strings.Pick(lang, $"{focusSlot.Label} · Kota tükendi", $"{focusSlot.Label} · Quota exhausted");
+            accent = "#FF453A";
+        }
+        else if (summary.LowCount > 0 && summary.AttentionSlot is { } low)
+        {
+            primary = $"{low.Label} · {Strings.Pick(lang, "Kota düşük", "Low quota")}";
+            secondary = Strings.Pick(lang, $"%{low.EffectiveRemainingPercent:0.#} kaldı", $"{low.EffectiveRemainingPercent:0.#}% left");
+            accent = "#FF9F0A";
+        }
+        else
+        {
+            primary = Strings.Pick(lang, $"AI {summary.ReadyCount}/{summary.TotalCount} Hazır", $"AI {summary.ReadyCount}/{summary.TotalCount} Ready");
+            secondary = focusSlot.IsReady && progress01.HasValue
+                ? Strings.Pick(lang, $"{focusSlot.Label} · %{focusSlot.EffectiveRemainingPercent:0.#}", $"{focusSlot.Label} · {focusSlot.EffectiveRemainingPercent:0.#}%")
+                : focusSlot.IsReady ? focusSlot.Label : Strings.Pick(lang, "Kota verisi yok", "Quota unavailable");
+            accent = focusSlot.IsReady ? "#10A37F" : "#94A3B8";
+        }
+
+        Coordinator.PublishLiveActivity(new LiveActivityState(
+            SourceId: "ai.quota.pill",
+            Kind: ActivityKind.CustomWidget,
+            Priority: priority,
+            PrimaryText: primary,
+            SecondaryText: secondary,
+            AccentHex: accent,
+            Progress01: progress01,
+            IsCritical: critical,
+            IconGlyph: "\uE945",
+            TargetTab: ExpandedTabId.AiQuota), "ai.quota.pill");
     }
 
     private void OnConnectivityStateChanged(object? sender, ConnectivitySnapshot snap)
@@ -1378,8 +1465,12 @@ public sealed class AppOrchestrator : IAsyncDisposable
 
     public void SaveConfig()
     {
-        Config.Sanitize();
         ConfigStore.Save(Config);
+        ApplySavedConfig();
+    }
+
+    public void ApplySavedConfig()
+    {
         ApplyRuntimeConfig();
         _ = Telemetry.SampleOnceAsync();
         _ = Notifications.RefreshOsMirrorAsync();
@@ -1452,7 +1543,36 @@ public sealed class AppOrchestrator : IAsyncDisposable
         }
 
         // Every ~1.6s (4th 400ms tick), run lightweight Win32 fullscreen/Focus Assist reconciliation off the timer callback.
-        if (Interlocked.Increment(ref _maintenanceTickCounter) % 4 == 0 &&
+        int tickNum = Interlocked.Increment(ref _maintenanceTickCounter);
+        if (!IsSmokeOrAuditMode && tickNum % 50 == 0 && Interlocked.CompareExchange(ref _aiCliSyncInFlight, 1, 0) == 0)
+        {
+            bool runLiveServerPoll = tickNum % 300 == 0;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (_disposed) return;
+                    if (runLiveServerPoll)
+                    {
+                        await AiQuota.RefreshAllLiveAccountsAsync().ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        AiQuota.SyncWithLocalCli();
+                    }
+                }
+                catch
+                {
+                    // Local CLI usage refresh safety guard.
+                }
+                finally
+                {
+                    Volatile.Write(ref _aiCliSyncInFlight, 0);
+                }
+            });
+        }
+
+        if (tickNum % 4 == 0 &&
             Interlocked.CompareExchange(ref _bgPollInFlight, 1, 0) == 0)
         {
             _ = Task.Run(() =>
@@ -1547,6 +1667,7 @@ public sealed class AppOrchestrator : IAsyncDisposable
         Connectivity.OperationFailed -= OnConnectivityOperationFailed;
         Clipboard.EntryCaptured -= OnClipboardEntryCaptured;
         Widgets.WidgetsChanged -= OnWidgetsChanged;
+        AiQuota.SlotsChanged -= OnAiQuotaSlotsChanged;
         Telemetry.TelemetryUpdated -= OnTelemetryUpdated;
         LanDrop.FilesReceived -= OnLanDropFilesReceived;
         Calendar.ActivityChanged -= OnCalendarActivityChanged;

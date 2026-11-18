@@ -24,7 +24,8 @@ public enum ExpandedTabId
     Control = 2,
     Shelf = 3,
     System = 4,
-    Widgets = 5
+    Widgets = 5,
+    AiQuota = 6
 }
 
 public enum DockPlacementMode

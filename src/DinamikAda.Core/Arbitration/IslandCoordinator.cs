@@ -599,6 +599,12 @@ public sealed class IslandCoordinator : ITransientHudBus, IIslandHostContext
 
         LiveActivityState? primary = ordered.Count > 0 ? ordered[0] : null;
         LiveActivityState? satellite = ordered.Count > 1 ? ordered[1] : null;
+        // Pause changes media priority, but the two visible pills should keep their places.
+        if (primary is { Kind: ActivityKind.CustomWidget, TargetTab: ExpandedTabId.AiQuota } &&
+            satellite is { Kind: ActivityKind.Media })
+        {
+            (primary, satellite) = (satellite, primary);
+        }
         FullscreenPolicy policy = EffectivePolicyLocked();
 
         if (_fullscreen.IsFullscreen && policy == FullscreenPolicy.HideCompletely)
@@ -719,7 +725,7 @@ public sealed class IslandCoordinator : ITransientHudBus, IIslandHostContext
 
             IslandPresentationState.S2Split => CreateScaledLayout(
                 state,
-                width: 252,
+                width: 276,
                 height: 36,
                 cornerRadius: flush ? 16 : 18,
                 earRadius: flush ? 9 : 0,
@@ -782,6 +788,7 @@ public sealed class IslandCoordinator : ITransientHudBus, IIslandHostContext
             ExpandedTabId.Shelf => 336,
             ExpandedTabId.System => 336,
             ExpandedTabId.Widgets => 316,
+            ExpandedTabId.AiQuota => 348,
             _ => 280
         };
 
