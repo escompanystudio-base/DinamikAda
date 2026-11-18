@@ -30,15 +30,15 @@ The work area extends to the bottom edge of the screen. Clicks in the gaps pass 
 
 ### Dock and tray motion
 
-Move the pointer to the bottom center to reveal the app row. An icon lifts slightly when you hover over it.
+Move the pointer to the bottom center to reveal the app row. Slide across the icons to see them rise in sequence, then move away to hide the dock again.
 
-![The Explorer dock opens at the bottom edge and the hovered app icon lifts](docs/screenshots/explorer-dock-motion.gif)
+![The Explorer dock rises from the bottom edge, icons lift in sequence as the pointer sweeps over them, and the dock slides away](docs/screenshots/explorer-dock-full-cycle.gif)
 
 The rightmost arrow collapses the system tray into a compact button. Click it again to expand the tray.
 
 ![The right system tray collapses and expands](docs/screenshots/explorer-tray.gif)
 
-[Open the dock GIF](https://raw.githubusercontent.com/escompanystudio-base/DinamikAda/main/docs/screenshots/explorer-dock-motion.gif) · [Full taskbar screenshot](docs/screenshots/explorer-taskbar.png) · [Turkish setup guide](docs/kullanim.md#explorer-modunu-güncelleme)
+[Open the dock GIF](https://raw.githubusercontent.com/escompanystudio-base/DinamikAda/main/docs/screenshots/explorer-dock-full-cycle.gif) · [Full taskbar screenshot](docs/screenshots/explorer-taskbar.png) · [Turkish setup guide](docs/kullanim.md#explorer-modunu-güncelleme)
 
 ### Music colors
 

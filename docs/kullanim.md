@@ -17,11 +17,11 @@
 
 ![Explorer uygulama sırası ve sağ tepsinin sade görünümü](screenshots/explorer-taskbar.png)
 
-![Alt kenardan açılan uygulama sırası ve imleç üzerine geldiğinde yükselen simge](screenshots/explorer-dock-motion.gif)
+![Alt kenardan açılan dock, imleç geçerken sırayla yükselen simgeler ve dock’un kapanışı](screenshots/explorer-dock-full-cycle.gif)
 
 ![Sağ tepsiyi küçültme ve açma](screenshots/explorer-tray.gif)
 
-[Dock GIF’ini aç](https://raw.githubusercontent.com/escompanystudio-base/DinamikAda/main/docs/screenshots/explorer-dock-motion.gif)
+[Dock GIF’ini aç](https://raw.githubusercontent.com/escompanystudio-base/DinamikAda/main/docs/screenshots/explorer-dock-full-cycle.gif)
 
 ### Müziğe göre renk geçişi
 
