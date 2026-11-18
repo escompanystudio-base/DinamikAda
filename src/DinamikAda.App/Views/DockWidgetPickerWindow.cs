@@ -56,6 +56,18 @@ public sealed class DockWidgetPickerWindow : Window
         UseLayoutRounding = true;
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
 
+        try
+        {
+            Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri("pack://application:,,,/DinamikAda.App;component/Themes/ObsidianGlassTheme.xaml", UriKind.Absolute)
+            });
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("DockWidget", ex, "Picker theme could not be loaded.");
+        }
+
         var p = _palette;
         _search = W.Input(p, T("Widget ara…", "Search widgets…"), 260);
         _search.TextChanged += (_, _) => RebuildGrid();
@@ -143,8 +155,13 @@ public sealed class DockWidgetPickerWindow : Window
         System.Windows.Automation.AutomationProperties.SetName(close, T("Kapat", "Close"));
         DockPanel.SetDock(close, Dock.Right);
         top.Children.Add(close);
-        DockPanel.SetDock(_search, Dock.Left);
-        top.Children.Add(_search);
+        var placeholder = W.Text(p, T("Widget ara…", "Search widgets…"), 13, p.TertiaryForeground, ui: false);
+        placeholder.Margin = new Thickness(10, 0, 0, 0);
+        placeholder.IsHitTestVisible = false;
+        _search.TextChanged += (_, _) => placeholder.Visibility = _search.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var searchHost = new Grid { Children = { _search, placeholder } };
+        DockPanel.SetDock(searchHost, Dock.Left);
+        top.Children.Add(searchHost);
         _countText.Margin = new Thickness(12, 0, 0, 0);
         top.Children.Add(_countText);
         DockPanel.SetDock(top, Dock.Top);
@@ -305,7 +322,7 @@ public sealed class DockWidgetPickerWindow : Window
 
         var card = new Border
         {
-            Width = 196,
+            Width = 178,
             Margin = new Thickness(0, 0, 12, 12),
             Padding = new Thickness(10),
             CornerRadius = new CornerRadius(16),

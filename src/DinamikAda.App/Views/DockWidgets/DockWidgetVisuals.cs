@@ -243,6 +243,8 @@ public sealed class Sparkline : FrameworkElement
 /// <summary>Small factory helpers so tiles stay short and visually consistent.</summary>
 public static class W
 {
+    private static readonly FontFamily SymbolFont = new("Segoe UI Symbol");
+
     public static TextBlock Text(DockWidgetPalette p, string text, double size, Brush? brush = null,
         FontWeight? weight = null, bool mono = false, bool ui = true)
     {
@@ -261,10 +263,12 @@ public static class W
 
     public static TextBlock Glyph(DockWidgetPalette p, string glyph, double size, Brush? brush = null)
     {
+        // Segoe Fluent Icons only covers its private-use range; standard symbols (weather) need Segoe UI Symbol.
+        bool symbol = glyph.Length > 0 && glyph.All(ch => ch < '');
         return new TextBlock
         {
             Text = glyph,
-            FontFamily = p.IconFont,
+            FontFamily = symbol ? SymbolFont : p.IconFont,
             FontSize = size,
             Foreground = brush ?? p.Foreground,
             VerticalAlignment = VerticalAlignment.Center,

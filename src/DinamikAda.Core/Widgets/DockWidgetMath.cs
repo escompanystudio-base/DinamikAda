@@ -135,17 +135,20 @@ public static class DockWidgetMath
         };
     }
 
-    /// <summary>Segoe Fluent Icons glyph for a WMO code.</summary>
+    /// <summary>
+    /// Weather symbol for a WMO code. Uses Unicode weather symbols (rendered through font fallback),
+    /// because Segoe Fluent Icons has no complete weather set.
+    /// </summary>
     public static string WeatherGlyph(int code, bool isDay = true) => code switch
     {
-        0 => isDay ? "" : "",
-        1 or 2 => isDay ? "" : "",
-        3 => "",
-        45 or 48 => "",
-        51 or 53 or 55 or 56 or 57 or 61 or 63 or 65 or 66 or 67 or 80 or 81 or 82 => "",
-        71 or 73 or 75 or 77 or 85 or 86 => "",
-        95 or 96 or 99 => "",
-        _ => ""
+        0 => isDay ? "☀" : "☾",
+        1 or 2 => isDay ? "⛅" : "☁",
+        3 => "☁",
+        45 or 48 => "▒",
+        51 or 53 or 55 or 56 or 57 or 61 or 63 or 65 or 66 or 67 or 80 or 81 or 82 => "☔",
+        71 or 73 or 75 or 77 or 85 or 86 => "❄",
+        95 or 96 or 99 => "⚡",
+        _ => "☁"
     };
 
     /// <summary>Clock-hand angles in degrees (0 = 12 o'clock) for hour, minute and second.</summary>

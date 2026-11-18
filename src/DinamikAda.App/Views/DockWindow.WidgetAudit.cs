@@ -60,8 +60,30 @@ public partial class DockWindow
         _orch.Config.DockEdge = edge;
         ApplyDockEdgeLayout();
         ApplyDockStyleVisuals();
-        var bmp = RenderForAudit(width, height);
+        RenderForAudit(width, height);
+        // Let entrance animations (pop-ins, staggered fades, ring sweeps) finish before capturing.
+        PumpAuditAnimations(1400);
+        foreach (var (tile, _) in _widgetTiles) tile.Update(WidgetContext);
+        DockRootGrid.Measure(new Size(width, height));
+        DockRootGrid.Arrange(new Rect(0, 0, width, height));
+        DockRootGrid.UpdateLayout();
+        var bmp = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(DockRootGrid);
+        bmp.Freeze();
         return bmp;
+    }
+
+    private static void PumpAuditAnimations(int ms)
+    {
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            frame.Continue = false;
+        };
+        timer.Start();
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
     }
 
     /// <summary>Renders one widget's detail card on a dark backdrop.</summary>
@@ -87,6 +109,7 @@ public partial class DockWindow
         border.Arrange(new Rect(0, 0, w, h));
         border.UpdateLayout();
         tile.Update(ctx);
+        PumpAuditAnimations(900);
         border.UpdateLayout();
 
         int finalW = Math.Max(width, (int)w + 24);

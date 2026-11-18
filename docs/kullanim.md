@@ -116,6 +116,33 @@ Tek bir sekmeden tüm yapay zeka aboneliklerinizi gerçek zamanlı izleyin:
 
 ---
 
+## Dock Widget'ları
+
+Alt dock'a, uygulamaların yanına canlı widget'lar ekleyebilirsin. 8 kategoride 69 widget var: AI, Üretkenlik, Sistem, Medya ve Ses, Uygulamalar ve Dosyalar, Hava Durumu, Finans ve Saatler.
+
+1. Dock'a sağ tıkla ve **Widget'lar…** seçeneğini seç. Aynı pencere **Ayarlar → Alt Dock → Widget Seçiciyi Aç…** ile de açılır.
+2. Kategoriye göre gez veya ara. Bir önizlemeye tıklayınca widget dock'a eklenir, tekrar tıklayınca kaldırılır.
+3. Seçici açıkken dock'taki widget'ların köşesinde bir **−** rozeti çıkar. Bu rozetle de widget'ı kaldırabilirsin.
+4. Widget'ları dock üzerinde sürükleyerek sırala. Bir widget'a tıklayınca ayrıntı kartı açılır. Örneğin hava durumu tahmini, ekran süresi dökümü, yapılacaklar listesi veya kronometre turları.
+5. Dock'u boş bir yerinden tutup ekranın üst yarısına bırakırsan dock üst kenara yapışır ve paneller aşağı doğru açılır. Alta geri sürükleyerek eski yerine dönebilirsin. Sağ tık menüsünde **Dock'u üste/alta taşı** seçeneği de var.
+6. **Dock stili** menüsünden görünümü seç: Gece Yarısı, Siyah, Beyaz, Sıvı Cam veya iOS Cam.
+
+**Ayarlar → Alt Dock → Dock Widget'ları ve Görünüm** bölümünde şunları ayarlayabilirsin:
+
+- **Görünüm:** boyut (S/M/L), 12/24 saat biçimi ve °F.
+- **Hava durumu:** şehir.
+- **Saatler:** dünya saatleri ve dünya zamanı şehri.
+- **Finans:** döviz çifti, kripto sembolü, hisseler ve Finnhub anahtarı.
+- **Pomodoro:** odak ve mola süreleri.
+- **Ekran süresi:** kaydı açıp kapatma.
+
+Veriler doğrudan bu bilgisayardan alınır:
+
+- Hava durumu Open-Meteo'dan, döviz Frankfurter'den, kripto Binance'ten alınır. Bunlar için anahtar gerekmez.
+- Hisseler için Finnhub'un ücretsiz anahtarı gerekir. Anahtar bu bilgisayarda şifreli saklanır.
+- Ekran süresi yalnızca bu bilgisayarda tutulur ve son 8 günü kapsar.
+- Bir widget'ı kaldırınca o widget'ın istekleri de durur.
+
 ## Genel Kontroller
 
 | İşlem | Nereden Ulaşılır |

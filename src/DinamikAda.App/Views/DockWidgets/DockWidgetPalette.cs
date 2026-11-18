@@ -38,7 +38,7 @@ public sealed class DockWidgetPalette
 
     public FontFamily UiFont { get; init; } = new("Segoe UI Variable Display, Segoe UI");
     public FontFamily TextFont { get; init; } = new("Segoe UI Variable Text, Segoe UI");
-    public FontFamily IconFont { get; init; } = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+    public FontFamily IconFont { get; init; } = new("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol");
     public FontFamily MonoFont { get; init; } = new("Cascadia Mono, Consolas");
 
     /// <summary>Colour for a load/usage percentage: accent below 60, warning to 85, negative above.</summary>

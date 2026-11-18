@@ -83,7 +83,7 @@ public partial class DockWindow
             Warning = p.Warning,
             UiFont = (FontFamily)FindResource("UiFont"),
             TextFont = (FontFamily)FindResource("UiTextFont"),
-            IconFont = (FontFamily)FindResource("IconFont")
+            IconFont = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol")
         };
     }
 
