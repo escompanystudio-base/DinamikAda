@@ -56,10 +56,11 @@ thread_local int auditRequest = 0;
 void Status() noexcept {
     try {
         auto path = glass::HostPath(L"animation-status.ini");
-        unsigned appBrushes = 0, trayBrushes = 0;
+        unsigned appBrushes = 0, trayBrushes = 0, overflowBrushes = 0;
         paletteBrush::ForEach([&](auto const& surface) {
             if (surface.capsule == paletteBrush::Capsule::Apps) appBrushes++;
             if (surface.capsule == paletteBrush::Capsule::Tray) trayBrushes++;
+            if (surface.capsule == paletteBrush::Capsule::Overflow) overflowBrushes++;
         });
         std::wstring value = L"[Native]\nProcessId=" + std::to_wstring(GetCurrentProcessId()) +
             L"\nThreadId=" + std::to_wstring(GetCurrentThreadId()) +
@@ -67,6 +68,7 @@ void Status() noexcept {
             L"\nAuroras=" + std::to_wstring(appBrushes + trayBrushes) +
             L"\nAppPaletteBrushes=" + std::to_wstring(appBrushes) +
             L"\nTrayPaletteBrushes=" + std::to_wstring(trayBrushes) +
+            L"\nOverflowPaletteBrushes=" + std::to_wstring(overflowBrushes) +
             L"\nMusicDriftMs=" + std::to_wstring(paletteBrush::driftDuration.count()) +
             L"\nHoverEvents=" + std::to_wstring(hoverEvents) +
             L"\nClickEvents=" + std::to_wstring(clickEvents) +

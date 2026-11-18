@@ -49,7 +49,7 @@ AppDataPath=..\AppData\Engine
 [Settings]
 DisableUpdateCheck=1
 [Engine]
-Include=explorer.exe|StartMenuExperienceHost.exe
+Include=explorer.exe|StartMenuExperienceHost.exe|ShellExperienceHost.exe|ShellHost.exe
 '@ | Set-Content -LiteralPath (Join-Path $hostRoot 'AppData\settings.ini') -Encoding Unicode
 }
 
@@ -68,14 +68,9 @@ if (-not (Test-Path -LiteralPath $extensionPath)) { throw 'ExplorerAnimations.hp
 Copy-Item -Path (Join-Path $repoRoot 'native\*.hpp') -Destination $sourceRoot -Force
 $generatedPath = Join-Path $sourceRoot 'windows-11-taskbar-styler-dinamikada.generated.wh.cpp'
 $generated = [IO.File]::ReadAllText($sourcePath)
-$patches = @(
-    @{ Before = 'void ApplyCustomizations(ElementId elementId,' + "`n" + '                         FrameworkElement element,' + "`n" + '                         PCWSTR fallbackClassName) {'
-       After = '#include "ExplorerAnimations.hpp"' + "`n" + 'void ApplyCustomizations(ElementId elementId,' + "`n" + '                         FrameworkElement element,' + "`n" + '                         PCWSTR fallbackClassName) {' + "`n" + '    DinamikAdaAnimations::Attach(static_cast<uint64_t>(elementId), element);' },
-    @{ Before = 'void CleanupCustomizations(ElementId elementId) {'; After = 'void CleanupCustomizations(ElementId elementId) {' + "`n" + '    DinamikAdaAnimations::Detach(static_cast<uint64_t>(elementId));' },
-    @{ Before = 'void UninitializeForCurrentThread() {'; After = 'void UninitializeForCurrentThread() {' + "`n" + '    DinamikAdaAnimations::Clear();' },
-    @{ Before = 'auto taskbarFrameRect = frameRect(taskbarFrame);'; After = 'auto taskbarFrameRect = frameRect(FindTaskbarFrameBackground(taskbarFrame));' + "`n" + '    if (!taskbarFrameRect) taskbarFrameRect = frameRect(taskbarFrame);' },
-    @{ Before = 'class XamlBlurBrush : public Media::XamlCompositionBrushBaseT<XamlBlurBrush>'
-       After = '#include "DockPaletteBrush.hpp"' + [char]10 + 'class XamlBlurBrush : public Media::XamlCompositionBrushBaseT<XamlBlurBrush>' },
+$palettePatches = @(
+    @{ Before = 'class XamlBlurBrush : public Media::XamlCompositionBrushBaseT<'
+       After = '#include "DockPaletteBrush.hpp"' + [char]10 + 'class XamlBlurBrush : public Media::XamlCompositionBrushBaseT<' },
     @{ Before = '    wuc::Compositor m_compositor;'
        After = @'
     std::shared_ptr<DinamikAdaDockPalette::Surface> m_musicGlass;
@@ -109,6 +104,13 @@ $patches = @(
 '@ },
     @{ Before = 'void XamlBlurBrush::OnDisconnected()' + [char]10 + '{'
        After = 'void XamlBlurBrush::OnDisconnected()' + [char]10 + '{' + [char]10 + '    m_musicGlass.reset();' }
+)
+$patches = @(
+    @{ Before = 'void ApplyCustomizations(ElementId elementId,' + "`n" + '                         FrameworkElement element,' + "`n" + '                         PCWSTR fallbackClassName) {'
+       After = '#include "ExplorerAnimations.hpp"' + "`n" + 'void ApplyCustomizations(ElementId elementId,' + "`n" + '                         FrameworkElement element,' + "`n" + '                         PCWSTR fallbackClassName) {' + "`n" + '    DinamikAdaAnimations::Attach(static_cast<uint64_t>(elementId), element);' },
+    @{ Before = 'void CleanupCustomizations(ElementId elementId) {'; After = 'void CleanupCustomizations(ElementId elementId) {' + "`n" + '    DinamikAdaAnimations::Detach(static_cast<uint64_t>(elementId));' },
+    @{ Before = 'void UninitializeForCurrentThread() {'; After = 'void UninitializeForCurrentThread() {' + "`n" + '    DinamikAdaAnimations::Clear();' },
+    @{ Before = 'auto taskbarFrameRect = frameRect(taskbarFrame);'; After = 'auto taskbarFrameRect = frameRect(FindTaskbarFrameBackground(taskbarFrame));' + "`n" + '    if (!taskbarFrameRect) taskbarFrameRect = frameRect(taskbarFrame);' },
     @{ Before = 'void UpdateClickThroughRegion(ClickThroughTaskbarState& state) {'
        After = @'
 namespace DinamikAdaTray {
@@ -126,12 +128,12 @@ void UpdateClickThroughRegion(ClickThroughTaskbarState& state) {
     }
 '@ }
 )
-foreach ($patch in $patches) {
+foreach ($patch in ($patches + $palettePatches)) {
     if ([regex]::Matches($generated, [regex]::Escape($patch.Before)).Count -ne 1) { throw 'Kaynak animasyon baglanti noktasi dogrulanamadi.' }
     $generated = $generated.Replace($patch.Before, $patch.After)
 }
 [IO.File]::WriteAllText($generatedPath, $generated, [Text.UTF8Encoding]::new($false))
-$dllName = 'windows-11-taskbar-styler_1.11.2_dinamikada12.dll'
+$dllName = 'windows-11-taskbar-styler_1.11.2_dinamikada15.dll'
 $dllPath = Join-Path $binRoot $dllName
 $flags = @(
     '-std=c++23', '-O2', '-shared', '-DUNICODE', '-D_UNICODE',
@@ -166,50 +168,78 @@ try {
 } finally { Pop-Location }
 if ($reuseStyler) { Write-Output 'Dogrulanmis stil ve animasyon bileseni yeniden kullaniliyor.' }
 
-$startUrl = "https://raw.githubusercontent.com/ramensoftware/windhawk-mods/$commit/mods/windows-11-start-menu-styler.wh.cpp"
-$startHash = '23CC778D1A99802F0D1A1838176704A2EF9FD4DFBE9821E74AB25F8FA86EB0D5'
-$startSource = Join-Path $sourceRoot 'windows-11-start-menu-styler.wh.cpp'
-if (-not (Test-Path -LiteralPath $startSource) -or (Get-FileHash -LiteralPath $startSource).Hash -ne $startHash) {
-    Invoke-WebRequest -Uri $startUrl -UseBasicParsing -OutFile $startSource
-}
-if ((Get-FileHash -LiteralPath $startSource).Hash -ne $startHash) { throw 'Baslat menusu kaynagi SHA256 dogrulamasi basarisiz.' }
-$startDll = Join-Path $binRoot 'windows-11-start-menu-styler_1.8_dinamikada.dll'
-$startExtensionHash = (Get-FileHash -LiteralPath (Join-Path $repoRoot 'native\StartMusicGlass.hpp')).Hash
-if (-not (Test-Path -LiteralPath $startDll) -or $previousManifest.startSha256 -ne $startHash -or
-    $previousManifest.startExtensionSha256 -ne $startExtensionHash -or $previousManifest.glassSha256 -ne $glassHash) {
-    $startGenerated = Join-Path $sourceRoot 'windows-11-start-menu-styler-dinamikada.generated.wh.cpp'
-    $startCode = [IO.File]::ReadAllText($startSource)
-    $startPatches = @(
-        @{ Before = '#include <winrt/Windows.UI.Xaml.Hosting.h>'
-           After = '#include <winrt/Windows.UI.Xaml.Hosting.h>' + [char]10 + '#include "StartMusicGlass.hpp"' },
-        @{ Before = '    // The app''s resources can be reset during initialization, even after the'
-           After = '    DinamikAdaStartGlass::Attach(static_cast<uint64_t>(elementId), element);' + [char]10 + '    // The app''s resources can be reset during initialization, even after the' },
-        @{ Before = 'void CleanupCustomizations(ElementId elementId) {'
-           After = 'void CleanupCustomizations(ElementId elementId) {' + [char]10 + '    DinamikAdaStartGlass::Detach(static_cast<uint64_t>(elementId));' },
-        @{ Before = 'void UninitializeSettingsAndTap() {'
-           After = 'void UninitializeSettingsAndTap() {' + [char]10 + '    DinamikAdaStartGlass::Clear();' }
+function Build-ShellStyler {
+    param(
+        [string]$ModId, [string]$Url, [string]$Hash, [string]$Library,
+        [string]$PreviousHash, [hashtable[]]$Patches
     )
-    foreach ($patch in $startPatches) {
-        if ([regex]::Matches($startCode, [regex]::Escape($patch.Before)).Count -ne 1) { throw 'Baslat menusu baglanti noktasi dogrulanamadi.' }
-        $startCode = $startCode.Replace($patch.Before, $patch.After)
+    $source = Join-Path $sourceRoot "$ModId.wh.cpp"
+    if (-not (Test-Path -LiteralPath $source) -or (Get-FileHash -LiteralPath $source).Hash -ne $Hash) {
+        Invoke-WebRequest -Uri $Url -UseBasicParsing -OutFile $source
     }
-    [IO.File]::WriteAllText($startGenerated, $startCode, [Text.UTF8Encoding]::new($false))
-    $startFlags = foreach ($flag in $flags) {
-        if ($flag.StartsWith('-DWH_MOD_ID=')) { '-DWH_MOD_ID=L\"windows-11-start-menu-styler\"' }
+    if ((Get-FileHash -LiteralPath $source).Hash -ne $Hash) {
+        throw "$ModId kaynagi SHA256 dogrulamasi basarisiz."
+    }
+    $output = Join-Path $binRoot $Library
+    if ((Test-Path -LiteralPath $output) -and $PreviousHash -eq $Hash -and
+        $previousManifest.startExtensionSha256 -eq $startExtensionHash -and $previousManifest.glassSha256 -eq $glassHash -and
+        $previousManifest.dockPaletteSha256 -eq $dockPaletteHash) {
+        return
+    }
+    $generatedSource = Join-Path $sourceRoot "$ModId-dinamikada.generated.wh.cpp"
+    $code = [IO.File]::ReadAllText($source)
+    foreach ($patch in $Patches) {
+        if ([regex]::Matches($code, [regex]::Escape($patch.Before)).Count -ne 1) {
+            throw "$ModId baglanti noktasi dogrulanamadi."
+        }
+        $code = $code.Replace($patch.Before, $patch.After)
+    }
+    [IO.File]::WriteAllText($generatedSource, $code, [Text.UTF8Encoding]::new($false))
+    $shellFlags = foreach ($flag in $flags) {
+        if ($flag.StartsWith('-DWH_MOD_ID=')) { '-DWH_MOD_ID=L\"' + $ModId + '\"' }
         elseif ($flag.StartsWith('-DWH_MOD_VERSION=')) { '-DWH_MOD_VERSION=L\"1.8\"' }
-        elseif ($flag -eq ('"' + $generatedPath + '"')) { '"' + $startGenerated + '"' }
-        elseif ($flag -eq ('"' + $dllPath + '"')) { '"' + $startDll + '"' }
+        elseif ($flag -eq ('"' + $generatedPath + '"')) { '"' + $generatedSource + '"' }
+        elseif ($flag -eq ('"' + $dllPath + '"')) { '"' + $output + '"' }
         else { $flag }
     }
-    $startFlags += '-lversion'
-    $startResponse = Join-Path $hostRoot 'compile-start.rsp'
-    ($startFlags | ForEach-Object { if ($_ -match '^"') { $_.Replace('\', '/') } else { $_ } }) | Set-Content -LiteralPath $startResponse -Encoding UTF8
+    $shellFlags += '-lversion'
+    $shellResponse = Join-Path $hostRoot "compile-$ModId.rsp"
+    ($shellFlags | ForEach-Object { if ($_ -match '^"') { $_.Replace('\', '/') } else { $_ } }) |
+        Set-Content -LiteralPath $shellResponse -Encoding UTF8
     Push-Location $compilerRoot
     try {
-        & $compiler ("@" + $startResponse)
-        if ($LASTEXITCODE -ne 0) { throw "Yerel Baslat menusu bileseni derlenemedi ($LASTEXITCODE)." }
+        & $compiler ("@" + $shellResponse)
+        if ($LASTEXITCODE -ne 0) { throw "$ModId bileseni derlenemedi ($LASTEXITCODE)." }
     } finally { Pop-Location }
 }
+
+$startUrl = "https://raw.githubusercontent.com/ramensoftware/windhawk-mods/$commit/mods/windows-11-start-menu-styler.wh.cpp"
+$startHash = '23CC778D1A99802F0D1A1838176704A2EF9FD4DFBE9821E74AB25F8FA86EB0D5'
+$notificationUrl = "https://raw.githubusercontent.com/ramensoftware/windhawk-mods/$commit/mods/windows-11-notification-center-styler.wh.cpp"
+$notificationHash = 'BDE7D763E1D2E2F0BE98C6CA6D85D65796975D6005405C5BDB388F565075D1AC'
+$startExtensionHash = (Get-FileHash -LiteralPath (Join-Path $repoRoot 'native\StartMusicGlass.hpp')).Hash
+$hostingInclude = '#include <winrt/Windows.UI.Xaml.Hosting.h>'
+$glassInclude = '#include "StartMusicGlass.hpp"'
+$cleanupHook = 'void CleanupCustomizations(ElementId elementId) {'
+$detach = $cleanupHook + [char]10 + '    DinamikAdaStartGlass::Detach(static_cast<uint64_t>(elementId));'
+$startApply = '    // The app''s resources can be reset during initialization, even after the'
+$notificationApply = '    // Merge resource dictionary on first element add. Merging it earlier on'
+$attach = '    DinamikAdaStartGlass::Attach(static_cast<uint64_t>(elementId), element);'
+$startUnload = 'void UninitializeSettingsAndTap() {'
+$notificationUnload = 'void UninitializeForCurrentThread() {'
+$clear = '    DinamikAdaStartGlass::Clear();'
+Build-ShellStyler 'windows-11-start-menu-styler' $startUrl $startHash 'windows-11-start-menu-styler_1.8_dinamikada4.dll' $previousManifest.startSha256 @(
+    @{ Before = $hostingInclude; After = $hostingInclude + [char]10 + $glassInclude }
+    @{ Before = $startApply; After = $attach + [char]10 + $startApply }
+    @{ Before = $cleanupHook; After = $detach }
+    @{ Before = $startUnload; After = $startUnload + [char]10 + $clear }
+)
+Build-ShellStyler 'windows-11-notification-center-styler' $notificationUrl $notificationHash 'windows-11-notification-center-styler_1.8_dinamikada3.dll' $previousManifest.notificationSha256 (@(
+    @{ Before = $hostingInclude; After = $hostingInclude + [char]10 + '#define DINAMIKADA_NOTIFICATION_GLASS' + [char]10 + $glassInclude }
+    @{ Before = $notificationApply; After = $attach + [char]10 + $notificationApply }
+    @{ Before = $cleanupHook; After = $detach }
+    @{ Before = $notificationUnload; After = $notificationUnload + [char]10 + $clear }
+) + $palettePatches)
 
 $sizeCommit = '3188655e208afff19e3cd85523aaeb949df54315'
 $sizeUrl = "https://raw.githubusercontent.com/ramensoftware/windhawk-mods/$sizeCommit/mods/taskbar-icon-size.wh.cpp"
@@ -273,13 +303,44 @@ foreach ($pair in @(@('libc++.dll', 'libc++.whl'), @('libunwind.dll', 'libunwind
 $hostSettingsPath = Join-Path $hostRoot 'AppData\settings.ini'
 if (Test-Path -LiteralPath $hostSettingsPath) {
     $hostSettings = [IO.File]::ReadAllText($hostSettingsPath)
-    $upgradedSettings = [regex]::Replace($hostSettings, '(?m)^Include=explorer\.exe(?=\r?$)', 'Include=explorer.exe|StartMenuExperienceHost.exe')
+    $upgradedSettings = [regex]::Replace($hostSettings, '(?m)^Include=explorer\.exe(?:\|StartMenuExperienceHost\.exe)?(?=\r?$)', 'Include=explorer.exe|StartMenuExperienceHost.exe|ShellExperienceHost.exe|ShellHost.exe')
     if ($upgradedSettings -ne $hostSettings) {
         [IO.File]::WriteAllText($hostSettingsPath, $upgradedSettings, [Text.Encoding]::Unicode)
     }
 }
+
+# The native notification panel runs as an AppContainer. Its package can read
+# this portable profile, while the rest of DinamikAda's data keeps its existing ACL.
+$notificationPackage = Get-AppxPackage -Name 'Microsoft.Windows.ShellExperienceHost'
+if ($notificationPackage) {
+    if (-not ('DinamikAdaShellPackage' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
+public static class DinamikAdaShellPackage {
+    [DllImport("userenv.dll", CharSet = CharSet.Unicode)]
+    private static extern int DeriveAppContainerSidFromAppContainerName(string name, out IntPtr sid);
+    [DllImport("advapi32.dll")]
+    private static extern IntPtr FreeSid(IntPtr sid);
+    public static SecurityIdentifier GetSid(string family) {
+        IntPtr sid;
+        Marshal.ThrowExceptionForHR(DeriveAppContainerSidFromAppContainerName(family, out sid));
+        try { return new SecurityIdentifier(sid); }
+        finally { FreeSid(sid); }
+    }
+}
+'@
+    }
+    $notificationSid = [DinamikAdaShellPackage]::GetSid($notificationPackage.PackageFamilyName)
+    $profileAcl = Get-Acl -LiteralPath $hostRoot
+    $profileRule = [Security.AccessControl.FileSystemAccessRule]::new(
+        $notificationSid, 'ReadAndExecute', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
+    $profileAcl.SetAccessRule($profileRule)
+    Set-Acl -LiteralPath $hostRoot -AclObject $profileAcl
+}
 @{
-    version = '1.11.2'; source = $sourceUrl; sha256 = $expectedHash; animationVersion = 9
+    version = '1.11.2'; source = $sourceUrl; sha256 = $expectedHash; animationVersion = 10
     animationSha256 = (Get-FileHash -LiteralPath $extensionPath).Hash
     motionSha256 = (Get-FileHash -LiteralPath (Join-Path $repoRoot 'native\DockMotion.hpp')).Hash
     revealSha256 = (Get-FileHash -LiteralPath (Join-Path $repoRoot 'native\ExplorerDockReveal.hpp')).Hash
@@ -287,6 +348,7 @@ if (Test-Path -LiteralPath $hostSettingsPath) {
     dockPaletteSha256 = $dockPaletteHash
     traySha256 = $trayHash
     startSource = $startUrl; startSha256 = $startHash; startExtensionSha256 = $startExtensionHash
+    notificationSource = $notificationUrl; notificationSha256 = $notificationHash
     sizeSource = $sizeUrl; sizeSha256 = $sizeHash
     overlaySource = $overlayUrl; overlaySha256 = $overlayHash
     license = 'GPL-3.0'; licenseUrl = 'https://www.gnu.org/licenses/gpl-3.0.html'

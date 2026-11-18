@@ -7,9 +7,11 @@ namespace DinamikAda.Platform.Win32.Windowing;
 public static class ExplorerTaskbarTheme
 {
     public const string ModId = "windows-11-taskbar-styler";
-    public const string LibraryFileName = "windows-11-taskbar-styler_1.11.2_dinamikada12.dll";
+    public const string LibraryFileName = "windows-11-taskbar-styler_1.11.2_dinamikada15.dll";
     public const string StartModId = "windows-11-start-menu-styler";
-    public const string StartLibraryFileName = "windows-11-start-menu-styler_1.8_dinamikada.dll";
+    public const string StartLibraryFileName = "windows-11-start-menu-styler_1.8_dinamikada4.dll";
+    public const string NotificationModId = "windows-11-notification-center-styler";
+    public const string NotificationLibraryFileName = "windows-11-notification-center-styler_1.8_dinamikada3.dll";
     public const string SizeModId = "taskbar-icon-size";
     public const string SizeLibraryFileName = "taskbar-icon-size_1.3.11_dinamikada.dll";
     public const string OverlayModId = "taskbar-auto-hide-when-maximized";
@@ -57,7 +59,9 @@ public static class ExplorerTaskbarTheme
             ("Grid#IconPanel > Border#BackgroundElement, Taskbar.TaskListLabeledButtonPanel > Border#BackgroundElement, Taskbar.TaskListButtonPanel > Grid > Border#BackgroundElement, Taskbar.TaskListButtonPanel > Border#BackgroundElement",
                 ["Opacity=0"]),
             ("Rectangle#RunningIndicator", ["Width=4", "Height=4", "RadiusX=2", "RadiusY=2", $"Fill:=<SolidColorBrush Color=\"#{rgb}\" />"]),
-            ("Grid#SystemTrayFrameGrid", ["Padding=6,0,34,0"])
+            ("Grid#SystemTrayFrameGrid", ["Padding=6,0,34,0"]),
+            ("Border#OverflowFlyoutBackgroundBorder",
+                ["Background:=<WindhawkBlur BlurAmount=\"14\" TintColor=\"#B0242630\" />", "CornerRadius=12", glassEdge])
         ];
         for (int i = 0; i < controls.Length; i++)
         {
@@ -85,6 +89,15 @@ public static class ExplorerTaskbarTheme
         "controlStyles[0].styles[0]=Background=Transparent\n" +
         "controlStyles[1].target=Border#AcrylicBorder\n" +
         "controlStyles[1].styles[0]=Background:=<AcrylicBrush TintColor=\"#181A23\" TintOpacity=\"0.72\" FallbackColor=\"#FF181A23\" />\n";
+
+    public static string BuildNotificationSettings(bool enabled, long revision) =>
+        $"[Mod]\nLibraryFileName={NotificationLibraryFileName}\nDisabled={(enabled ? 0 : 1)}\n" +
+        $"Include=ShellExperienceHost.exe|ShellHost.exe\nArchitecture=x86-64\nVersion=1.8\nSettingsChangeTime={revision}\n" +
+        "[Settings]\n" +
+        "controlStyles[0].target=Grid#NotificationCenterGrid, Grid#CalendarCenterGrid, Grid#ControlCenterRegion, Grid#MediaTransportControlsRegion\n" +
+        "controlStyles[0].styles[0]=Background:=<WindhawkBlur BlurAmount=\"22\" TintColor=\"#CE1A1B24\" />\n" +
+        "controlStyles[1].target=ScrollViewer#CalendarControlScrollViewer, Border#CalendarHeaderMinimizedOverlay, Grid#FocusGrid, Grid#MediaTransportControlsRoot\n" +
+        "controlStyles[1].styles[0]=Background=Transparent\n";
 
     public static string BuildAnimationState(string? primary, string? secondary, string? highlight,
         bool playing, bool magnification, bool glow, bool smartHide = true, bool hasSession = false) =>

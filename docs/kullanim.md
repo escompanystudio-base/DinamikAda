@@ -14,13 +14,26 @@
 3. **Ayarlar → Alt Dock** bölümünde **Windows’un kendi görev çubuğunu DinamikAda tasarımıyla kullan** seçeneğini kontrol et. Aynı ekrandan **Akıllı Gizleme** ve simge büyütmeyi ayarlayabilirsin.
 4. Pencere büyütülüyken fareyi **ekranın tam alt ortasına** götür. Uygulama sırası açılır. Bir simgenin üzerine geldiğinde simge hafifçe yükselir.
 5. Sağ uçtaki oka tıklayarak sistem tepsisini küçült. Aynı düğme tepsiyi geri açar. Gizli simgelere erişmek için önce tepsiyi aç. Ses ayarı için **Win+A** kullan.
-6. Windows’a albüm kapağı ileten bir oynatıcıda müzik aç. Üst ada, uygulama sırası, sağ tepsi ve Başlat menüsü albüm renklerini alır. Alt çubukta renkler oynatma boyunca hareket eder.
 
-![Explorer uygulama sırası ve sağ tepsi](screenshots/explorer-taskbar.png)
+![Explorer uygulama sırası ve sağ tepsinin sade görünümü](screenshots/explorer-taskbar.png)
 
-![Alt kenardan açılan uygulama sırası](screenshots/explorer-dock.gif)
+![Alt kenardan açılan dock, imleç geçerken sırayla yükselen simgeler ve dock’un kapanışı](screenshots/explorer-dock-full-cycle.gif)
 
 ![Sağ tepsiyi küçültme ve açma](screenshots/explorer-tray.gif)
+
+[Dock GIF’ini aç](https://raw.githubusercontent.com/escompanystudio-base/DinamikAda/main/docs/screenshots/explorer-dock-full-cycle.gif)
+
+### Müziğe göre renk geçişi
+
+DinamikAda, Windows medya oturumunun paylaştığı albüm kapağından renkleri alır. Yeni kapak gecikirse üst ada önceki paleti kısa süre korur ve kapak geldiğinde yeni renklere yumuşakça geçer. AI kapsülü ve açık ada sekmeleri de aynı paleti kullanır.
+
+![Üst adada parça renk geçişi, genişletme ve sekmeler arasında gezinme](screenshots/upper-island-motion.gif)
+
+Explorer modunda renkler alt dock, sistem tepsisi, gizli simgeler, Başlat menüsü, bildirim ve takvim panelleri ile Hızlı Ayarlar’a da yansır.
+
+![Parça değişirken üst ada, alt dock ve sağ tepsinin renk geçişi](screenshots/music-colors.gif)
+
+![Parça değişirken Başlat menüsünün renk geçişi](screenshots/music-start-menu.gif)
 
 ### Explorer modunu güncelleme
 
@@ -43,10 +56,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-explorer-tas
 4. **ChatGPT / Codex** kartında sağlayıcının döndürdüğü 5 saatlik ve haftalık Codex kotasını ve yenilenme zamanlarını ayrı ayrı görebilirsin.
 5. **Claude** kartında canlı ölçüm için uyumlu bir Claude Code oturumu gerekir. Karttaki kullanım simgesi tarayıcıda Claude kullanım sayfasını açar.
 6. **Antigravity** kartındaki model havuzlarını ayrı ayrı kontrol et. Kayıtlı veri gösteriliyorsa son ölçüm zamanı kartta yer alır.
-
-![Örnek hesaplarla AI Kota ekranı](screenshots/widgets-ai-quota.png)
-
-![Claude kota pencereleri ve yeniden bağlanması gereken ChatGPT kartı](screenshots/ai-quota-claude.png)
 
 ## Genel kontroller
 
