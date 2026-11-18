@@ -70,6 +70,7 @@ public sealed unsafe class DockAppsService
     private readonly Queue<string> _trayIconCacheOrder = new();
     private readonly List<PinnedEntry> _pinnedEntries = new();
     private bool _pinnedLoaded;
+    private string _loadedPinsSignature = string.Empty;
 
     private sealed record PinnedEntry(
         string Key,
@@ -93,45 +94,84 @@ public sealed unsafe class DockAppsService
 
     public void ReloadPinnedEntries()
     {
-        _pinnedEntries.Clear();
+        // Migration: a non-empty saved list means the user already customized the dock.
+        if (_config.PinnedDockApps.Count > 0) _config.DockPinsCustomized = true;
 
-        if (_config.PinnedDockApps is { Count: > 0 } saved)
+        _pinnedEntries.Clear();
+        _pinnedEntries.AddRange(BuildEffectivePinnedEntries(_config));
+        _loadedPinsSignature = ComputePinsSignature(_config);
+    }
+
+    /// <summary>
+    /// Reloads pinned entries when another component (e.g. the Settings window) rewrote
+    /// <see cref="AppConfig.PinnedDockApps"/> since the last load. Returns true when reloaded.
+    /// </summary>
+    public bool ReloadIfConfigChanged()
+    {
+        if (!_pinnedLoaded) return false;
+        if (string.Equals(ComputePinsSignature(_config), _loadedPinsSignature, StringComparison.Ordinal)) return false;
+        ReloadPinnedEntries();
+        return true;
+    }
+
+    /// <summary>
+    /// Launch targets currently shown as pinned, in Dock order. When the user never customized
+    /// the Dock this is the auto-imported Windows taskbar pin list (or the built-in fallbacks).
+    /// </summary>
+    public static IReadOnlyList<string> ResolveEffectivePinnedTargets(AppConfig config)
+        => BuildEffectivePinnedEntries(config).Select(e => e.LaunchTarget).ToList();
+
+    public static bool IsPinnableTarget(string? path)
+        => !string.IsNullOrWhiteSpace(path) && (File.Exists(path) || Directory.Exists(path));
+
+    /// <summary>Friendly name and icon for a pin target, for list editors.</summary>
+    public static bool TryDescribePinTarget(string path, out string displayName, out ImageSource? icon)
+    {
+        displayName = string.Empty;
+        icon = null;
+        if (!TryBuildPinnedEntry(path, out var entry)) return false;
+        displayName = entry.DisplayName;
+        icon = ExtractFrozenIcon(entry.IconSourcePath ?? entry.LaunchTarget);
+        return true;
+    }
+
+    private static List<PinnedEntry> BuildEffectivePinnedEntries(AppConfig config)
+    {
+        var entries = new List<PinnedEntry>();
+
+        foreach (string raw in config.PinnedDockApps)
         {
-            foreach (string raw in saved)
+            if (TryBuildPinnedEntry(raw, out var entry))
             {
-                if (TryBuildPinnedEntry(raw, out var entry))
-                {
-                    AddUniquePinnedEntry(entry);
-                }
+                AddUniquePinnedEntry(entries, entry);
             }
         }
 
-        if (_pinnedEntries.Count == 0)
-        {
-            string pinnedDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar");
+        if (config.PinnedDockApps.Count > 0 || config.DockPinsCustomized) return entries;
 
-            if (Directory.Exists(pinnedDir))
+        string pinnedDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar");
+
+        if (Directory.Exists(pinnedDir))
+        {
+            try
             {
-                try
+                foreach (string lnk in Directory.EnumerateFiles(pinnedDir, "*.lnk").OrderBy(p => p, StringComparer.CurrentCultureIgnoreCase))
                 {
-                    foreach (string lnk in Directory.EnumerateFiles(pinnedDir, "*.lnk").OrderBy(p => p, StringComparer.CurrentCultureIgnoreCase))
+                    if (TryBuildPinnedEntry(lnk, out var entry))
                     {
-                        if (TryBuildPinnedEntry(lnk, out var entry))
-                        {
-                            AddUniquePinnedEntry(entry);
-                        }
+                        AddUniquePinnedEntry(entries, entry);
                     }
                 }
-                catch
-                {
-                    // Ignore inaccessible shortcut folder cleanly.
-                }
+            }
+            catch
+            {
+                // Ignore inaccessible shortcut folder cleanly.
             }
         }
 
-        if (_pinnedEntries.Count == 0)
+        if (entries.Count == 0)
         {
             string winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
             string explorer = Path.Combine(winDir, "explorer.exe");
@@ -142,10 +182,87 @@ public sealed unsafe class DockAppsService
             {
                 if (File.Exists(fallback) && TryBuildPinnedEntry(fallback, out var entry))
                 {
-                    AddUniquePinnedEntry(entry);
+                    AddUniquePinnedEntry(entries, entry);
                 }
             }
         }
+
+        return entries;
+    }
+
+    private static string ComputePinsSignature(AppConfig config)
+        => (config.DockPinsCustomized ? "C|" : "A|") + string.Join("\n", config.PinnedDockApps);
+
+    /// <summary>
+    /// Pins a file, shortcut, executable or folder (e.g. dropped from Explorer).
+    /// Inserts at <paramref name="insertIndex"/> among pinned items, or appends when null.
+    /// Returns false when the path is not pinnable or already pinned (an existing pin is moved
+    /// to <paramref name="insertIndex"/> instead).
+    /// </summary>
+    public bool PinPath(string path, int? insertIndex = null)
+    {
+        EnsurePinnedLoaded();
+        if (!TryBuildPinnedEntry(path, out var entry)) return false;
+
+        int existing = FindPinnedIndex(entry);
+        if (existing >= 0)
+        {
+            // insertIndex is an insertion slot (0..n); removing the item first shifts later slots left.
+            if (insertIndex is int idx) MovePinnedAt(existing, idx > existing ? idx - 1 : idx);
+            return false;
+        }
+
+        int at = insertIndex is int i ? Math.Clamp(i, 0, _pinnedEntries.Count) : _pinnedEntries.Count;
+        _pinnedEntries.Insert(at, entry);
+        PersistPinnedOrder();
+        return true;
+    }
+
+    /// <summary>Moves the pinned item with <paramref name="key"/> to <paramref name="newIndex"/>.</summary>
+    public bool MovePinned(string key, int newIndex)
+    {
+        EnsurePinnedLoaded();
+        int from = _pinnedEntries.FindIndex(p => string.Equals(p.Key, key, StringComparison.OrdinalIgnoreCase));
+        return from >= 0 && MovePinnedAt(from, newIndex);
+    }
+
+    private bool MovePinnedAt(int from, int newIndex)
+    {
+        int to = Math.Clamp(newIndex, 0, _pinnedEntries.Count - 1);
+        if (to == from) return false;
+        var entry = _pinnedEntries[from];
+        _pinnedEntries.RemoveAt(from);
+        _pinnedEntries.Insert(to, entry);
+        PersistPinnedOrder();
+        return true;
+    }
+
+    private int FindPinnedIndex(PinnedEntry entry)
+        => _pinnedEntries.FindIndex(p =>
+            string.Equals(p.Key, entry.Key, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(p.TargetExePath) && !string.IsNullOrWhiteSpace(entry.TargetExePath)
+                && string.Equals(NormalizePath(p.TargetExePath), NormalizePath(entry.TargetExePath), StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>
+    /// Writes the in-memory pin order to config. Saved targets that are currently unavailable
+    /// (e.g. on an unplugged drive) are kept at the end instead of being silently dropped.
+    /// </summary>
+    private void PersistPinnedOrder()
+    {
+        var ordered = _pinnedEntries.Select(p => p.LaunchTarget).ToList();
+        foreach (string raw in _config.PinnedDockApps)
+        {
+            if (!IsPinnableTarget(raw)
+                && !ordered.Any(o => string.Equals(NormalizePath(o), NormalizePath(raw), StringComparison.OrdinalIgnoreCase)))
+            {
+                ordered.Add(raw);
+            }
+        }
+
+        _config.PinnedDockApps = ordered;
+        _config.DockPinsCustomized = true;
+        _loadedPinsSignature = ComputePinsSignature(_config);
+        _saveConfig();
     }
 
     public IReadOnlyList<DockAppItem> BuildSnapshot(out nint foregroundHwnd)
@@ -247,6 +364,7 @@ public sealed unsafe class DockAppsService
     public bool TogglePin(DockAppItem item)
     {
         EnsurePinnedLoaded();
+        _config.DockPinsCustomized = true;
 
         if (item.IsPinned)
         {
@@ -263,6 +381,7 @@ public sealed unsafe class DockAppsService
 
             // If user just removed from default TaskBar list, leave explicit list (or sentinel if empty)
             _pinnedEntries.RemoveAll(p => string.Equals(p.Key, item.Key, StringComparison.OrdinalIgnoreCase));
+            _loadedPinsSignature = ComputePinsSignature(_config);
             _saveConfig();
             return false;
         }
@@ -288,6 +407,7 @@ public sealed unsafe class DockAppsService
                 AddUniquePinnedEntry(entry);
             }
 
+            _loadedPinsSignature = ComputePinsSignature(_config);
             _saveConfig();
             return true;
         }
@@ -1218,22 +1338,35 @@ public sealed unsafe class DockAppsService
             window.ExePath,
             window.Title);
 
-    private void AddUniquePinnedEntry(PinnedEntry entry)
+    private void AddUniquePinnedEntry(PinnedEntry entry) => AddUniquePinnedEntry(_pinnedEntries, entry);
+
+    private static void AddUniquePinnedEntry(List<PinnedEntry> list, PinnedEntry entry)
     {
-        if (_pinnedEntries.Any(p =>
+        if (list.Any(p =>
             string.Equals(p.Key, entry.Key, StringComparison.OrdinalIgnoreCase)
             || (!string.IsNullOrWhiteSpace(p.TargetExePath) && !string.IsNullOrWhiteSpace(entry.TargetExePath)
                 && string.Equals(NormalizePath(p.TargetExePath), NormalizePath(entry.TargetExePath), StringComparison.OrdinalIgnoreCase))))
         {
             return;
         }
-        _pinnedEntries.Add(entry);
+        list.Add(entry);
     }
 
     private static bool TryBuildPinnedEntry(string rawPath, out PinnedEntry entry)
     {
         entry = default!;
-        if (string.IsNullOrWhiteSpace(rawPath) || !File.Exists(rawPath)) return false;
+        if (string.IsNullOrWhiteSpace(rawPath)) return false;
+
+        if (Directory.Exists(rawPath))
+        {
+            string dirPath = NormalizePath(rawPath);
+            string dirName = Path.GetFileName(Path.TrimEndingDirectorySeparator(dirPath));
+            if (string.IsNullOrWhiteSpace(dirName)) dirName = dirPath; // drive root such as D:\
+            entry = new PinnedEntry(dirPath, dirName, dirPath, null, dirPath);
+            return true;
+        }
+
+        if (!File.Exists(rawPath)) return false;
 
         string fullPath = NormalizePath(rawPath);
         string ext = Path.GetExtension(fullPath);
@@ -1328,7 +1461,7 @@ public sealed unsafe class DockAppsService
     {
         if (string.IsNullOrWhiteSpace(raw)) return "Uygulama";
         string trimmed = raw.Trim();
-        return char.IsLower(trimmed[0]) ? char.ToUpper(trimmed[0]) + trimmed[1..] : trimmed;
+        return char.IsLower(trimmed[0]) ? char.ToUpperInvariant(trimmed[0]) + trimmed[1..] : trimmed;
     }
 
     private static string ReadWindowClass(nint hwnd)

@@ -352,7 +352,6 @@ public partial class IslandWindow : Window
         if (!_isSmokeMode)
         {
             _trayIcon.LeftClicked += OnTrayLeftClicked;
-            _trayIcon.DoubleClicked += OnTrayLeftClicked;
             _trayIcon.RightClicked += OnTrayRightClicked;
             _trayIcon.Attach(hwnd, Strings.AppTitle(_orch.Config.Language));
         }
@@ -408,7 +407,6 @@ public partial class IslandWindow : Window
             try { _dockWindow?.Close(); } catch { }
             _orch.Clipboard.AttachToWindow(0);
             _trayIcon.LeftClicked -= OnTrayLeftClicked;
-            _trayIcon.DoubleClicked -= OnTrayLeftClicked;
             _trayIcon.RightClicked -= OnTrayRightClicked;
             _trayIcon.Dispose();
             _hwndSource?.RemoveHook(OnWindowMessageHook);
@@ -1284,8 +1282,31 @@ public partial class IslandWindow : Window
         _motion.AlbumAuraPulse.SnapTo(0.0);
     }
 
+    private double _idleFadeTarget = 1.0;
+
+    /// <summary>
+    /// Implements the "Fade when idle" setting: the dormant notch dims when nothing is happening and
+    /// the pointer is elsewhere, and returns to full opacity on hover or any live activity.
+    /// </summary>
+    private void UpdateIdleFade()
+    {
+        bool fade = _orch.Config.FadeWhenIdle &&
+            !_isSmokeMode && !_isRenderAuditMode &&
+            !_isMainHovered && !_isSatelliteHovered &&
+            _lastSnapshot.State == IslandPresentationState.S1Dormant;
+        double target = fade ? 0.45 : 1.0;
+        if (Math.Abs(target - _idleFadeTarget) < 0.001) return;
+        _idleFadeTarget = target;
+        var anim = new System.Windows.Media.Animation.DoubleAnimation(target, TimeSpan.FromMilliseconds(fade ? 600 : 160))
+        {
+            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+        };
+        MainNotchAssembly.BeginAnimation(OpacityProperty, anim);
+    }
+
     private void ApplySurfaceSizing(IslandCoordinatorSnapshot snap)
     {
+        UpdateIdleFade();
         double scale = AppConfig.GetScaleFactor(_orch.Config.NotchScalePreset);
         var layout = snap.Layout;
 
@@ -5799,6 +5820,7 @@ public partial class IslandWindow : Window
         _orch.WindowControl.CaptureForegroundIfExternal();
         _isMainHovered = true;
         _collapseDebounceTimer.Stop();
+        UpdateIdleFade();
 
         if (_lastSnapshot.State is IslandPresentationState.S1Dormant or IslandPresentationState.S2Compact or IslandPresentationState.S2Split)
         {
@@ -5822,6 +5844,7 @@ public partial class IslandWindow : Window
     {
         _isMainHovered = false;
         _hoverDwellTimer.Stop();
+        UpdateIdleFade();
 
         _motion.SetHoverScale(1.0);
         StartRenderLoop();
@@ -6213,9 +6236,33 @@ public partial class IslandWindow : Window
     private void RegisterHotkeyWithAlert(int hotkeyId, string chord)
     {
         if (string.IsNullOrWhiteSpace(chord) || _hwnd == nint.Zero) return;
-        if (!_hotkeyService.TryRegisterWithFallback(hotkeyId, _hwnd, chord, out _, out _))
+        if (_isSmokeMode || _isRenderAuditMode)
+        {
+            _ = _hotkeyService.TryRegisterWithFallback(hotkeyId, _hwnd, chord, out _, out _);
+            return;
+        }
+
+        string lang = _orch.Config.Language;
+        if (!_hotkeyService.TryRegisterWithFallback(hotkeyId, _hwnd, chord, out string activeChord, out bool usedFallback))
         {
             Debug.WriteLine($"[DinamikAda] Startup hotkey unavailable ({hotkeyId}: {chord}): {_hotkeyService.LastError}");
+            _orch.Notifications.AddInternalAlert(
+                "DinamikAda",
+                Strings.Pick(lang, "Kısayol kaydedilemedi", "Hotkey unavailable"),
+                Strings.Pick(
+                    lang,
+                    $"{chord} başka bir uygulama tarafından kullanılıyor olabilir. Ayarlar'dan farklı bir kısayol seçin.",
+                    $"{chord} may be in use by another app. Pick a different shortcut in Settings."));
+        }
+        else if (usedFallback)
+        {
+            _orch.Notifications.AddInternalAlert(
+                "DinamikAda",
+                Strings.Pick(lang, "Yedek kısayol kullanılıyor", "Using fallback hotkey"),
+                Strings.Pick(
+                    lang,
+                    $"{chord} kullanılamadı; bunun yerine {activeChord} etkinleştirildi.",
+                    $"{chord} was unavailable; {activeChord} is active instead."));
         }
     }
 
@@ -7311,10 +7358,11 @@ public partial class IslandWindow : Window
             if (_isClosed) return;
             string sizeStr = SystemMaintenanceService.FormatBytes(res.FreedBytes, lang);
             SysMaintStatusText.Foreground = res.FreedBytes > 0 ? ActiveAccentDotBrush : ActiveTabFgBrush;
+            int skipped = res.SkippedLockedCount + res.SkippedRecentCount;
             SysMaintStatusText.Text = Strings.Pick(
                 lang,
-                $"{sizeStr} temizlendi • {res.DeletedFileCount} dosya silindi",
-                $"Freed {sizeStr} • {res.DeletedFileCount} files removed");
+                $"{sizeStr} temizlendi • {res.DeletedFileCount} dosya silindi" + (skipped > 0 ? $" • {skipped} kullanımda/yeni dosya atlandı" : string.Empty),
+                $"Freed {sizeStr} • {res.DeletedFileCount} files removed" + (skipped > 0 ? $" • {skipped} in-use/recent skipped" : string.Empty));
             await _orch.Telemetry.SampleOnceAsync();
         }
         finally

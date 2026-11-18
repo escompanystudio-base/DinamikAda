@@ -48,6 +48,9 @@ public sealed class AppConfig
     public bool ShowMicPrivacyAlert { get; set; } = false;
     public bool MirrorOsNotifications { get; set; } = true;
     public bool EnableClipboardVault { get; set; } = true;
+    // LAN QR share runs over plain HTTP on the local network; sharing the latest clipboard text
+    // (often a password or token) must be an explicit opt-in.
+    public bool LanShareIncludeClipboard { get; set; } = false;
     public int MaxClipboardItems { get; set; } = 25;
     public string CommandHotkey { get; set; } = "Ctrl+Shift+Space";
     public bool UseHardwareRendering { get; set; } = true;
@@ -94,6 +97,35 @@ public sealed class AppConfig
     public bool DockReserveWorkArea { get; set; } = false;
     public int DockIconSizeDip { get; set; } = 32;
     public List<string> PinnedDockApps { get; set; } = new();
+    // True once the user has edited dock pins; an empty PinnedDockApps then means "no pins",
+    // not "never configured" (which would re-import the Windows taskbar pins on next start).
+    public bool DockPinsCustomized { get; set; } = false;
+
+    // Dock widgets (live tiles between the apps and the island slot) and dock appearance.
+    public List<string> DockWidgets { get; set; } = new();
+    // False until the default widget set was seeded once; an empty list afterwards means "no widgets".
+    public bool DockWidgetsSeeded { get; set; } = false;
+    public DockVisualStyle DockStyle { get; set; } = DockVisualStyle.Midnight;
+    public DockScreenEdge DockEdge { get; set; } = DockScreenEdge.Bottom;
+    public bool DockClock24h { get; set; } = true;
+    public string WeatherCity { get; set; } = "";
+    public double? WeatherLatitude { get; set; }
+    public double? WeatherLongitude { get; set; }
+    public string WeatherResolvedName { get; set; } = "";
+    public bool WeatherFahrenheit { get; set; } = false;
+    public List<string> WorldClockZones { get; set; } = new() { "Europe/London", "America/New_York", "Asia/Tokyo" };
+    public string WorldTimeZone { get; set; } = "America/Los_Angeles";
+    public string CurrencyFrom { get; set; } = "USD";
+    public string CurrencyTo { get; set; } = "TRY";
+    public string CryptoSymbol { get; set; } = "BTCUSDT";
+    public List<string> StockSymbols { get; set; } = new() { "AAPL", "MSFT", "NVDA" };
+    // Finnhub key, DPAPI-protected (CurrentUser) and base64 encoded; never stored in plain text.
+    public string StockApiKeyProtected { get; set; } = "";
+    public int DockTimerMinutes { get; set; } = 5;
+    public int PomodoroFocusMinutes { get; set; } = 25;
+    public int PomodoroBreakMinutes { get; set; } = 5;
+    public List<DockTodoItem> DockTodos { get; set; } = new();
+    public bool ScreenTimeEnabled { get; set; } = true;
 
     // Local Multi-Account AI Subscription Quota & Reset Tracker (no browser cookies or credential bypass)
     public bool AiQuotaSeeded { get; set; } = false;
@@ -169,6 +201,7 @@ public sealed class AppConfig
         FullscreenHideExes = SanitizeExeList(FullscreenHideExes);
         DockIconSizeDip = Math.Clamp(DockIconSizeDip, 26, 48);
         PinnedDockApps = SanitizeExeList(PinnedDockApps);
+        SanitizeDockWidgetSettings();
         AiQuotaSlots = SanitizeAiQuotaSlots(AiQuotaSlots);
 
         PinnedTabs = PinnedTabs is null
@@ -179,6 +212,65 @@ public sealed class AppConfig
         {
             PinnedTabs = CreateDefaultTabs();
         }
+    }
+
+    private void SanitizeDockWidgetSettings()
+    {
+        if (!DockWidgetsSeeded)
+        {
+            DockWidgets = new List<string>(Widgets.DockWidgetCatalog.DefaultWidgets);
+            DockWidgetsSeeded = true;
+        }
+        DockWidgets = Widgets.DockWidgetCatalog.Sanitize(DockWidgets);
+        if (!Enum.IsDefined(DockStyle)) DockStyle = DockVisualStyle.Midnight;
+        if (!Enum.IsDefined(DockEdge)) DockEdge = DockScreenEdge.Bottom;
+        WeatherCity = WeatherCity?.Trim() ?? string.Empty;
+        WeatherResolvedName = WeatherResolvedName?.Trim() ?? string.Empty;
+        if (WeatherLatitude is not { } lat || !double.IsFinite(lat) || lat is < -90 or > 90 ||
+            WeatherLongitude is not { } lon || !double.IsFinite(lon) || lon is < -180 or > 180)
+        {
+            WeatherLatitude = null;
+            WeatherLongitude = null;
+        }
+        WorldClockZones = (WorldClockZones ?? new())
+            .Where(z => !string.IsNullOrWhiteSpace(z))
+            .Select(z => z.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .ToList();
+        WorldTimeZone = string.IsNullOrWhiteSpace(WorldTimeZone) ? "America/Los_Angeles" : WorldTimeZone.Trim();
+        CurrencyFrom = NormalizeCode(CurrencyFrom, "USD", 3);
+        CurrencyTo = NormalizeCode(CurrencyTo, "TRY", 3);
+        CryptoSymbol = NormalizeCode(CryptoSymbol, "BTCUSDT", 16);
+        StockSymbols = (StockSymbols ?? new())
+            .Select(s => NormalizeCode(s, string.Empty, 12))
+            .Where(s => s.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .Take(3)
+            .ToList();
+        StockApiKeyProtected = StockApiKeyProtected?.Trim() ?? string.Empty;
+        DockTimerMinutes = Math.Clamp(DockTimerMinutes, 1, 180);
+        PomodoroFocusMinutes = Math.Clamp(PomodoroFocusMinutes, 5, 120);
+        PomodoroBreakMinutes = Math.Clamp(PomodoroBreakMinutes, 1, 60);
+        DockTodos = (DockTodos ?? new())
+            .Where(t => t is not null && !string.IsNullOrWhiteSpace(t.Text))
+            .Take(50)
+            .Select(t => new DockTodoItem
+            {
+                Id = string.IsNullOrWhiteSpace(t.Id) ? Guid.NewGuid().ToString("N") : t.Id,
+                Text = t.Text.Trim().Length > 200 ? t.Text.Trim()[..200] : t.Text.Trim(),
+                Done = t.Done
+            })
+            .ToList();
+    }
+
+    private static string NormalizeCode(string? value, string fallback, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return fallback;
+        var chars = value.Trim().ToUpperInvariant().Where(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-').ToArray();
+        string s = new(chars);
+        if (s.Length == 0) return fallback;
+        return s.Length > maxLength ? s[..maxLength] : s;
     }
 
     private static List<string> SanitizeExeList(List<string>? items) =>
@@ -284,33 +376,31 @@ public sealed class AppConfig
                 }
             }
 
-            clean.Add(new AiQuotaSlotConfig
-            {
-                Id = id,
-                Provider = provider,
-                Label = label,
-                AccountIdentifier = accountId,
-                PlanTier = planTier,
-                BillingDayOfMonth = Math.Clamp(s.BillingDayOfMonth, 0, 31),
-                PriceLabel = priceLabel,
-                QuotaUnit = quotaUnit,
-                TotalQuota = totalQuota,
-                UsedQuota = usedQuota,
-                CriticalThresholdPercent = Math.Clamp(s.CriticalThresholdPercent <= 0 ? 20 : s.CriticalThresholdPercent, 5, 50),
-                LocalSourceMode = localSource,
-                ProfileDirectory = profileDir,
-                EncryptedApiKey = encKey,
-                Notes = notes,
-                ResetWindowMinutes = Math.Clamp(s.ResetWindowMinutes, AiQuotaSlotConfig.MinWindowMinutes, AiQuotaSlotConfig.MaxWindowMinutes),
-                NextResetUtcTicks = Math.Max(0L, s.NextResetUtcTicks),
-                HasReportedPrimaryQuota = s.HasReportedPrimaryQuota,
-                WeeklyUsedPercent = s.WeeklyUsedPercent.HasValue && double.IsFinite(s.WeeklyUsedPercent.Value)
-                    ? Math.Clamp(s.WeeklyUsedPercent.Value, 0.0, 100.0)
-                    : null,
-                WeeklyResetUtcTicks = Math.Max(0L, s.WeeklyResetUtcTicks),
-                NotifyOnReset = s.NotifyOnReset,
-                ModelBuckets = cleanBuckets
-            });
+            // Normalize in place: AiQuotaTrackerService (timer thread) holds references to these slot
+            // objects, and replacing them on every Save would orphan its in-flight updates.
+            s.Id = id;
+            s.Provider = provider;
+            s.Label = label;
+            s.AccountIdentifier = accountId;
+            s.PlanTier = planTier;
+            s.BillingDayOfMonth = Math.Clamp(s.BillingDayOfMonth, 0, 31);
+            s.PriceLabel = priceLabel;
+            s.QuotaUnit = quotaUnit;
+            s.TotalQuota = totalQuota;
+            s.UsedQuota = usedQuota;
+            s.CriticalThresholdPercent = Math.Clamp(s.CriticalThresholdPercent <= 0 ? 20 : s.CriticalThresholdPercent, 5, 50);
+            s.LocalSourceMode = localSource;
+            s.ProfileDirectory = profileDir;
+            s.EncryptedApiKey = encKey;
+            s.Notes = notes;
+            s.ResetWindowMinutes = Math.Clamp(s.ResetWindowMinutes, AiQuotaSlotConfig.MinWindowMinutes, AiQuotaSlotConfig.MaxWindowMinutes);
+            s.NextResetUtcTicks = Math.Max(0L, s.NextResetUtcTicks);
+            s.WeeklyUsedPercent = s.WeeklyUsedPercent.HasValue && double.IsFinite(s.WeeklyUsedPercent.Value)
+                ? Math.Clamp(s.WeeklyUsedPercent.Value, 0.0, 100.0)
+                : null;
+            s.WeeklyResetUtcTicks = Math.Max(0L, s.WeeklyResetUtcTicks);
+            s.ModelBuckets = cleanBuckets;
+            clean.Add(s);
         }
 
         return clean;
@@ -446,6 +536,9 @@ public sealed class AppConfigStore
                 }
                 catch
                 {
+                    // Keep a copy of the unreadable file: the next Save would otherwise destroy any
+                    // settings the per-property recovery below cannot salvage.
+                    BackupCorruptConfig();
                     var partial = LoadResilientPerProperty(json);
                     if (!hasAiTabMigratedField && !partial.PinnedTabs.Contains(ExpandedTabId.AiQuota))
                     {
@@ -462,6 +555,18 @@ public sealed class AppConfigStore
                 fallback.Sanitize();
                 return fallback;
             }
+        }
+    }
+
+    private void BackupCorruptConfig()
+    {
+        try
+        {
+            string backup = $"{_configPath}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}.bak";
+            File.Copy(_configPath, backup, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
         }
     }
 
@@ -511,6 +616,23 @@ public sealed class AppConfigStore
         return cfg;
     }
 
+    private static string SerializeWithRetry(AppConfig config)
+    {
+        // Config lists are mutated by background services (dock pins, audio routes, quota slots)
+        // without this store's lock; retry if a collection changes mid-serialization.
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return JsonSerializer.Serialize(config, JsonOptions);
+            }
+            catch (InvalidOperationException) when (attempt < 4)
+            {
+                Thread.Sleep(5);
+            }
+        }
+    }
+
     // The edit assigns settings properties; it must not mutate shared collections in place.
     public void Update(AppConfig config, Action<AppConfig> edit)
     {
@@ -537,10 +659,39 @@ public sealed class AppConfigStore
                 Directory.CreateDirectory(dir);
             }
 
-            string json = JsonSerializer.Serialize(config, JsonOptions);
+            string json = SerializeWithRetry(config);
             string tempPath = _configPath + ".tmp";
-            File.WriteAllText(tempPath, json);
+            using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(fs, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+            {
+                writer.Write(json);
+                writer.Flush();
+                // Force the bytes to disk before the rename so a power loss can't leave an empty config.
+                fs.Flush(flushToDisk: true);
+            }
             File.Move(tempPath, _configPath, overwrite: true);
         }
     }
+}
+
+public enum DockVisualStyle
+{
+    Midnight = 0,
+    Black = 1,
+    White = 2,
+    LiquidGlass = 3,
+    IosGlass = 4
+}
+
+public enum DockScreenEdge
+{
+    Bottom = 0,
+    Top = 1
+}
+
+public sealed class DockTodoItem
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Text { get; set; } = string.Empty;
+    public bool Done { get; set; }
 }
