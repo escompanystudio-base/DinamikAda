@@ -22,6 +22,7 @@ public sealed unsafe class ExplorerTaskbarService : IDisposable
         && File.Exists(Path.Combine(HostDirectory, "AppData", "Engine", "Mods", "64", ExplorerTaskbarTheme.SizeLibraryFileName))
         && File.Exists(Path.Combine(HostDirectory, "AppData", "Engine", "Mods", "64", ExplorerTaskbarTheme.OverlayLibraryFileName))
         && File.Exists(Path.Combine(HostDirectory, "AppData", "Engine", "Mods", "64", ExplorerTaskbarTheme.StartLibraryFileName))
+        && File.Exists(Path.Combine(HostDirectory, "AppData", "Engine", "Mods", "64", ExplorerTaskbarTheme.NotificationLibraryFileName))
         && File.Exists(Path.Combine(HostDirectory, "AppData", "Engine", "Mods", "64", ExplorerTaskbarTheme.LibraryFileName));
 
     public void Apply(bool enabled, string? accent = null, bool playing = false,
@@ -61,6 +62,9 @@ public sealed unsafe class ExplorerTaskbarService : IDisposable
                 string startPath = Path.Combine(Path.GetDirectoryName(ModConfigPath)!, ExplorerTaskbarTheme.StartModId + ".ini");
                 File.WriteAllText(startPath + ".tmp", ExplorerTaskbarTheme.BuildStartMenuSettings(enabled, _revision), Encoding.Unicode);
                 File.Move(startPath + ".tmp", startPath, overwrite: true);
+                string notificationPath = Path.Combine(Path.GetDirectoryName(ModConfigPath)!, ExplorerTaskbarTheme.NotificationModId + ".ini");
+                File.WriteAllText(notificationPath + ".tmp", ExplorerTaskbarTheme.BuildNotificationSettings(enabled, _revision), Encoding.Unicode);
+                File.Move(notificationPath + ".tmp", notificationPath, overwrite: true);
                 _enabled = enabled;
             }
             if (enabled && DateTime.UtcNow - _lastStartAttemptUtc > TimeSpan.FromSeconds(15))

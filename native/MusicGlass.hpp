@@ -3,6 +3,7 @@
 
 #include <array>
 #include <chrono>
+#include <string_view>
 #include <winrt/Windows.UI.Composition.h>
 #include <winrt/Windows.UI.Xaml.Hosting.h>
 
@@ -22,6 +23,25 @@ struct Palette {
 };
 
 inline std::wstring HostPath(PCWSTR name) {
+#ifdef DINAMIKADA_NOTIFICATION_GLASS
+    // Locate the portable profile that loaded this DLL, independent of the
+    // packaged shell's LocalAppData environment.
+    HMODULE module = nullptr;
+    WCHAR location[MAX_PATH]{};
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<PCWSTR>(&HostPath), &module)) {
+        DWORD length = GetModuleFileNameW(module, location, ARRAYSIZE(location));
+        if (length && length < ARRAYSIZE(location)) {
+            std::wstring_view root(location, length);
+            for (int i = 0; i < 5 && !root.empty(); ++i) {
+                auto separator = root.find_last_of(L"\\/");
+                root = separator == root.npos ? std::wstring_view{} : root.substr(0, separator);
+            }
+            if (!root.empty()) return std::wstring(root) + L"\\" + name;
+        }
+    }
+#endif
     WCHAR root[32768];
     ExpandEnvironmentStringsW(L"%LOCALAPPDATA%\\DinamikAda\\ExplorerHost\\", root, ARRAYSIZE(root));
     return std::wstring(root) + name;
@@ -42,12 +62,47 @@ inline Color Blend(Color a, Color b, float amount) {
 
 inline Palette ReadPalette(PCWSTR path) {
     Palette palette;
+#ifdef DINAMIKADA_NOTIFICATION_GLASS
+    // Read the atomically replaced UTF-16 media state with read-only access.
+    WCHAR buffer[512]{};
+    HANDLE file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return palette;
+    DWORD bytesRead = 0;
+    BOOL read = ReadFile(file, buffer, sizeof(buffer), &bytesRead, nullptr);
+    CloseHandle(file);
+    if (!read || bytesRead < sizeof(WCHAR) || buffer[0] != 0xFEFF) return palette;
+    std::wstring_view state(buffer + 1, bytesRead / sizeof(WCHAR) - 1);
+    auto value = [&](std::wstring_view key) {
+        auto pos = state.find(key);
+        return pos == state.npos ? std::wstring_view{} : state.substr(pos + key.size());
+    };
+    auto enabled = [&](std::wstring_view key, bool fallback) {
+        auto text = value(key);
+        return text.empty() ? fallback : text.front() == L'1';
+    };
+    auto color = [&](std::wstring_view key, Color fallback) {
+        auto text = value(key);
+        if (text.size() < 6) return fallback;
+        WCHAR rgbText[7]{};
+        text.copy(rgbText, 6);
+        unsigned rgb;
+        if (swscanf_s(rgbText, L"%x", &rgb) != 1) return fallback;
+        return Color{255, BYTE(rgb >> 16), BYTE(rgb >> 8), BYTE(rgb)};
+    };
+    palette.playing = enabled(L"\nPlaying=", false);
+    palette.active = enabled(L"\nGlow=", true) && enabled(L"\nHasSession=", palette.playing);
+    palette.colors[0] = color(L"\nPrimary=#", palette.colors[0]);
+    palette.colors[1] = Blend(color(L"\nSecondary=#", palette.colors[1]), palette.colors[0], .18f);
+    palette.colors[2] = Blend(color(L"\nHighlight=#", palette.colors[2]), palette.colors[0], .15f);
+#else
     palette.playing = GetPrivateProfileIntW(L"Animation", L"Playing", 0, path) != 0;
     palette.active = GetPrivateProfileIntW(L"Animation", L"Glow", 1, path) != 0 &&
         GetPrivateProfileIntW(L"Animation", L"HasSession", palette.playing, path) != 0;
     palette.colors[0] = ReadColor(L"Primary", palette.colors[0], path);
     palette.colors[1] = Blend(ReadColor(L"Secondary", palette.colors[1], path), palette.colors[0], .18f);
     palette.colors[2] = Blend(ReadColor(L"Highlight", palette.colors[2], path), palette.colors[0], .15f);
+#endif
     return palette;
 }
 

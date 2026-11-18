@@ -2622,18 +2622,22 @@
                         <Rectangle x:Name="SatelliteGlowRect"
                                    Width="140"
                                    Height="60"
+                                   HorizontalAlignment="Left"
+                                   VerticalAlignment="Top"
                                    Opacity="0"
                                    IsHitTestVisible="False">
                             <Rectangle.RenderTransform>
-                                <TranslateTransform x:Name="SatelliteGlowTransform" X="0" Y="0" />
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="SatelliteGlowScale" />
+                                    <TranslateTransform x:Name="SatelliteGlowTransform" />
+                                </TransformGroup>
                             </Rectangle.RenderTransform>
                             <Rectangle.Fill>
-                                <RadialGradientBrush Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.5" RadiusY="0.5">
-                                    <GradientStop x:Name="AuraSatStop0" Color="#565E5CE6" Offset="0.0" />
-                                    <GradientStop x:Name="AuraSatStop1" Color="#365E5CE6" Offset="0.35" />
-                                    <GradientStop x:Name="AuraSatStop2" Color="#160A84FF" Offset="0.72" />
-                                    <GradientStop Color="#00000000" Offset="1.0" />
-                                </RadialGradientBrush>
+                                <LinearGradientBrush x:Name="SatelliteGlowBrush" StartPoint="0,0" EndPoint="1,0.85">
+                                    <GradientStop x:Name="AuraSatStop0" Color="#705E5CE6" Offset="0.0" />
+                                    <GradientStop x:Name="AuraSatStop1" Color="#560A84FF" Offset="0.48" />
+                                    <GradientStop x:Name="AuraSatStop2" Color="#5E64D2FF" Offset="1.0" />
+                                </LinearGradientBrush>
                             </Rectangle.Fill>
                         </Rectangle>
                         <Grid x:Name="SatelliteInnerGrid"

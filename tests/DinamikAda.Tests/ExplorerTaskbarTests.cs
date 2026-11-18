@@ -75,18 +75,24 @@ public sealed class ExplorerTaskbarTests
     }
 
     [Fact]
-    public void SkinHidesIconFillAndScopesMusicGlassToTheNativeStartMenu()
+    public void SkinHidesIconFillAndScopesMusicGlassToNativeShellSurfaces()
     {
         string dock = ExplorerTaskbarTheme.Build(true, null, 110);
         Assert.Contains("Grid#IconPanel > Border#BackgroundElement", dock);
         Assert.Contains("controlStyles[4].styles[0]=Opacity=0", dock);
         Assert.Contains("Rectangle#RunningIndicator", dock);
+        Assert.Contains("Border#OverflowFlyoutBackgroundBorder", dock);
 
         string start = ExplorerTaskbarTheme.BuildStartMenuSettings(true, 110);
         Assert.Contains("Include=StartMenuExperienceHost.exe", start);
         Assert.DoesNotContain("SearchHost", start);
         Assert.Contains("Border#AcrylicBorder", start);
         Assert.Contains("Disabled=1", ExplorerTaskbarTheme.BuildStartMenuSettings(false, 111));
+
+        string notification = ExplorerTaskbarTheme.BuildNotificationSettings(true, 110);
+        Assert.Contains("Include=ShellExperienceHost.exe|ShellHost.exe", notification);
+        Assert.Contains("Disabled=0", notification);
+        Assert.Contains("Disabled=1", ExplorerTaskbarTheme.BuildNotificationSettings(false, 111));
     }
 
     [Fact]

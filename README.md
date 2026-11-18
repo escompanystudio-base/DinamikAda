@@ -42,7 +42,11 @@ The rightmost arrow collapses the system tray into a compact button. Click it ag
 
 ### Music colors
 
-DinamikAda takes its colors from album artwork shared by the active Windows media session. When the track changes, the top island, Explorer dock, system tray and Start menu take on the new palette. The dock and tray colors also drift during playback.
+DinamikAda takes its colors from album artwork shared by the active Windows media session. When a player delivers the next cover late, the island holds the current palette briefly and blends into the new colors when the artwork arrives. The AI capsule and expanded tabs share the island's palette.
+
+![Track colors crossfade while the top island opens and moves through its tabs](docs/screenshots/upper-island-motion.gif)
+
+In Explorer mode, the palette also follows the app dock, system tray, hidden icons, Start menu, calendar and notification panels, and Quick Settings.
 
 ![The top island, app dock and system tray transition from violet and blue to warm orange as the track changes](docs/screenshots/music-colors.gif)
 

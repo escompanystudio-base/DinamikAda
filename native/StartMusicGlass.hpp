@@ -6,6 +6,9 @@
 #include <winrt/Windows.UI.Xaml.Controls.h>
 #include <winrt/Windows.UI.Xaml.Media.h>
 #include "MusicGlass.hpp"
+#ifdef DINAMIKADA_NOTIFICATION_GLASS
+#include "DockPaletteBrush.hpp"
+#endif
 
 namespace DinamikAdaStartGlass {
 namespace glass = DinamikAdaMusicGlass;
@@ -21,11 +24,26 @@ thread_local unsigned errors = 0;
 
 inline void Report() noexcept {
     try {
+#ifdef DINAMIKADA_NOTIFICATION_GLASS
+        WCHAR executable[MAX_PATH]{};
+        GetModuleFileNameW(nullptr, executable, ARRAYSIZE(executable));
+        auto name = wcsrchr(executable, L'\\');
+        auto path = glass::HostPath(name && _wcsicmp(name + 1, L"ShellHost.exe") == 0
+            ? L"quick-settings-glass-status.ini" : L"notification-glass-status.ini");
+#else
         auto path = glass::HostPath(L"start-glass-status.ini");
+#endif
         unsigned layers = 0;
         for (auto const& [id, surface] : surfaces) if (surface.orbiting) layers += unsigned(surface.orbs.size());
+        auto count = surfaces.size();
+#ifdef DINAMIKADA_NOTIFICATION_GLASS
+        DinamikAdaDockPalette::ForEach([&](auto const& surface) {
+            ++count;
+            if (surface.moving) ++layers;
+        });
+#endif
         std::wstring value = L"[StartGlass]\nProcessId=" + std::to_wstring(GetCurrentProcessId()) +
-            L"\nSurfaces=" + std::to_wstring(surfaces.size()) +
+            L"\nSurfaces=" + std::to_wstring(count) +
             L"\nFailures=" + std::to_wstring(errors) +
             L"\nHasSession=" + std::to_wstring(palette.active) +
             L"\nPlaying=" + std::to_wstring(palette.playing) +
@@ -50,6 +68,9 @@ inline void Refresh() noexcept {
         palette = next;
         motion = canAnimate;
         for (auto& [id, surface] : surfaces) glass::Apply(surface, palette, motion);
+#ifdef DINAMIKADA_NOTIFICATION_GLASS
+        DinamikAdaDockPalette::ForEach([](auto& surface) { DinamikAdaDockPalette::Apply(surface, palette, motion); });
+#endif
         Report();
     } catch (winrt::hresult_error const& ex) {
         errors++;
@@ -58,30 +79,38 @@ inline void Refresh() noexcept {
     } catch (...) { errors++; Report(); }
 }
 
+inline void EnsureTimer() {
+    if (timer) return;
+    palette = glass::ReadPalette(glass::HostPath(L"animation-state.ini").c_str());
+    motion = winrt::Windows::UI::ViewManagement::UISettings().AnimationsEnabled();
+    timer = xaml::DispatcherTimer();
+    timer.Interval(std::chrono::milliseconds(500));
+    timerTick = timer.Tick([](auto&&, auto&&) { Refresh(); });
+    timer.Start();
+}
+
 inline void Attach(uint64_t id, xaml::FrameworkElement const& element) noexcept {
     try {
+#ifdef DINAMIKADA_NOTIFICATION_GLASS
+        if (DinamikAdaDockPalette::Identify(element) == DinamikAdaDockPalette::Capsule::Panel) EnsureTimer();
+#else
         if (surfaces.contains(id) || element.Name() != L"AcrylicBorder") return;
         auto border = element.try_as<xaml::Controls::Border>();
-        if (!border || hosting::ElementCompositionPreview::GetElementChildVisual(element)) return;
+        if (!border) return;
         auto parent = xaml::Media::VisualTreeHelper::GetParent(element);
         for (int depth = 0; parent && depth < 10; depth++,
                 parent = xaml::Media::VisualTreeHelper::GetParent(parent)) {
             if (auto ancestor = parent.try_as<xaml::FrameworkElement>(); ancestor && ancestor.Name() == L"CompanionRoot") return;
         }
         float radius = float(border.CornerRadius().TopLeft);
+        if (hosting::ElementCompositionPreview::GetElementChildVisual(element)) return;
         surfaces.emplace(id, glass::Create(element, radius > 0 ? radius : 12.f, true));
         auto& surface = surfaces.at(id);
         hosting::ElementCompositionPreview::SetElementChildVisual(element, surface.root);
-        if (!timer) {
-            palette = glass::ReadPalette(glass::HostPath(L"animation-state.ini").c_str());
-            motion = winrt::Windows::UI::ViewManagement::UISettings().AnimationsEnabled();
-            timer = xaml::DispatcherTimer();
-            timer.Interval(std::chrono::milliseconds(500));
-            timerTick = timer.Tick([](auto&&, auto&&) { Refresh(); });
-            timer.Start();
-        }
+        EnsureTimer();
         glass::Apply(surface, palette, motion);
         Report();
+#endif
     } catch (winrt::hresult_error const& ex) {
         errors++;
         Wh_Log(L"Start glass attach: %s", ex.message().c_str());
@@ -107,5 +136,10 @@ inline void Detach(uint64_t id) noexcept {
 
 inline void Clear() noexcept {
     while (!surfaces.empty()) Detach(surfaces.begin()->first);
+    if (timer) {
+        timer.Stop();
+        timer.Tick(timerTick);
+        timer = nullptr;
+    }
 }
 } // namespace DinamikAdaStartGlass

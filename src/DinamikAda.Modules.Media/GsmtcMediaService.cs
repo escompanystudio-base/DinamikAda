@@ -11,12 +11,15 @@ namespace DinamikAda.Modules.Media;
 
 public sealed class GsmtcMediaService : IMediaControlBackend
 {
+    private const int ArtworkGraceMs = 2400;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private readonly object _sessionsLock = new();
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> _trackedSessions = new(StringComparer.OrdinalIgnoreCase);
     private string? _preferredSessionId;
     private string? _lastTrackSignature;
+    private string? _pendingArtworkTrack;
+    private long _artworkDeadline;
     private byte[]? _lastThumbHash;
     private long _currentTimelineStartTicks;
     private MediaPlaybackSnapshot _current = EmptySnapshot();
@@ -128,6 +131,12 @@ public sealed class GsmtcMediaService : IMediaControlBackend
 
     private void OnSessionPropertiesChanged(GlobalSystemMediaTransportControlsSession sender, object args)
     {
+        RequestCoalescedRefresh();
+    }
+
+    private async Task SettleArtworkAsync()
+    {
+        await Task.Delay(ArtworkGraceMs).ConfigureAwait(false);
         RequestCoalescedRefresh();
     }
 
@@ -306,6 +315,7 @@ public sealed class GsmtcMediaService : IMediaControlBackend
             if (chosen is null || chosenId is null)
             {
                 _lastTrackSignature = null;
+                _pendingArtworkTrack = null;
                 _lastThumbHash = null;
                 Volatile.Write(ref _currentTimelineStartTicks, 0);
                 _current = EmptySnapshot();
@@ -325,16 +335,20 @@ public sealed class GsmtcMediaService : IMediaControlBackend
             string sig = $"{chosenId}|{trackTitle}|{artist}";
 
             bool trackChanged = !string.Equals(sig, _lastTrackSignature, StringComparison.Ordinal);
-            byte[]? thumbBytes = trackChanged ? null : _current.ThumbnailBytes;
-            string accent = trackChanged ? "#0A84FF" : _current.AccentHex;
-            string? secondaryAccent = trackChanged ? "#5E5CE6" : _current.SecondaryAccentHex;
-            string? highlightAccent = trackChanged ? "#64D2FF" : _current.HighlightAccentHex;
+            bool sameSession = _current.HasSession && string.Equals(chosenId, _current.SessionId, StringComparison.Ordinal);
+            byte[]? thumbBytes = sameSession ? _current.ThumbnailBytes : null;
+            string accent = sameSession ? _current.AccentHex : "#0A84FF";
+            string? secondaryAccent = sameSession ? _current.SecondaryAccentHex : "#5E5CE6";
+            string? highlightAccent = sameSession ? _current.HighlightAccentHex : "#64D2FF";
 
-            if (trackChanged || (thumbBytes is null && mediaProps?.Thumbnail is not null))
+            bool pendingArtwork = _pendingArtworkTrack == sig;
+            bool artworkExpired = pendingArtwork && Environment.TickCount64 >= _artworkDeadline;
+            if (trackChanged) _pendingArtworkTrack = null;
+            if (trackChanged || (mediaProps?.Thumbnail is not null &&
+                (thumbBytes is null || pendingArtwork)) || artworkExpired)
             {
-                _lastTrackSignature = sig;
                 byte[]? fetched = await ReadThumbnailBytesAsync(mediaProps?.Thumbnail, ct);
-                if (fetched is null && trackChanged && _current.HasSession && string.Equals(chosenId, _current.SessionId, StringComparison.Ordinal))
+                if (fetched is null && trackChanged && sameSession)
                 {
                     // Many GSMTC sources (Spotify/browsers) update Title/Artist slightly before resolving Thumbnail.
                     await Task.Delay(90, ct);
@@ -346,34 +360,36 @@ public sealed class GsmtcMediaService : IMediaControlBackend
                     }
                 }
                 byte[]? fetchedHash = ComputeThumbnailHash(fetched);
+                bool artworkChanged = fetched is not null && (!sameSession || fetchedHash is null ||
+                    _lastThumbHash is null || !fetchedHash.AsSpan().SequenceEqual(_lastThumbHash));
 
                 if (fetched is null)
                 {
-                    _lastThumbHash = null;
-                    thumbBytes = null;
-                    accent = "#0A84FF";
-                    secondaryAccent = "#5E5CE6";
-                    highlightAccent = "#64D2FF";
-                }
-                else if (fetchedHash is null || _lastThumbHash is null || !fetchedHash.AsSpan().SequenceEqual(_lastThumbHash))
-                {
-                    _lastThumbHash = fetchedHash;
-                    thumbBytes = fetched;
-                    (accent, secondaryAccent, highlightAccent) = await ColorQuantizer.ExtractPaletteHexesAsync(thumbBytes, ct);
+                    // Keep the current palette while the same player is still publishing its next cover.
+                    if (artworkExpired)
+                    {
+                        thumbBytes = null;
+                        accent = "#0A84FF";
+                        secondaryAccent = "#5E5CE6";
+                        highlightAccent = "#64D2FF";
+                        _lastThumbHash = null;
+                        _pendingArtworkTrack = null;
+                    }
                 }
                 else
                 {
+                    if (artworkChanged)
+                        (accent, secondaryAccent, highlightAccent) = await ColorQuantizer.ExtractPaletteHexesAsync(fetched, ct);
                     thumbBytes = fetched;
-                    if (trackChanged)
-                    {
-                        (accent, secondaryAccent, highlightAccent) = await ColorQuantizer.ExtractPaletteHexesAsync(thumbBytes, ct);
-                    }
-                    else
-                    {
-                        accent = _current.AccentHex;
-                        secondaryAccent = _current.SecondaryAccentHex;
-                        highlightAccent = _current.HighlightAccentHex;
-                    }
+                    _lastThumbHash = fetchedHash;
+                    if (artworkChanged || artworkExpired) _pendingArtworkTrack = null;
+                }
+
+                if (trackChanged && sameSession && thumbBytes is not null && !artworkChanged)
+                {
+                    _pendingArtworkTrack = sig;
+                    _artworkDeadline = Environment.TickCount64 + ArtworkGraceMs;
+                    _ = SettleArtworkAsync();
                 }
             }
 
@@ -407,6 +423,7 @@ public sealed class GsmtcMediaService : IMediaControlBackend
                 SecondaryAccentHex: secondaryAccent,
                 HighlightAccentHex: highlightAccent);
 
+            _lastTrackSignature = sig;
             _current = next;
             if (!_disposed)
             {

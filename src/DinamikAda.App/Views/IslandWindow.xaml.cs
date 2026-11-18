@@ -9,6 +9,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using DinamikAda.App.Services;
@@ -96,8 +97,7 @@ public partial class IslandWindow : Window
     private readonly NotchGeometryBuilder _mainNotchBuilder = new();
     private readonly NotchGeometryBuilder _satNotchBuilder = new();
     private double _glowAnimPhase;
-    private Color _currentSecondaryAuraColor = Color.FromRgb(94, 92, 230);
-    private Color _currentHighlightAuraColor = Color.FromRgb(100, 210, 255);
+    private (Color Primary, Color Secondary, Color Highlight)? _albumPalette;
     private NotificationEntry? _activeDetailNotification;
     private readonly Dictionary<string, ImageSource> _notifIconCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, string> _pidExePathCache = new();
@@ -197,7 +197,6 @@ public partial class IslandWindow : Window
 
     private byte[]? _lastThumbBytes;
     private BitmapImage? _cachedAlbumBitmap;
-    private Color _currentAuraColor = Color.FromRgb(10, 132, 255);
     private string _lastMediaTrackKey = string.Empty;
     private bool _wasMediaPlaying;
 
@@ -634,16 +633,13 @@ public partial class IslandWindow : Window
 
     private bool ShouldAnimateAmbientGlow(IslandCoordinatorSnapshot snap)
     {
-        if (!_orch.Config.DynamicAlbumGlowEnabled) return false;
+        if (!_orch.Config.DynamicAlbumGlowEnabled || !SystemParameters.ClientAreaAnimation) return false;
         var media = _auditMediaOverride ?? _orch.Media.Current;
-        if (!media.HasSession || !media.IsPlaying) return false;
-
-        if (snap.State is IslandPresentationState.S2Compact or IslandPresentationState.S2Split)
-        {
-            return snap.PrimaryActivity?.Kind == ActivityKind.Media;
-        }
-        return snap.State == IslandPresentationState.S4Expanded && snap.ActiveTab == ExpandedTabId.Now;
+        return media.HasSession && media.IsPlaying && HasAlbumGlowSurface(snap);
     }
+
+    private static bool HasAlbumGlowSurface(IslandCoordinatorSnapshot snap) =>
+        snap.State is IslandPresentationState.S2Compact or IslandPresentationState.S2Split or IslandPresentationState.S4Expanded;
 
     private bool AreSpectrumBarsAtRest()
     {
@@ -861,12 +857,14 @@ public partial class IslandWindow : Window
             SatelliteContentTransform.Y = topY + Math.Max(0.0, (satH - SatelliteInnerGrid.Height) * 0.5);
             SatelliteInnerGrid.Opacity = SpringDamperSolver.SmoothStep(
                 SatelliteInnerGrid.Width * 0.55, SatelliteInnerGrid.Width, satW);
-            if (_orch.Config.DynamicAlbumGlowEnabled && snap.PrimaryActivity?.Kind == ActivityKind.Media)
+            var media = _auditMediaOverride ?? _orch.Media.Current;
+            if (_orch.Config.DynamicAlbumGlowEnabled && media.HasSession)
             {
-                bool satPlaying = (_auditMediaOverride ?? _orch.Media.Current).IsPlaying;
-                SatelliteGlowRect.Opacity = satPlaying ? 0.62 : 0.28;
-                SatelliteGlowTransform.X = satLocalCenterX - 70.0;
-                SatelliteGlowTransform.Y = topY + satH * 0.5 - 30.0;
+                SatelliteGlowRect.Opacity = media.IsPlaying ? 0.70 : 0.34;
+                SatelliteGlowScale.ScaleX = (satW + 2 * satEar) / 140.0;
+                SatelliteGlowScale.ScaleY = satH / 60.0;
+                SatelliteGlowTransform.X = satLocalCenterX - satW * 0.5 - satEar;
+                SatelliteGlowTransform.Y = topY;
             }
             else
             {
@@ -886,14 +884,7 @@ public partial class IslandWindow : Window
     private void ApplyAmbientGlowFrame(IslandCoordinatorSnapshot snap, double centerX, double topY, double w, double h, double dt)
     {
         var media = _auditMediaOverride ?? _orch.Media.Current;
-        bool eligibleSurface = snap.State switch
-        {
-            IslandPresentationState.S2Compact or IslandPresentationState.S2Split when snap.PrimaryActivity?.Kind == ActivityKind.Media => true,
-            IslandPresentationState.S4Expanded when snap.ActiveTab == ExpandedTabId.Now && media.HasSession => true,
-            _ => false
-        };
-
-        if (!_orch.Config.DynamicAlbumGlowEnabled || !eligibleSurface || w <= 60 || h <= 16)
+        if (!_orch.Config.DynamicAlbumGlowEnabled || !media.HasSession || !HasAlbumGlowSurface(snap) || w <= 60 || h <= 16)
         {
             AccentGlowHost.Opacity = 0.0;
             return;
@@ -903,7 +894,7 @@ public partial class IslandWindow : Window
         {
             _glowAnimPhase = 0.95;
         }
-        else if (media.IsPlaying && dt > 0.0)
+        else if (media.IsPlaying && dt > 0.0 && SystemParameters.ClientAreaAnimation)
         {
             _glowAnimPhase += dt * 0.62;
             if (_glowAnimPhase > Math.PI * 200.0)
@@ -913,10 +904,19 @@ public partial class IslandWindow : Window
         }
 
         bool isCompact = snap.State is IslandPresentationState.S2Compact or IslandPresentationState.S2Split;
-        double baseGlow = isCompact
-            ? (media.IsPlaying ? 0.58 : 0.24)
-            : (media.IsPlaying ? 0.64 : 0.26);
+        bool mediaSurface = !isCompact
+            ? snap.ActiveTab == ExpandedTabId.Now
+            : snap.PrimaryActivity?.Kind == ActivityKind.Media;
+        double baseGlow = mediaSurface
+            ? (media.IsPlaying ? 0.60 : 0.26)
+            : (media.IsPlaying ? 0.43 : 0.20);
         AccentGlowHost.Opacity = Math.Clamp(baseGlow + _motion.AlbumAuraPulse.Value * 0.24, 0.0, 0.88);
+        if (snap.State == IslandPresentationState.S2Split)
+        {
+            double sweep = Math.Sin(_glowAnimPhase * 0.9) * 0.20;
+            SatelliteGlowBrush.StartPoint = new Point(sweep, 0);
+            SatelliteGlowBrush.EndPoint = new Point(1.0 + sweep, 0.85);
+        }
 
         // Full-shell diffused silk undertone wash so there are no dark gaps isolating blobs into dots
         AccentGlowWashScale.ScaleX = Math.Max(0.1, w / 640.0);
@@ -1842,63 +1842,56 @@ public partial class IslandWindow : Window
 
     private void UpdateAccentGlowPalette(string? accentHex, string? secondaryHex = null, string? highlightHex = null)
     {
-        if (!_orch.Config.DynamicAlbumGlowEnabled)
-        {
-            AuraWashStop0.Color = Color.FromArgb(0, 10, 132, 255);
-            AuraWashStop1.Color = Color.FromArgb(0, 94, 92, 230);
-            AuraWashStop2.Color = Color.FromArgb(0, 100, 210, 255);
-            AuraStop0.Color = Color.FromArgb(0, 10, 132, 255);
-            AuraStop1.Color = Color.FromArgb(0, 10, 132, 255);
-            AuraStop2.Color = Color.FromArgb(0, 10, 132, 255);
-            AuraStop3.Color = Color.FromArgb(0, 10, 132, 255);
-            AuraSecStop0.Color = Color.FromArgb(0, 94, 92, 230);
-            AuraSecStop1.Color = Color.FromArgb(0, 94, 92, 230);
-            AuraSecStop2.Color = Color.FromArgb(0, 94, 92, 230);
-            AuraSecStop3.Color = Color.FromArgb(0, 94, 92, 230);
-            AuraHiStop0.Color = Color.FromArgb(0, 100, 210, 255);
-            AuraHiStop1.Color = Color.FromArgb(0, 100, 210, 255);
-            AuraHiStop2.Color = Color.FromArgb(0, 100, 210, 255);
-            AuraHiStop3.Color = Color.FromArgb(0, 100, 210, 255);
-            AuraSatStop0.Color = Color.FromArgb(0, 94, 92, 230);
-            AuraSatStop1.Color = Color.FromArgb(0, 94, 92, 230);
-            AuraSatStop2.Color = Color.FromArgb(0, 10, 132, 255);
-            return;
-        }
-
         Color primary = TryParseColor(accentHex, out Color c) ? c : Color.FromRgb(10, 132, 255);
         Color rawSecondary = TryParseColor(secondaryHex, out Color sc) ? sc : ShiftColorHue(primary, 36.0);
         Color rawHighlight = TryParseColor(highlightHex, out Color hc) ? hc : ShiftColorHue(primary, -30.0);
-
-        // Harmonize secondary & highlight gently toward primary so transitions glide cleanly as silk gradients
         Color secondary = BlendColors(rawSecondary, primary, 0.18);
         Color highlight = BlendColors(rawHighlight, primary, 0.15);
 
-        _currentAuraColor = primary;
-        _currentSecondaryAuraColor = secondary;
-        _currentHighlightAuraColor = highlight;
+        var palette = (primary, secondary, highlight);
+        if (_albumPalette == palette) return;
+        bool animate = _albumPalette.HasValue && !_isRenderAuditMode &&
+            _orch.Config.DynamicAlbumGlowEnabled && SystemParameters.ClientAreaAnimation;
+        _albumPalette = palette;
 
-        AuraWashStop0.Color = Color.FromArgb(46, primary.R, primary.G, primary.B);
-        AuraWashStop1.Color = Color.FromArgb(36, secondary.R, secondary.G, secondary.B);
-        AuraWashStop2.Color = Color.FromArgb(30, highlight.R, highlight.G, highlight.B);
+        Paint(AuraWashStop0, primary, 46);
+        Paint(AuraWashStop1, secondary, 36);
+        Paint(AuraWashStop2, highlight, 30);
+        Paint(AuraStop0, primary, 90);
+        Paint(AuraStop1, primary, 78);
+        Paint(AuraStop2, primary, 46);
+        Paint(AuraStop3, primary, 16);
+        Paint(AuraSecStop0, secondary, 80);
+        Paint(AuraSecStop1, secondary, 68);
+        Paint(AuraSecStop2, secondary, 40);
+        Paint(AuraSecStop3, secondary, 14);
+        Paint(AuraHiStop0, highlight, 68);
+        Paint(AuraHiStop1, highlight, 56);
+        Paint(AuraHiStop2, highlight, 34);
+        Paint(AuraHiStop3, highlight, 12);
+        Paint(AuraSatStop0, secondary, 112);
+        Paint(AuraSatStop1, primary, 86);
+        Paint(AuraSatStop2, highlight, 94);
 
-        AuraStop0.Color = Color.FromArgb(90, primary.R, primary.G, primary.B);
-        AuraStop1.Color = Color.FromArgb(78, primary.R, primary.G, primary.B);
-        AuraStop2.Color = Color.FromArgb(46, primary.R, primary.G, primary.B);
-        AuraStop3.Color = Color.FromArgb(16, primary.R, primary.G, primary.B);
-
-        AuraSecStop0.Color = Color.FromArgb(80, secondary.R, secondary.G, secondary.B);
-        AuraSecStop1.Color = Color.FromArgb(68, secondary.R, secondary.G, secondary.B);
-        AuraSecStop2.Color = Color.FromArgb(40, secondary.R, secondary.G, secondary.B);
-        AuraSecStop3.Color = Color.FromArgb(14, secondary.R, secondary.G, secondary.B);
-
-        AuraHiStop0.Color = Color.FromArgb(68, highlight.R, highlight.G, highlight.B);
-        AuraHiStop1.Color = Color.FromArgb(56, highlight.R, highlight.G, highlight.B);
-        AuraHiStop2.Color = Color.FromArgb(34, highlight.R, highlight.G, highlight.B);
-        AuraHiStop3.Color = Color.FromArgb(12, highlight.R, highlight.G, highlight.B);
-
-        AuraSatStop0.Color = Color.FromArgb(88, secondary.R, secondary.G, secondary.B);
-        AuraSatStop1.Color = Color.FromArgb(54, primary.R, primary.G, primary.B);
-        AuraSatStop2.Color = Color.FromArgb(22, highlight.R, highlight.G, highlight.B);
+        void Paint(GradientStop stop, Color color, byte opacity)
+        {
+            Color current = stop.Color;
+            color.A = opacity;
+            stop.Color = color;
+            if (animate && current != color)
+            {
+                stop.BeginAnimation(GradientStop.ColorProperty, new ColorAnimation(current, color,
+                    TimeSpan.FromMilliseconds(440))
+                {
+                    EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+                    FillBehavior = FillBehavior.Stop
+                });
+            }
+            else
+            {
+                stop.BeginAnimation(GradientStop.ColorProperty, null);
+            }
+        }
     }
 
     private static Color BlendColors(Color a, Color b, double weightB) => Color.FromRgb(

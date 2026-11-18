@@ -15,13 +15,18 @@ using glass::Color;
 using glass::float2;
 using namespace std::chrono_literals;
 
-enum class Capsule { None, Apps, Tray };
+enum class Capsule { None, Apps, Tray, Overflow, Panel };
 
 inline Capsule Identify(xaml::UIElement const& element) {
     auto frame = element.try_as<xaml::FrameworkElement>();
     if (!frame) return Capsule::None;
     if (frame.Name() == L"SystemTrayFrameGrid") return Capsule::Tray;
+    if (frame.Name() == L"OverflowFlyoutBackgroundBorder" &&
+        winrt::get_class_name(frame) == L"Windows.UI.Xaml.Controls.Border") return Capsule::Overflow;
     if (winrt::get_class_name(frame) != L"Windows.UI.Xaml.Controls.Grid") return Capsule::None;
+    auto name = frame.Name();
+    if (name == L"NotificationCenterGrid" || name == L"CalendarCenterGrid" ||
+        name == L"ControlCenterRegion" || name == L"MediaTransportControlsRegion") return Capsule::Panel;
     auto parent = xaml::Media::VisualTreeHelper::GetParent(frame).try_as<xaml::FrameworkElement>();
     return parent && parent.Name() == L"BackgroundControl" &&
         winrt::get_class_name(parent) == L"Taskbar.TaskbarBackground" ? Capsule::Apps : Capsule::None;
@@ -95,8 +100,10 @@ inline void Apply(Surface& surface, glass::Palette const& palette, bool motion) 
         glass::Blend(colors[2], colors[1], .55f), colors[1]
     };
     const Color shade{255, 23, 23, 33};
-    const BYTE alpha = !palette.active ? 0 : surface.capsule == Capsule::Apps
-        ? (palette.playing ? 132 : 107) : (palette.playing ? 119 : 96);
+    const BYTE alpha = !palette.active ? 0 : surface.capsule == Capsule::Panel
+        ? (palette.playing ? 91 : 70)
+        : surface.capsule == Capsule::Apps ? (palette.playing ? 132 : 107)
+        : (palette.playing ? 119 : 96);
     auto gradients = surface.brush.ColorStops();
     for (unsigned index = 0; index < stops.size(); index++) {
         auto color = glass::Blend(stops[index], shade, .16f);
