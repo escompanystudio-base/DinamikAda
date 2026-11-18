@@ -285,8 +285,6 @@ public sealed class ConnectivityAndSystemService : IConnectivityBackend
 
     public void ToggleDarkTheme() => _ = ToggleDarkThemeAsync();
 
-    public Task<bool> NotifyThemeChangedAsync(CancellationToken ct = default) => ToggleDarkThemeAsync(ct);
-
     public async Task<bool> ToggleDarkThemeAsync(CancellationToken ct = default)
     {
         if (_disposed) return false;
@@ -1118,6 +1116,8 @@ public sealed class ConnectivityAndSystemService : IConnectivityBackend
                     NetworkInterfaceType.FastEthernetFx or
                     NetworkInterfaceType.FastEthernetT or
                     NetworkInterfaceType.Ethernet3Megabit)
+                // Bluetooth PAN adapters report as Ethernet; they are never a wired connection.
+                .Where(n => !$"{n.Name} {n.Description}".Contains("Bluetooth", StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             if (nics.Count == 0) return (false, null, null);

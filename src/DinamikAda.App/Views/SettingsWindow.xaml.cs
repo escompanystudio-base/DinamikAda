@@ -43,6 +43,8 @@ public partial class SettingsWindow : Window
 
         InitializeComponent();
         LoadFromConfig(_orch.Config);
+        CaptureExternallyMutableBaseline();
+        LoadPinnedAppsEditor();
         SourceInitialized += (_, _) => CenterOnIslandMonitorWorkArea();
         CenterOnIslandMonitorWorkArea();
     }
@@ -167,6 +169,26 @@ public partial class SettingsWindow : Window
         Top = workTopDip + Math.Max(0.0, (workHDip - Height) * 0.5);
     }
 
+    // Settings that can also change while this window is open (dock/island context menus, Quiet Island
+    // button, dragging the notch). Save only writes them back if the user changed the control here, so
+    // it never reverts those external edits — or clamps a dragged position to the slider's range.
+    private bool _baseHideTaskbar;
+    private bool _baseIntellihide;
+    private bool _baseQuietIsland;
+    private HorizontalAnchorDetent _baseDetent;
+    private double _baseRatioSlider;
+    private double _baseFreeTopSlider;
+
+    private void CaptureExternallyMutableBaseline()
+    {
+        _baseHideTaskbar = ChkHideWindowsTaskbar.IsChecked == true;
+        _baseIntellihide = ChkDockIntellihide.IsChecked == true;
+        _baseQuietIsland = ChkQuietIsland.IsChecked == true;
+        _baseDetent = GetSelectedValue(ComboDetent, _orch.Config.HorizontalDetent);
+        _baseRatioSlider = Math.Round(SliderCustomRatio.Value);
+        _baseFreeTopSlider = Math.Round(SliderCustomFreeTop.Value);
+    }
+
     private void LoadFromConfig(AppConfig cfg, bool showActiveHotkeys = true)
     {
         _suppressUiEvents = true;
@@ -194,8 +216,10 @@ public partial class SettingsWindow : Window
             ChkExplorerTaskbar.IsChecked = cfg.UseExplorerTaskbar;
             ChkDockMagnification.IsChecked = cfg.DockMagnificationEnabled;
             ChkDockIntellihide.IsChecked = cfg.DockIntellihideEnabled;
+            ChkDockFollowFullscreenHide.IsChecked = cfg.DockFollowFullscreenHide;
             SliderDockIconSize.Value = Math.Clamp(cfg.DockIconSizeDip, 26, 48);
             ChkHardwareRendering.IsChecked = cfg.UseHardwareRendering;
+            ChkAmdSafeCompositing.IsChecked = cfg.AmdSafeSoftwareCompositing;
             ChkSpectrumVisualizer.IsChecked = cfg.EnableSpectrumVisualizer;
             ChkAutoDodge.IsChecked = cfg.AutoDodgeEnabled;
             ChkFadeWhenIdle.IsChecked = cfg.FadeWhenIdle;
@@ -208,7 +232,9 @@ public partial class SettingsWindow : Window
             ChkMicPrivacyAlert.IsChecked = cfg.ShowMicPrivacyAlert;
             ChkMirrorOsNotifications.IsChecked = cfg.MirrorOsNotifications;
             ChkClipboardVault.IsChecked = cfg.EnableClipboardVault;
+            ChkLanShareClipboard.IsChecked = cfg.LanShareIncludeClipboard;
             ChkBtBatteryAlerts.IsChecked = cfg.BluetoothBatteryAlertsEnabled;
+            SliderBtBatteryThreshold.Value = Math.Clamp(cfg.BluetoothLowBatteryThreshold, 5, 40);
             ChkNotchDesktopSwipe.IsChecked = cfg.NotchDesktopSwipeEnabled;
             ChkCalendarEnabled.IsChecked = cfg.CalendarEnabled;
             ChkDownloadsWatch.IsChecked = cfg.DownloadsWatchEnabled;
@@ -437,7 +463,21 @@ public partial class SettingsWindow : Window
         ChkHideWindowsTaskbar.Content = Strings.HideWindowsTaskbarLabel(lang);
         ChkDockMagnification.Content = Strings.DockMagnificationLabel(lang);
         ChkDockIntellihide.Content = Strings.DockIntellihideLabel(lang);
+        ChkDockFollowFullscreenHide.Content = Strings.Pick(lang, "Tam Ekran Oyun/Videoda Dock'u Gizle", "Hide Dock During Fullscreen Games/Video");
+        ChkAmdSafeCompositing.Content = Strings.Pick(
+            lang,
+            "AMD Güvenli Yazılım Kompozisyonu (yeniden başlatma gerekir)",
+            "AMD-Safe Software Compositing (restart required)");
+        LblBtBatteryThreshold.Text = Strings.Pick(lang, "Düşük Pil Eşiği", "Low Battery Threshold");
         LblDockIconSize.Text = Strings.DockIconSizeLabel(lang);
+        LblDockPinnedApps.Text = Strings.Pick(lang, "Dock'taki Sabit Uygulamalar", "Apps Pinned to the Dock");
+        BtnDockAddApp.Content = Strings.Pick(lang, "Uygulama / Kısayol Ekle…", "Add App / Shortcut…");
+        BtnDockAddFolder.Content = Strings.Pick(lang, "Klasör Ekle…", "Add Folder…");
+        TxtDockPinsHint.Text = Strings.Pick(
+            lang,
+            "İpucu: Dock'taki simgeleri sürükleyerek sıralayabilir, Dosya Gezgini'nden dosya, kısayol veya klasör bırakarak sabitleyebilirsin.",
+            "Tip: drag icons on the Dock to reorder them, or drop files, shortcuts or folders from File Explorer onto it to pin them.");
+        if (_pinnedEditorLoaded) RenderPinnedAppsList();
 
         HdrMotionSection.Text = Strings.Pick(lang, "Performans, Yenileme Hızı & Etkileşim", "Performance, Refresh Rate & Interaction");
         LblTargetFpsCap.Text = Strings.TargetFpsCapLabel(lang);
@@ -523,6 +563,10 @@ public partial class SettingsWindow : Window
             lang,
             "Windows Bildirimlerini Adada Aynala",
             "Mirror Windows Notifications in Island");
+        ChkLanShareClipboard.Content = Strings.Pick(
+            lang,
+            "QR LAN Paylaşımına Son Pano Metnini Ekle",
+            "Include Latest Clipboard Text in QR LAN Share");
         ChkClipboardVault.Content = Strings.Pick(
             lang,
             "Şifreli Pano Kasası (DPAPI) Etkin",
@@ -750,6 +794,7 @@ public partial class SettingsWindow : Window
         ChkHideWindowsTaskbar.IsEnabled = dockEnabled;
         ChkDockMagnification.IsEnabled = dockEnabled || explorerEnabled;
         ChkDockIntellihide.IsEnabled = dockEnabled || explorerEnabled;
+        ChkDockFollowFullscreenHide.IsEnabled = dockEnabled;
         SliderDockIconSize.IsEnabled = dockEnabled;
         LblDockIconSize.Opacity = dockEnabled ? 1.0 : 0.45;
         ValDockIconSize.Opacity = dockEnabled ? 1.0 : 0.45;
@@ -789,6 +834,7 @@ public partial class SettingsWindow : Window
         ValHoverDwell.Text = $"{Math.Round(SliderHoverDwell.Value):0} ms";
         ValCollapseDelay.Text = $"{Math.Round(SliderCollapseDelay.Value):0} ms";
         ValMaxClipboard.Text = $"{Math.Round(SliderMaxClipboard.Value):0}";
+        ValBtBatteryThreshold.Text = $"{Math.Round(SliderBtBatteryThreshold.Value):0}%";
     }
 
     private void OnPinnedTabChanged(object sender, RoutedEventArgs e)
@@ -995,18 +1041,21 @@ public partial class SettingsWindow : Window
             cfg.DynamicAlbumGlowEnabled = ChkDynamicAlbumGlow.IsChecked == true;
             cfg.EnableBottomDock = ChkEnableBottomDock.IsChecked == true;
             cfg.UseExplorerTaskbar = ChkExplorerTaskbar.IsChecked == true;
-            cfg.HideWindowsTaskbar = ChkHideWindowsTaskbar.IsChecked == true;
+            if ((ChkHideWindowsTaskbar.IsChecked == true) != _baseHideTaskbar) cfg.HideWindowsTaskbar = ChkHideWindowsTaskbar.IsChecked == true;
             cfg.DockMagnificationEnabled = ChkDockMagnification.IsChecked == true;
-            cfg.DockIntellihideEnabled = ChkDockIntellihide.IsChecked == true;
+            if ((ChkDockIntellihide.IsChecked == true) != _baseIntellihide) cfg.DockIntellihideEnabled = ChkDockIntellihide.IsChecked == true;
+            cfg.DockFollowFullscreenHide = ChkDockFollowFullscreenHide.IsChecked == true;
             cfg.DockIconSizeDip = (int)Math.Round(SliderDockIconSize.Value);
+            ApplyPinnedAppsEdits(cfg);
             cfg.MonitorMode = GetSelectedValue(ComboMonitorMode, cfg.MonitorMode);
             if (cfg.MonitorMode == MonitorPlacementMode.PinnedMonitor)
             {
                 cfg.PinnedMonitorDeviceName = GetSelectedValue<string?>(ComboPinnedMonitor, cfg.PinnedMonitorDeviceName);
             }
-            cfg.HorizontalDetent = GetSelectedValue(ComboDetent, cfg.HorizontalDetent);
-            cfg.CustomHorizontalRatio = Math.Round(SliderCustomRatio.Value) / 100.0;
-            cfg.CustomFreeTopDip = Math.Round(SliderCustomFreeTop.Value);
+            var selectedDetent = GetSelectedValue(ComboDetent, cfg.HorizontalDetent);
+            if (selectedDetent != _baseDetent) cfg.HorizontalDetent = selectedDetent;
+            if (Math.Round(SliderCustomRatio.Value) != _baseRatioSlider) cfg.CustomHorizontalRatio = Math.Round(SliderCustomRatio.Value) / 100.0;
+            if (Math.Round(SliderCustomFreeTop.Value) != _baseFreeTopSlider) cfg.CustomFreeTopDip = Math.Round(SliderCustomFreeTop.Value);
 
             cfg.TargetFpsCap = GetSelectedValue(ComboTargetFpsCap, cfg.TargetFpsCap);
             cfg.ExpandTrigger = GetSelectedValue(ComboExpandTrigger, cfg.ExpandTrigger);
@@ -1017,10 +1066,11 @@ public partial class SettingsWindow : Window
             cfg.ColorPickerHotkey = newPickerHotkey;
 
             cfg.UseHardwareRendering = ChkHardwareRendering.IsChecked == true;
+            cfg.AmdSafeSoftwareCompositing = ChkAmdSafeCompositing.IsChecked == true;
             cfg.EnableSpectrumVisualizer = ChkSpectrumVisualizer.IsChecked == true;
             cfg.AutoDodgeEnabled = ChkAutoDodge.IsChecked == true;
             cfg.FadeWhenIdle = ChkFadeWhenIdle.IsChecked == true;
-            cfg.QuietIslandEnabled = ChkQuietIsland.IsChecked == true;
+            if ((ChkQuietIsland.IsChecked == true) != _baseQuietIsland) cfg.QuietIslandEnabled = ChkQuietIsland.IsChecked == true;
 
             cfg.GameFullscreenPolicy = GetSelectedValue(ComboGamePolicy, cfg.GameFullscreenPolicy);
             cfg.VideoFullscreenPolicy = GetSelectedValue(ComboVideoPolicy, cfg.VideoFullscreenPolicy);
@@ -1043,7 +1093,9 @@ public partial class SettingsWindow : Window
             cfg.ShowMicPrivacyAlert = ChkMicPrivacyAlert.IsChecked == true;
             cfg.MirrorOsNotifications = ChkMirrorOsNotifications.IsChecked == true;
             cfg.EnableClipboardVault = ChkClipboardVault.IsChecked == true;
+            cfg.LanShareIncludeClipboard = ChkLanShareClipboard.IsChecked == true;
             cfg.BluetoothBatteryAlertsEnabled = ChkBtBatteryAlerts.IsChecked == true;
+            cfg.BluetoothLowBatteryThreshold = (int)Math.Round(SliderBtBatteryThreshold.Value);
             cfg.NotchDesktopSwipeEnabled = ChkNotchDesktopSwipe.IsChecked == true;
             cfg.CalendarEnabled = ChkCalendarEnabled.IsChecked == true;
             cfg.DownloadsWatchEnabled = ChkDownloadsWatch.IsChecked == true;
@@ -1060,6 +1112,217 @@ public partial class SettingsWindow : Window
     }
 
     private void OnCancelClick(object sender, RoutedEventArgs e) => Close();
+
+    // ── Dock pinned apps editor ─────────────────────────────────────────────
+
+    private readonly List<string> _pinnedEdit = new();
+    private readonly List<string> _pinnedBaseline = new();
+    private bool _pinnedEditorLoaded;
+
+    private void LoadPinnedAppsEditor()
+    {
+        _pinnedEdit.Clear();
+        _pinnedBaseline.Clear();
+        try
+        {
+            var effective = DockAppsService.ResolveEffectivePinnedTargets(_orch.Config);
+            _pinnedEdit.AddRange(effective);
+            _pinnedBaseline.AddRange(effective);
+        }
+        catch
+        {
+            // A broken shortcut folder must not prevent the Settings window from opening.
+        }
+        _pinnedEditorLoaded = true;
+        RenderPinnedAppsList();
+    }
+
+    /// <summary>
+    /// Writes the edited pin list only when the user changed it here, so pins added or moved on
+    /// the Dock while this window was open are not reverted. Saved targets that are currently
+    /// unavailable (e.g. on an unplugged drive) are kept.
+    /// </summary>
+    private void ApplyPinnedAppsEdits(AppConfig cfg)
+    {
+        if (!_pinnedEditorLoaded || _pinnedEdit.SequenceEqual(_pinnedBaseline, StringComparer.OrdinalIgnoreCase)) return;
+
+        var next = new List<string>(_pinnedEdit);
+        foreach (string raw in cfg.PinnedDockApps)
+        {
+            if (!DockAppsService.IsPinnableTarget(raw)
+                && !next.Any(n => string.Equals(n, raw, StringComparison.OrdinalIgnoreCase)))
+            {
+                next.Add(raw);
+            }
+        }
+
+        cfg.PinnedDockApps = next;
+        cfg.DockPinsCustomized = true;
+    }
+
+    private void RenderPinnedAppsList()
+    {
+        string lang = _currentLang;
+        PinnedAppsHost.Children.Clear();
+
+        if (_pinnedEdit.Count == 0)
+        {
+            PinnedAppsHost.Children.Add(new TextBlock
+            {
+                Text = Strings.Pick(lang, "Dock'ta sabit uygulama yok.", "No apps are pinned to the Dock."),
+                Style = (Style)FindResource("NotchSubtitleTextStyle"),
+                Opacity = 0.6,
+                Margin = new Thickness(6, 6, 6, 6)
+            });
+            return;
+        }
+
+        var iconFont = (FontFamily)FindResource("IconFont");
+        for (int i = 0; i < _pinnedEdit.Count; i++)
+        {
+            string path = _pinnedEdit[i];
+            int index = i;
+            string name = Path.GetFileNameWithoutExtension(path.TrimEnd('\\', '/'));
+            ImageSource? icon = null;
+            try
+            {
+                if (DockAppsService.TryDescribePinTarget(path, out string described, out var describedIcon))
+                {
+                    name = described;
+                    icon = describedIcon;
+                }
+            }
+            catch
+            {
+                // Fall back to the file name when the shell cannot describe the target.
+            }
+            if (string.IsNullOrWhiteSpace(name)) name = path;
+
+            var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            FrameworkElement iconEl = icon is not null
+                ? new Image { Source = icon, Width = 20, Height = 20, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center }
+                : new TextBlock { Text = "", FontFamily = iconFont, FontSize = 13, Foreground = (Brush)FindResource("TextSecondaryBrush"), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+            Grid.SetColumn(iconEl, 0);
+            row.Children.Add(iconEl);
+
+            var labels = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 8, 0) };
+            labels.Children.Add(new TextBlock
+            {
+                Text = name,
+                Foreground = (Brush)FindResource("TextPrimaryBrush"),
+                FontSize = 12.5,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+            labels.Children.Add(new TextBlock
+            {
+                Text = path,
+                Foreground = (Brush)FindResource("TextSecondaryBrush"),
+                FontSize = 10.5,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                ToolTip = path
+            });
+            Grid.SetColumn(labels, 1);
+            row.Children.Add(labels);
+
+            var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            actions.Children.Add(MakePinRowButton("", Strings.Pick(lang, "Yukarı (sola) taşı", "Move up (left)"), index > 0, () => MovePinnedEdit(index, index - 1), iconFont));
+            actions.Children.Add(MakePinRowButton("", Strings.Pick(lang, "Aşağı (sağa) taşı", "Move down (right)"), index < _pinnedEdit.Count - 1, () => MovePinnedEdit(index, index + 1), iconFont));
+            actions.Children.Add(MakePinRowButton("", Strings.Pick(lang, "Dock'tan kaldır", "Unpin from Dock"), true, () => RemovePinnedEdit(index), iconFont));
+            Grid.SetColumn(actions, 2);
+            row.Children.Add(actions);
+
+            PinnedAppsHost.Children.Add(row);
+        }
+    }
+
+    private Button MakePinRowButton(string glyph, string tooltip, bool enabled, Action onClick, FontFamily iconFont)
+    {
+        var btn = new Button
+        {
+            Style = (Style)FindResource("DarkActionButtonStyle"),
+            Width = 28,
+            Height = 26,
+            Padding = new Thickness(0),
+            Margin = new Thickness(3, 0, 0, 0),
+            IsEnabled = enabled,
+            Opacity = enabled ? 1.0 : 0.35,
+            ToolTip = tooltip,
+            Content = new TextBlock { Text = glyph, FontFamily = iconFont, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+        };
+        System.Windows.Automation.AutomationProperties.SetName(btn, tooltip);
+        btn.Click += (_, _) => onClick();
+        return btn;
+    }
+
+    private void MovePinnedEdit(int from, int to)
+    {
+        if (from < 0 || from >= _pinnedEdit.Count || to < 0 || to >= _pinnedEdit.Count || from == to) return;
+        string item = _pinnedEdit[from];
+        _pinnedEdit.RemoveAt(from);
+        _pinnedEdit.Insert(to, item);
+        RenderPinnedAppsList();
+    }
+
+    private void RemovePinnedEdit(int index)
+    {
+        if (index < 0 || index >= _pinnedEdit.Count) return;
+        _pinnedEdit.RemoveAt(index);
+        RenderPinnedAppsList();
+    }
+
+    private void AddPinnedEdits(IEnumerable<string> paths)
+    {
+        foreach (string raw in paths)
+        {
+            if (!DockAppsService.IsPinnableTarget(raw)) continue;
+            string full;
+            try { full = Path.GetFullPath(raw); } catch { full = raw; }
+            if (_pinnedEdit.Any(p => string.Equals(p, full, StringComparison.OrdinalIgnoreCase))) continue;
+            _pinnedEdit.Add(full);
+        }
+        RenderPinnedAppsList();
+    }
+
+    private void OnDockAddAppClick(object sender, RoutedEventArgs e)
+    {
+        string lang = _currentLang;
+        var dlg = new OpenFileDialog
+        {
+            Title = Strings.Pick(lang, "Dock'a sabitlenecek uygulamayı seç", "Choose an app to pin to the Dock"),
+            Filter = Strings.Pick(lang, "Uygulamalar ve kısayollar", "Apps and shortcuts") + "|*.exe;*.lnk;*.url;*.appref-ms;*.bat;*.cmd|"
+                + Strings.Pick(lang, "Tüm dosyalar", "All files") + "|*.*",
+            Multiselect = true,
+            DereferenceLinks = false,
+            CheckFileExists = true
+        };
+
+        string startMenu = Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu);
+        string programs = Path.Combine(startMenu, "Programs");
+        if (Directory.Exists(programs)) dlg.InitialDirectory = programs;
+
+        if (dlg.ShowDialog(this) == true)
+        {
+            AddPinnedEdits(dlg.FileNames);
+        }
+    }
+
+    private void OnDockAddFolderClick(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFolderDialog
+        {
+            Title = Strings.Pick(_currentLang, "Dock'a sabitlenecek klasörü seç", "Choose a folder to pin to the Dock"),
+            Multiselect = true
+        };
+
+        if (dlg.ShowDialog(this) == true)
+        {
+            AddPinnedEdits(dlg.FolderNames);
+        }
+    }
 
     private void OnCopyMsixCommandClick(object sender, RoutedEventArgs e)
     {
@@ -1161,9 +1424,10 @@ public partial class SettingsWindow : Window
         BannerInlineError.Visibility = Visibility.Collapsed;
     }
 
-    public RenderTargetBitmap RenderToBitmap(double? auditWidth = null, double? auditHeight = null, bool showIntegrations = false)
+    public RenderTargetBitmap RenderToBitmap(double? auditWidth = null, double? auditHeight = null, bool showIntegrations = false, bool scrollToDockSection = false)
     {
         if (showIntegrations) NavIntegrations.IsChecked = true;
+        if (scrollToDockSection) NavDock.IsChecked = true;
         double w = auditWidth ?? Width;
         double h = auditHeight ?? Height;
         SettingsRootGrid.Measure(new System.Windows.Size(w, h));
@@ -1171,6 +1435,11 @@ public partial class SettingsWindow : Window
         SettingsRootGrid.UpdateLayout();
         UpdateBezelPreview();
         SettingsRootGrid.UpdateLayout();
+        if (scrollToDockSection)
+        {
+            LblDockPinnedApps.BringIntoView(new System.Windows.Rect(0, -40, 1, 420));
+            SettingsRootGrid.UpdateLayout();
+        }
 
         var rtb = new RenderTargetBitmap((int)Math.Ceiling(w), (int)Math.Ceiling(h), 96, 96, PixelFormats.Pbgra32);
         rtb.Render(SettingsRootGrid);

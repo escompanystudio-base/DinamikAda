@@ -47,7 +47,23 @@ public sealed class TransferMonitorService : ILiveActivitySource, IDisposable
     {
         if (string.IsNullOrWhiteSpace(filePath)) return false;
         string ext = Path.GetExtension(filePath);
-        return PartialExtensions.Any(p => ext.Equals(p, StringComparison.OrdinalIgnoreCase));
+        if (!PartialExtensions.Any(p => ext.Equals(p, StringComparison.OrdinalIgnoreCase))) return false;
+        if (ext.Equals(".tmp", StringComparison.OrdinalIgnoreCase) && IsApplicationScratchTempName(Path.GetFileNameWithoutExtension(filePath)))
+        {
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Office and other editors write scratch files into the folder being saved to ("~WRL0001.tmp",
+    /// "~$Report.tmp", Excel's "A1B2C3D4.tmp"). Saving a document into Downloads must not look like a
+    /// finished download.
+    /// </summary>
+    private static bool IsApplicationScratchTempName(string stem)
+    {
+        if (stem.StartsWith('~')) return true;
+        return stem.Length == 8 && stem.All(Uri.IsHexDigit);
     }
 
     public static string InferCompletedPath(string partialPath)
@@ -305,7 +321,9 @@ public sealed class TransferMonitorService : ILiveActivitySource, IDisposable
         string rateLabel = FormatTransferRate(rate);
         double? progress = lead.ExpectedTotalBytes is > 0
             ? Math.Clamp((double)lead.LastBytes / lead.ExpectedTotalBytes.Value, 0.02, 0.99)
-            : Math.Clamp((Environment.TickCount64 % 2400) / 2400.0, 0.08, 0.92);
+            // Unknown total size: report no progress instead of a clock-driven fake percentage
+            // (the compact pill would otherwise show e.g. "47%" for an unknown download).
+            : null;
 
         PublishActivityLocked(new LiveActivityState(
             SourceId: SourceId,

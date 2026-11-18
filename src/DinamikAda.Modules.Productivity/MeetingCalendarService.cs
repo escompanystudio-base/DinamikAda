@@ -10,7 +10,8 @@ public sealed record MeetingOccurrence(
     string Summary,
     DateTimeOffset StartUtc,
     DateTimeOffset EndUtc,
-    string? JoinUrl);
+    string? JoinUrl,
+    bool IsAllDay = false);
 
 public static partial class IcsCalendarParser
 {
@@ -41,7 +42,13 @@ public static partial class IcsCalendarParser
         string? xConf = null;
         string? status = null;
         string? rawDuration = null;
+        string? uid = null;
+        string? rawRecurrenceId = null;
+        string? rawRecurrenceIdParams = null;
         var excluded = new HashSet<DateTimeOffset>();
+        // RFC 5545 RECURRENCE-ID overrides: (UID, original start) pairs that replace or cancel a master occurrence.
+        var overriddenInstances = new HashSet<(string Uid, DateTimeOffset StartUtc)>();
+        var masterRanges = new List<(string Uid, int Start, int Count)>();
 
         foreach (string line in unfolded)
         {
@@ -51,6 +58,7 @@ public static partial class IcsCalendarParser
                 nestedDepth = 0;
                 excluded.Clear();
                 summary = rawDtStart = rawDtStartParams = rawDtEnd = rawDtEndParams = rrule = location = description = url = xConf = status = rawDuration = null;
+                uid = rawRecurrenceId = rawRecurrenceIdParams = null;
                 continue;
             }
             if (inEvent && line.StartsWith("BEGIN:", StringComparison.OrdinalIgnoreCase)) { nestedDepth++; continue; }
@@ -62,6 +70,14 @@ public static partial class IcsCalendarParser
 
             if (line.Equals("END:VEVENT", StringComparison.OrdinalIgnoreCase))
             {
+                bool isOverride = false;
+                if (inEvent && uid is not null && rawRecurrenceId is not null &&
+                    TryParseIcsDateTime(rawRecurrenceId, rawRecurrenceIdParams, out var recurrenceIdUtc))
+                {
+                    overriddenInstances.Add((uid, recurrenceIdUtc));
+                    isOverride = true;
+                }
+
                 if (inEvent && !string.Equals(status, "CANCELLED", StringComparison.OrdinalIgnoreCase) && rawDtStart is not null &&
                     TryParseIcsDateTime(rawDtStart, rawDtStartParams, out var startUtc))
                 {
@@ -89,7 +105,11 @@ public static partial class IcsCalendarParser
                     string? joinUrl = ExtractBestMeetingUrl(xConf, url, location, description);
                     string cleanSummary = UnescapeIcsText(summary ?? "Toplantı");
                     TimeSpan duration = endUtc - startUtc;
+                    bool isAllDay = rawDtStart.Length == 8 ||
+                        (rawDtStartParams?.Contains("VALUE=DATE", StringComparison.OrdinalIgnoreCase) == true &&
+                         rawDtStartParams.IndexOf("VALUE=DATE-TIME", StringComparison.OrdinalIgnoreCase) < 0);
 
+                    int before = results.Count;
                     ExpandOccurrences(
                         cleanSummary,
                         startUtc,
@@ -100,7 +120,12 @@ public static partial class IcsCalendarParser
                         nowUtc + lookaheadWindow,
                         results,
                         excluded,
-                        rawDtStart.EndsWith('Z') ? null : ResolveTimeZone(rawDtStartParams) ?? TimeZoneInfo.Local);
+                        rawDtStart.EndsWith('Z') ? null : ResolveTimeZone(rawDtStartParams) ?? TimeZoneInfo.Local,
+                        isAllDay);
+                    if (!isOverride && uid is not null && rrule is not null && results.Count > before)
+                    {
+                        masterRanges.Add((uid, before, results.Count - before));
+                    }
                 }
                 inEvent = false;
                 continue;
@@ -128,10 +153,28 @@ public static partial class IcsCalendarParser
                 case "X-GOOGLE-CONFERENCE": xConf = value; break;
                 case "STATUS": status = value; break;
                 case "DURATION": rawDuration = value; break;
+                case "UID": uid = value.Trim(); break;
+                case "RECURRENCE-ID": rawRecurrenceId = value; rawRecurrenceIdParams = propParams; break;
                 case "EXDATE":
                     foreach (string date in value.Split(','))
                         if (TryParseIcsDateTime(date, propParams, out var excludedDate)) excluded.Add(excludedDate);
                     break;
+            }
+        }
+
+        if (overriddenInstances.Count > 0 && masterRanges.Count > 0)
+        {
+            var drop = new HashSet<int>();
+            foreach (var (masterUid, start, count) in masterRanges)
+            {
+                for (int i = start; i < start + count; i++)
+                {
+                    if (overriddenInstances.Contains((masterUid, results[i].StartUtc))) drop.Add(i);
+                }
+            }
+            if (drop.Count > 0)
+            {
+                results = results.Where((_, i) => !drop.Contains(i)).ToList();
             }
         }
 
@@ -215,7 +258,8 @@ public static partial class IcsCalendarParser
         DateTimeOffset windowEnd,
         List<MeetingOccurrence> output,
         HashSet<DateTimeOffset> excluded,
-        TimeZoneInfo? timeZone)
+        TimeZoneInfo? timeZone,
+        bool isAllDay = false)
     {
         DateTimeOffset cutoffPast = windowStart - TimeSpan.FromMinutes(15);
 
@@ -223,7 +267,7 @@ public static partial class IcsCalendarParser
         {
             if (!excluded.Contains(startUtc) && startUtc <= windowEnd && startUtc + duration >= cutoffPast)
             {
-                output.Add(new MeetingOccurrence(summary, startUtc, startUtc + duration, joinUrl));
+                output.Add(new MeetingOccurrence(summary, startUtc, startUtc + duration, joinUrl, isAllDay));
             }
             return;
         }
@@ -233,6 +277,8 @@ public static partial class IcsCalendarParser
         int count = int.MaxValue;
         DateTimeOffset untilUtc = windowEnd;
         HashSet<DayOfWeek>? byDays = null;
+        List<(int Ordinal, DayOfWeek Day)>? byDayOrdinals = null;
+        HashSet<int>? byMonthDays = null;
         DayOfWeek weekStart = DayOfWeek.Monday;
 
         foreach (string part in rrule.Split(';', StringSplitOptions.RemoveEmptyEntries))
@@ -247,10 +293,37 @@ public static partial class IcsCalendarParser
                 case "INTERVAL" when int.TryParse(v, out int iv) && iv > 0: interval = iv; break;
                 case "COUNT" when int.TryParse(v, out int c) && c > 0: count = c; break;
                 case "BYDAY":
-                    byDays = v.Split(',').Select(ParseWeekDay).Where(d => d.HasValue).Select(d => d!.Value).ToHashSet();
+                    byDays = new HashSet<DayOfWeek>();
+                    byDayOrdinals = new List<(int, DayOfWeek)>();
+                    foreach (string token in v.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        string t = token.Trim();
+                        if (t.Length < 2) continue;
+                        DayOfWeek? wd = ParseWeekDay(t[^2..]);
+                        if (wd is null) continue;
+                        string ordPart = t[..^2];
+                        if (ordPart.Length == 0)
+                        {
+                            byDays.Add(wd.Value);
+                        }
+                        else if (int.TryParse(ordPart, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out int ord) && ord != 0)
+                        {
+                            byDayOrdinals.Add((ord, wd.Value));
+                        }
+                    }
+                    break;
+                case "BYMONTHDAY":
+                    byMonthDays = new HashSet<int>();
+                    foreach (string token in v.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        if (int.TryParse(token.Trim(), System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out int md) && md != 0 && md is >= -31 and <= 31)
+                            byMonthDays.Add(md);
+                    }
                     break;
                 case "WKST": weekStart = ParseWeekDay(v) ?? DayOfWeek.Monday; break;
                 case "UNTIL" when TryParseIcsDateTime(v, null, out var u):
+                    // A date-only UNTIL is inclusive of that whole day (RFC 5545 3.3.10).
+                    if (v.Length == 8) u = u.AddDays(1).AddTicks(-1);
                     if (u < untilUtc) untilUtc = u;
                     break;
             }
@@ -260,7 +333,7 @@ public static partial class IcsCalendarParser
         {
             if (!excluded.Contains(startUtc) && startUtc <= windowEnd && startUtc + duration >= cutoffPast)
             {
-                output.Add(new MeetingOccurrence(summary, startUtc, startUtc + duration, joinUrl));
+                output.Add(new MeetingOccurrence(summary, startUtc, startUtc + duration, joinUrl, isAllDay));
             }
             return;
         }
@@ -278,7 +351,8 @@ public static partial class IcsCalendarParser
                 "DAILY" => day % interval == 0 && (byDays is not { Count: > 0 } || byDays.Contains(local.DayOfWeek)),
                 "WEEKLY" => ((local.Date - anchorWeek).Days / 7) % interval == 0 &&
                     (byDays is { Count: > 0 } ? byDays.Contains(local.DayOfWeek) : local.DayOfWeek == localStart.DayOfWeek),
-                "MONTHLY" => ((local.Year - localStart.Year) * 12L + local.Month - localStart.Month) % interval == 0 && local.Day == localStart.Day,
+                "MONTHLY" => ((local.Year - localStart.Year) * 12L + local.Month - localStart.Month) % interval == 0 &&
+                    MatchesMonthlyRule(local, localStart, byDays, byDayOrdinals, byMonthDays),
                 "YEARLY" => (local.Year - localStart.Year) % interval == 0 && local.Month == localStart.Month && local.Day == localStart.Day,
                 _ => false
             };
@@ -292,9 +366,51 @@ public static partial class IcsCalendarParser
             if (cursor > DateTimeOffset.MaxValue - duration) break;
             if (!excluded.Contains(cursor) && cursor + duration >= cutoffPast)
             {
-                output.Add(new MeetingOccurrence(summary, cursor, cursor + duration, joinUrl));
+                output.Add(new MeetingOccurrence(summary, cursor, cursor + duration, joinUrl, isAllDay));
             }
         }
+    }
+
+    private static bool MatchesMonthlyRule(
+        DateTime local,
+        DateTime localStart,
+        HashSet<DayOfWeek>? byDays,
+        List<(int Ordinal, DayOfWeek Day)>? byDayOrdinals,
+        HashSet<int>? byMonthDays)
+    {
+        int daysInMonth = DateTime.DaysInMonth(local.Year, local.Month);
+        bool anyRule = false;
+
+        if (byMonthDays is { Count: > 0 })
+        {
+            anyRule = true;
+            int fromEnd = local.Day - daysInMonth - 1; // last day of month => -1
+            if (!byMonthDays.Contains(local.Day) && !byMonthDays.Contains(fromEnd)) return false;
+        }
+
+        bool hasPlainDays = byDays is { Count: > 0 };
+        bool hasOrdinalDays = byDayOrdinals is { Count: > 0 };
+        if (hasPlainDays || hasOrdinalDays)
+        {
+            anyRule = true;
+            bool dayMatch = hasPlainDays && byDays!.Contains(local.DayOfWeek);
+            if (!dayMatch && hasOrdinalDays)
+            {
+                int nth = (local.Day - 1) / 7 + 1;                      // 1 = first such weekday of month
+                int nthFromEnd = -((daysInMonth - local.Day) / 7 + 1);  // -1 = last such weekday
+                foreach (var (ord, wd) in byDayOrdinals!)
+                {
+                    if (wd == local.DayOfWeek && (ord == nth || ord == nthFromEnd))
+                    {
+                        dayMatch = true;
+                        break;
+                    }
+                }
+            }
+            if (!dayMatch) return false;
+        }
+
+        return anyRule || local.Day == localStart.Day;
     }
 
     private static DayOfWeek? ParseWeekDay(string value) => value.Trim().ToUpperInvariant() switch
@@ -323,6 +439,9 @@ public sealed class MeetingCalendarService : ILiveActivitySource, IDisposable
     private string _icsSourcesConfig = string.Empty;
     private bool _enabled = true;
     private DateTimeOffset _lastFeedFetchUtc = DateTimeOffset.MinValue;
+    // Last successful parse per remote feed (only touched under _refreshGate). A transient network
+    // failure falls back to this instead of wiping an imminent meeting's countdown.
+    private readonly Dictionary<string, List<MeetingOccurrence>> _lastGoodFeedResults = new(StringComparer.OrdinalIgnoreCase);
     private LiveActivityState? _currentActivity;
     private MeetingOccurrence? _activeOrNextMeeting;
     private bool _disposed;
@@ -437,6 +556,8 @@ public sealed class MeetingCalendarService : ILiveActivitySource, IDisposable
                 foreach (var occ in _upcomingCache)
                 {
                     if (occ.EndUtc < nowUtc) continue;
+                    // All-day entries (holidays, OOO, birthdays) are not meetings to count down to.
+                    if (occ.IsAllDay) continue;
                     TimeSpan until = occ.StartUtc - nowUtc;
                     if (until <= TimeSpan.FromMinutes(10))
                     {
@@ -538,10 +659,18 @@ public sealed class MeetingCalendarService : ILiveActivitySource, IDisposable
             try
             {
                 string content = await _http.GetStringAsync(u, ct).ConfigureAwait(false);
-                all.AddRange(IcsCalendarParser.ParseUpcomingFromIcs(content, nowUtc, TimeSpan.FromHours(12)));
+                var parsed = IcsCalendarParser.ParseUpcomingFromIcs(content, nowUtc, TimeSpan.FromHours(12)).ToList();
+                _lastGoodFeedResults[u] = parsed;
+                all.AddRange(parsed);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-            catch { }
+            catch
+            {
+                if (_lastGoodFeedResults.TryGetValue(u, out var cached))
+                {
+                    all.AddRange(cached.Where(o => o.EndUtc >= nowUtc));
+                }
+            }
         }
 
         return all.OrderBy(o => o.StartUtc).ToList();

@@ -98,6 +98,14 @@ public partial class DockWindow : Window
     private Ellipse? _trashDot;
     private Border? _trayChevronBtn;
     private Ellipse? _trayActiveDot;
+
+    // Pinned-slot drag-to-reorder and Explorer drop-to-pin state.
+    private const double ReorderDragThresholdDip = 6.0;
+    private DockSlotVisual? _pressedPinnedSlot;
+    private Point _pressStartPoint;
+    private bool _isReorderDragging;
+    private int _reorderTargetIndex = -1;
+    private bool _isExternalDropPreview;
     private int _lastTrayAppCount;
     private IReadOnlyList<BackgroundTrayAppItem> _cachedTrayItems = [];
     private IReadOnlyList<BackgroundTrayAppItem> _renderedTrayItems = [];
@@ -133,6 +141,8 @@ public partial class DockWindow : Window
         public double CurrentLiftY { get; set; }
         public double TargetLiftY { get; set; }
         public long BounceStartTicks { get; set; }
+        public double ReorderShiftX { get; set; }
+        public double CurrentReorderShiftX { get; set; }
         public double CurrentBounceY { get; set; }
     }
 
@@ -205,6 +215,12 @@ public partial class DockWindow : Window
     public void ApplyConfigAndSync()
     {
         if (_isClosed) return;
+
+        // Settings may have rewritten the pinned app list; pick it up without a restart.
+        if (_appsService.ReloadIfConfigChanged())
+        {
+            RefreshDockItemsNow();
+        }
 
         bool enableDock = _orch.Config.UseCustomBottomDock;
         if (!_isSmokeOrAuditMode)
@@ -696,6 +712,10 @@ public partial class DockWindow : Window
         {
             _taskbarManager.EnsureHiddenTick();
         }
+
+        // With the dock disabled nothing shows the clock, trash or tray dots; skip the per-process
+        // tray scan (Process.GetProcesses + OpenProcess + EnumWindows) and recycle-bin query entirely.
+        if (!_orch.Config.EnableBottomDock) return;
 
         UpdateClockText();
 
@@ -1189,6 +1209,14 @@ public partial class DockWindow : Window
             UpdateDockSlotStatesInPlace();
             return;
         }
+
+        // Never tear down the slot being dragged; the next refresh after release rebuilds.
+        if (_isReorderDragging)
+        {
+            if (!force) return;
+            EndReorderDrag(commit: false);
+        }
+        _pressedPinnedSlot = null;
         _lastRenderedStructureKey = nextKey;
 
         Dictionary<string, (double Scale, double ShiftX, double LiftY)>? preservedTransforms = null;
@@ -1571,9 +1599,31 @@ public partial class DockWindow : Window
             };
         }
 
+        if (kind == SlotKind.App && item is { IsPinned: true })
+        {
+            container.MouseLeftButtonDown += (_, ev) =>
+            {
+                _pressedPinnedSlot = slotVisual;
+                _pressStartPoint = ev.GetPosition(DockItemsHost);
+            };
+            container.LostMouseCapture += (_, _) =>
+            {
+                if (_isReorderDragging && ReferenceEquals(_pressedPinnedSlot, slotVisual))
+                {
+                    EndReorderDrag(commit: false);
+                }
+            };
+        }
+
         container.MouseLeftButtonUp += (_, ev) =>
         {
             ev.Handled = true;
+            if (_isReorderDragging)
+            {
+                EndReorderDrag(commit: true);
+                return;
+            }
+            _pressedPinnedSlot = null;
             if (kind == SlotKind.StartMenu && _suppressNextStartOpenOnUp)
             {
                 _suppressNextStartOpenOnUp = false;
@@ -3548,10 +3598,220 @@ public partial class DockWindow : Window
 
     private void OnDockMouseMove(object sender, MouseEventArgs e)
     {
+        if (_pressedPinnedSlot is not null)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed)
+            {
+                if (_isReorderDragging) EndReorderDrag(commit: false);
+                else _pressedPinnedSlot = null;
+            }
+            else
+            {
+                double x = e.GetPosition(DockItemsHost).X;
+                if (!_isReorderDragging && Math.Abs(x - _pressStartPoint.X) >= ReorderDragThresholdDip)
+                {
+                    BeginReorderDrag();
+                }
+
+                if (_isReorderDragging)
+                {
+                    UpdateReorderDrag(x);
+                    e.Handled = true;
+                    return;
+                }
+            }
+        }
+
         _isHovered = true;
         _hoverLocalX = e.GetPosition(DockItemsHost).X;
         UpdateMagnificationTargets(_hoverLocalX);
         StartRenderLoop();
+    }
+
+    // ── Pinned slot drag-to-reorder ─────────────────────────────────────────
+
+    private List<DockSlotVisual> GetPinnedSlots()
+        => _slots.Where(sl => sl.Kind == SlotKind.App && sl.AppItem is { IsPinned: true }).ToList();
+
+    private double[] GetPinnedSlotCenters(List<DockSlotVisual> pinned)
+    {
+        var centers = new double[pinned.Count];
+        for (int i = 0; i < pinned.Count; i++)
+        {
+            int idx = _slots.IndexOf(pinned[i]);
+            centers[i] = idx >= 0 && idx < _slotCentersX.Length ? _slotCentersX[idx] : 0.0;
+        }
+        return centers;
+    }
+
+    private double PinnedPitch(double[] centers)
+        => centers.Length > 1
+            ? Math.Max(1.0, centers[1] - centers[0])
+            : Math.Clamp(_orch.Config.DockIconSizeDip, 26, 48) + 6.0;
+
+    private void BeginReorderDrag()
+    {
+        var slot = _pressedPinnedSlot;
+        if (slot is null) return;
+
+        _isReorderDragging = true;
+        _reorderTargetIndex = -1;
+        DockTooltipBorder.Opacity = 0;
+        _hoveredSlotIndex = -1;
+        UpdateMagnificationTargets(null);
+        slot.Container.Opacity = 0.88;
+        Panel.SetZIndex(slot.Container, 100);
+        slot.Container.CaptureMouse();
+        StartRenderLoop();
+    }
+
+    private void UpdateReorderDrag(double cursorX)
+    {
+        var dragged = _pressedPinnedSlot;
+        if (dragged is null) return;
+
+        var pinned = GetPinnedSlots();
+        int from = pinned.IndexOf(dragged);
+        if (from < 0) return;
+
+        double[] centers = GetPinnedSlotCenters(pinned);
+        double pitch = PinnedPitch(centers);
+        int target = DockLayoutCalculator.ComputeReorderTargetIndex(centers, cursorX, from);
+        _reorderTargetIndex = target;
+
+        for (int i = 0; i < pinned.Count; i++)
+        {
+            if (i == from) continue;
+            pinned[i].ReorderShiftX = DockLayoutCalculator.ComputeReorderShift(i, from, target, pitch);
+        }
+
+        double minOffset = centers[0] - centers[from] - pitch * 0.5;
+        double maxOffset = centers[^1] - centers[from] + pitch * 0.5;
+        double offset = Math.Clamp(cursorX - _pressStartPoint.X, minOffset, maxOffset);
+        dragged.ReorderShiftX = offset;
+        dragged.CurrentReorderShiftX = offset;
+        StartRenderLoop();
+    }
+
+    private void EndReorderDrag(bool commit)
+    {
+        if (!_isReorderDragging) return;
+        _isReorderDragging = false;
+
+        var slot = _pressedPinnedSlot;
+        _pressedPinnedSlot = null;
+        int target = _reorderTargetIndex;
+        _reorderTargetIndex = -1;
+
+        int from = -1;
+        if (slot is not null)
+        {
+            from = GetPinnedSlots().IndexOf(slot);
+            slot.Container.Opacity = 1.0;
+            Panel.SetZIndex(slot.Container, 0);
+            if (slot.Container.IsMouseCaptured) slot.Container.ReleaseMouseCapture();
+        }
+
+        bool moved = commit && slot?.AppItem is { } app && from >= 0 && target >= 0 && target != from
+            && _appsService.MovePinned(app.Key, target);
+
+        if (moved)
+        {
+            // Slots are rebuilt in the new order, so clear offsets without a snap-back animation.
+            foreach (var sl in _slots) { sl.ReorderShiftX = 0.0; sl.CurrentReorderShiftX = 0.0; }
+            RefreshDockItemsNow();
+        }
+        else
+        {
+            foreach (var sl in _slots) sl.ReorderShiftX = 0.0;
+        }
+
+        if (_isHovered && _hoverLocalX.HasValue) UpdateMagnificationTargets(_hoverLocalX);
+        StartRenderLoop();
+    }
+
+    // ── Drop files / shortcuts / folders from Explorer to pin ───────────────
+
+    private static List<string> ExtractPinnableDropPaths(IDataObject data)
+    {
+        var result = new List<string>();
+        if (!data.GetDataPresent(DataFormats.FileDrop)) return result;
+        if (data.GetData(DataFormats.FileDrop) is not string[] paths) return result;
+        foreach (string path in paths.Take(16))
+        {
+            if (DockAppsService.IsPinnableTarget(path)) result.Add(path);
+        }
+        return result;
+    }
+
+    private int ComputeExternalDropIndex(double cursorX, bool applyPreview)
+    {
+        var pinned = GetPinnedSlots();
+        if (pinned.Count == 0) return 0;
+
+        double[] centers = GetPinnedSlotCenters(pinned);
+        int target = DockLayoutCalculator.ComputeReorderTargetIndex(centers, cursorX, -1);
+        if (applyPreview)
+        {
+            double pitch = PinnedPitch(centers);
+            for (int i = 0; i < pinned.Count; i++)
+            {
+                pinned[i].ReorderShiftX = DockLayoutCalculator.ComputeReorderShift(i, -1, target, pitch);
+            }
+            _isExternalDropPreview = true;
+            StartRenderLoop();
+        }
+        return target;
+    }
+
+    private void ClearExternalDropPreview()
+    {
+        if (!_isExternalDropPreview) return;
+        _isExternalDropPreview = false;
+        foreach (var sl in _slots) sl.ReorderShiftX = 0.0;
+        StartRenderLoop();
+    }
+
+    private void OnDockDragOver(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (_isReorderDragging || ExtractPinnableDropPaths(e.Data).Count == 0)
+        {
+            e.Effects = DragDropEffects.None;
+            ClearExternalDropPreview();
+            return;
+        }
+
+        e.Effects = DragDropEffects.Link;
+        DockTooltipBorder.Opacity = 0;
+        ComputeExternalDropIndex(e.GetPosition(DockItemsHost).X, applyPreview: true);
+    }
+
+    private void OnDockDragLeave(object sender, DragEventArgs e)
+    {
+        // DragLeave also fires when crossing child elements; only clear when truly outside.
+        var pos = e.GetPosition(DockPillContainer);
+        var size = DockPillContainer.RenderSize;
+        if (pos.X < 0 || pos.Y < 0 || pos.X >= size.Width || pos.Y >= size.Height)
+        {
+            ClearExternalDropPreview();
+        }
+    }
+
+    private void OnDockDrop(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        var paths = ExtractPinnableDropPaths(e.Data);
+        int insertAt = ComputeExternalDropIndex(e.GetPosition(DockItemsHost).X, applyPreview: false);
+        ClearExternalDropPreview();
+        if (paths.Count == 0) return;
+
+        foreach (var sl in _slots) { sl.ReorderShiftX = 0.0; sl.CurrentReorderShiftX = 0.0; }
+        foreach (string path in paths)
+        {
+            if (_appsService.PinPath(path, insertAt)) insertAt++;
+        }
+        RefreshDockItemsNow();
     }
 
     private void OnDockMouseLeave(object sender, MouseEventArgs e)
@@ -3860,6 +4120,15 @@ public partial class DockWindow : Window
             s.CurrentScale += (s.TargetScale - s.CurrentScale) * alpha;
             s.CurrentShiftX += (s.TargetShiftX - s.CurrentShiftX) * alpha;
             s.CurrentLiftY += (s.TargetLiftY - s.CurrentLiftY) * alpha;
+            s.CurrentReorderShiftX += (s.ReorderShiftX - s.CurrentReorderShiftX) * alpha;
+            if (Math.Abs(s.ReorderShiftX - s.CurrentReorderShiftX) > 0.05)
+            {
+                anyMoving = true;
+            }
+            else
+            {
+                s.CurrentReorderShiftX = s.ReorderShiftX;
+            }
 
             if (Math.Abs(s.TargetScale - s.CurrentScale) > 0.0008
                 || Math.Abs(s.TargetShiftX - s.CurrentShiftX) > 0.05
@@ -3892,7 +4161,7 @@ public partial class DockWindow : Window
 
             s.Scale.ScaleX = s.CurrentScale;
             s.Scale.ScaleY = s.CurrentScale;
-            s.Translate.X = s.CurrentShiftX;
+            s.Translate.X = s.CurrentShiftX + s.CurrentReorderShiftX;
             s.Translate.Y = s.CurrentLiftY + s.CurrentBounceY;
         }
 

@@ -149,22 +149,30 @@ public sealed unsafe class FullscreenDetector : IFullscreenDetector, IDisposable
         _hookThreadId = 0;
     }
 
+    // RefreshNow runs on the WinEvent hook thread and the maintenance thread pool. Without
+    // serialization an older evaluation could commit after a newer one (or notify out of order),
+    // leaving game mode / island policy on a stale fullscreen state.
+    private readonly object _refreshGate = new();
+
     public void RefreshNow()
     {
-        var next = EvaluateCurrent();
-        bool changed = false;
-        lock (_sync)
+        lock (_refreshGate)
         {
-            if (next != _current)
+            var next = EvaluateCurrent();
+            bool changed = false;
+            lock (_sync)
             {
-                _current = next;
-                changed = true;
+                if (next != _current)
+                {
+                    _current = next;
+                    changed = true;
+                }
             }
-        }
 
-        if (changed)
-        {
-            FullscreenChanged?.Invoke(this, next);
+            if (changed)
+            {
+                FullscreenChanged?.Invoke(this, next);
+            }
         }
     }
 

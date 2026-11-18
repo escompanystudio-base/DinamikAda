@@ -275,8 +275,20 @@ public sealed class LanDropServer : IDisposable
             {
                 if (req.ExpectContinue)
                     await stream.WriteAsync("HTTP/1.1 100 Continue\r\n\r\n"u8.ToArray(), ct).ConfigureAwait(false);
-                byte[] body = await ReadHttpBodyAsync(stream, req, ct).ConfigureAwait(false);
-                var saved = await SaveUploadedMultipartAsync(req.ContentType, body, ct).ConfigureAwait(false);
+                // Spool the body to a temp file (bounded by MaxUploadBytes) and parse it through a
+                // memory map: uploads never sit in the managed heap, so 4 concurrent 128 MB uploads
+                // no longer spike memory to ~1 GB.
+                string spoolPath = Path.Combine(Path.GetTempPath(), $"dinamikada-landrop-{Guid.NewGuid():N}.part");
+                List<string> saved;
+                try
+                {
+                    await ReadHttpBodyToFileAsync(stream, req, spoolPath, ct).ConfigureAwait(false);
+                    saved = await Task.Run(() => SaveUploadedMultipartFromFile(req.ContentType, spoolPath, ct), ct).ConfigureAwait(false);
+                }
+                finally
+                {
+                    try { File.Delete(spoolPath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                }
                 if (saved.Count == 0)
                 {
                     await SendStatusAsync(stream, "400 Bad Request", "No valid files in upload.", ct).ConfigureAwait(false);
@@ -382,31 +394,30 @@ public sealed class LanDropServer : IDisposable
         return new HttpRequestData(method, cleanPath, contentType, contentLength, isChunked, expectContinue);
     }
 
-    private static async Task<byte[]> ReadHttpBodyAsync(Stream stream, HttpRequestData req, CancellationToken ct)
+    private static async Task ReadHttpBodyToFileAsync(Stream stream, HttpRequestData req, string destPath, CancellationToken ct)
     {
-        byte[] body;
+        await using var output = new FileStream(destPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
         if (req.IsChunked)
         {
-            body = await ReadChunkedBodyAsync(stream, ct).ConfigureAwait(false);
-        }
-        else
-        {
-            body = req.ContentLength > 0 ? new byte[req.ContentLength] : Array.Empty<byte>();
-            int readTotal = 0;
-            while (readTotal < body.Length)
-            {
-                int n = await stream.ReadAsync(body.AsMemory(readTotal, body.Length - readTotal), ct).ConfigureAwait(false);
-                if (n <= 0) throw new HttpProtocolException("400 Bad Request", "Incomplete request body.");
-                readTotal += n;
-            }
+            await ReadChunkedBodyAsync(stream, output, ct).ConfigureAwait(false);
+            return;
         }
 
-        return body;
+        byte[] buffer = new byte[81920];
+        long remaining = req.ContentLength;
+        while (remaining > 0)
+        {
+            int toRead = (int)Math.Min(buffer.Length, remaining);
+            int n = await stream.ReadAsync(buffer.AsMemory(0, toRead), ct).ConfigureAwait(false);
+            if (n <= 0) throw new HttpProtocolException("400 Bad Request", "Incomplete request body.");
+            await output.WriteAsync(buffer.AsMemory(0, n), ct).ConfigureAwait(false);
+            remaining -= n;
+        }
     }
 
-    private static async Task<byte[]> ReadChunkedBodyAsync(Stream stream, CancellationToken ct)
+    private static async Task ReadChunkedBodyAsync(Stream stream, Stream ms, CancellationToken ct)
     {
-        using var ms = new MemoryStream();
+        byte[] chunk = new byte[81920];
         while (true)
         {
             string? sizeLine = await ReadAsciiLineAsync(stream, ct).ConfigureAwait(false);
@@ -424,22 +435,21 @@ public sealed class LanDropServer : IDisposable
                 {
                     string? trailer = await ReadAsciiLineAsync(stream, ct).ConfigureAwait(false);
                     if (trailer is null) throw new HttpProtocolException("400 Bad Request", "Incomplete chunk trailer.");
-                    if (trailer.Length == 0) return ms.ToArray();
+                    if (trailer.Length == 0) return;
                     trailerBytes += trailer.Length;
                     if (trailerBytes > 32768) throw new HttpProtocolException("431 Request Header Fields Too Large", "Chunk trailers are too large.");
                 }
             }
             if (ms.Length + chunkSize > MaxUploadBytes) throw new HttpProtocolException("413 Payload Too Large", "Upload exceeds 128 MB.");
 
-            byte[] chunk = new byte[chunkSize];
             int read = 0;
             while (read < chunkSize)
             {
-                int n = await stream.ReadAsync(chunk.AsMemory(read, chunkSize - read), ct).ConfigureAwait(false);
+                int n = await stream.ReadAsync(chunk.AsMemory(0, Math.Min(chunk.Length, chunkSize - read)), ct).ConfigureAwait(false);
                 if (n <= 0) throw new HttpProtocolException("400 Bad Request", "Incomplete chunk body.");
+                await ms.WriteAsync(chunk.AsMemory(0, n), ct).ConfigureAwait(false);
                 read += n;
             }
-            ms.Write(chunk, 0, read);
             if (await ReadAsciiLineAsync(stream, ct).ConfigureAwait(false) != string.Empty)
                 throw new HttpProtocolException("400 Bad Request", "Invalid chunk terminator.");
         }
@@ -460,10 +470,11 @@ public sealed class LanDropServer : IDisposable
         return Encoding.ASCII.GetString(buf.ToArray());
     }
 
-    private async Task<List<string>> SaveUploadedMultipartAsync(string contentType, byte[] body, CancellationToken ct)
+    private unsafe List<string> SaveUploadedMultipartFromFile(string contentType, string spoolPath, CancellationToken ct)
     {
         var saved = new List<string>();
-        if (body.Length == 0 || !contentType.StartsWith("multipart/form-data;", StringComparison.OrdinalIgnoreCase)) return saved;
+        long length = new FileInfo(spoolPath).Length;
+        if (length == 0 || length > MaxUploadBytes || !contentType.StartsWith("multipart/form-data;", StringComparison.OrdinalIgnoreCase)) return saved;
 
         string? boundary = null;
         foreach (string part in contentType.Split(';'))
@@ -478,40 +489,77 @@ public sealed class LanDropServer : IDisposable
         if (string.IsNullOrWhiteSpace(boundary) || boundary.Length > 200 || boundary.Any(c => c < 32 || c > 126)) return saved;
 
         Directory.CreateDirectory(_inboxDir);
-        var parts = ParseMultipartParts(body, boundary);
-        foreach (var (fileName, content) in parts)
+        using var mmf = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateFromFile(
+            spoolPath, FileMode.Open, null, 0, System.IO.MemoryMappedFiles.MemoryMappedFileAccess.Read);
+        using var view = mmf.CreateViewAccessor(0, length, System.IO.MemoryMappedFiles.MemoryMappedFileAccess.Read);
+        byte* basePtr = null;
+        view.SafeMemoryMappedViewHandle.AcquirePointer(ref basePtr);
+        try
         {
-            string safeName = SanitizeFileName(Path.GetFileName(fileName));
-            string destPath;
-            FileStream output;
-            while (true)
+            var body = new ReadOnlySpan<byte>(basePtr + view.PointerOffset, (int)length);
+            var parts = ParseMultipartParts(body, boundary);
+            foreach (var (fileName, offset, count) in parts)
             {
-                destPath = GetUniquePath(_inboxDir, safeName);
-                try
-                {
-                    output = new FileStream(destPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, true);
-                    break;
-                }
-                catch (IOException) when (File.Exists(destPath)) { }
+                ct.ThrowIfCancellationRequested();
+                var content = new ReadOnlySpan<byte>(basePtr + view.PointerOffset + offset, count);
+                saved.Add(WritePartToInbox(fileName, content));
             }
-            try
-            {
-                await using (output) { await output.WriteAsync(content, ct).ConfigureAwait(false); }
-            }
-            catch
-            {
-                try { File.Delete(destPath); } catch { }
-                throw;
-            }
-            saved.Add(destPath);
+        }
+        finally
+        {
+            view.SafeMemoryMappedViewHandle.ReleasePointer();
         }
 
         return saved;
     }
 
-    private static List<(string FileName, byte[] Content)> ParseMultipartParts(byte[] body, string boundary)
+    private string WritePartToInbox(string fileName, ReadOnlySpan<byte> content)
     {
-        var results = new List<(string, byte[])>();
+        string safeName = SanitizeFileName(Path.GetFileName(fileName));
+        string destPath;
+        FileStream output;
+        while (true)
+        {
+            destPath = GetUniquePath(_inboxDir, safeName);
+            try
+            {
+                output = new FileStream(destPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, false);
+                break;
+            }
+            catch (IOException) when (File.Exists(destPath)) { }
+        }
+        try
+        {
+            using (output) { output.Write(content); }
+        }
+        catch
+        {
+            try { File.Delete(destPath); } catch { }
+            throw;
+        }
+        ApplyMarkOfTheWeb(destPath);
+        return destPath;
+    }
+
+    /// <summary>
+    /// Tags a received file with a Zone.Identifier (Internet zone) alternate data stream so that
+    /// SmartScreen, Office Protected View and "unblock" prompts treat it like any other download.
+    /// </summary>
+    internal static void ApplyMarkOfTheWeb(string path)
+    {
+        try
+        {
+            File.WriteAllText(path + ":Zone.Identifier", "[ZoneTransfer]\r\nZoneId=3\r\nHostUrl=about:internet\r\n");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            // Non-NTFS volumes (FAT32/exFAT) have no alternate data streams.
+        }
+    }
+
+    private static List<(string FileName, long Offset, int Count)> ParseMultipartParts(ReadOnlySpan<byte> body, string boundary)
+    {
+        var results = new List<(string, long, int)>();
         byte[] boundaryBytes = Encoding.ASCII.GetBytes("--" + boundary);
         byte[] delimiterBytes = Encoding.ASCII.GetBytes("\r\n--" + boundary);
         byte[] headerEndMarker = "\r\n\r\n"u8.ToArray();
@@ -550,7 +598,7 @@ public sealed class LanDropServer : IDisposable
             string? fileName = ExtractFilenameField(partHeaders);
             if (!string.IsNullOrWhiteSpace(fileName))
             {
-                results.Add((fileName, span.Slice(dataStart, dataLen).ToArray()));
+                results.Add((fileName, dataStart, dataLen));
             }
 
             searchPos = delimiterPos + 2;

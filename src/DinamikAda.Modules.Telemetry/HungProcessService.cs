@@ -118,7 +118,9 @@ public sealed class HungProcessService
                     0,
                     0,
                     NativeMethods.SMTO_ABORTIFHUNG,
-                    50,
+                    // 50 ms flagged every briefly-busy UI thread (games, IDE builds) as hung, which also
+                    // made it eligible for killing. Truly hung windows return instantly via ABORTIFHUNG.
+                    1500,
                     out _);
                 if (sent == 0)
                 {
@@ -356,7 +358,8 @@ public sealed class HungProcessService
     private static unsafe string ReadWindowTitle(nint hwnd)
     {
         int len = NativeMethods.GetWindowTextLengthW(hwnd);
-        if (len <= 0 || len >= 256) return string.Empty;
+        if (len <= 0) return string.Empty;
+        len = Math.Min(len, 512);
         char* buf = stackalloc char[len + 1];
         int read = NativeMethods.GetWindowTextW(hwnd, buf, len + 1);
         return read > 0 ? new string(buf, 0, read) : string.Empty;
@@ -366,7 +369,7 @@ public sealed class HungProcessService
     {
         if (processCount <= 1 || string.IsNullOrWhiteSpace(processName))
         {
-            return TryKillProcess(primaryPid, out error);
+            return TryKillProcess(primaryPid, processName, out error);
         }
 
         error = null;
@@ -398,7 +401,7 @@ public sealed class HungProcessService
         }
 
         if (killedAny) return true;
-        bool fallbackOk = TryKillProcess(primaryPid, out error);
+        bool fallbackOk = TryKillProcess(primaryPid, normalized, out error);
         if (!fallbackOk && !string.IsNullOrWhiteSpace(lastErr))
         {
             error = lastErr;
@@ -406,7 +409,15 @@ public sealed class HungProcessService
         return fallbackOk;
     }
 
-    public bool TryKillProcess(int processId, out string? error)
+    public bool TryKillProcess(int processId, out string? error) =>
+        TryKillProcess(processId, expectedProcessName: null, out error);
+
+    /// <summary>
+    /// Kills <paramref name="processId"/> only if it still belongs to <paramref name="expectedProcessName"/>.
+    /// PIDs come from an earlier scan; Windows recycles them, so without this check a stale PID could
+    /// terminate an unrelated application (and its whole process tree).
+    /// </summary>
+    public bool TryKillProcess(int processId, string? expectedProcessName, out string? error)
     {
         error = null;
         if (processId <= 4 || processId == Environment.ProcessId)
@@ -421,6 +432,12 @@ public sealed class HungProcessService
             if (IsProtectedProcessName(proc.ProcessName))
             {
                 error = $"Protected OS process '{proc.ProcessName}' cannot be terminated.";
+                return false;
+            }
+            if (!string.IsNullOrWhiteSpace(expectedProcessName) &&
+                !string.Equals(NormalizeImageName(proc.ProcessName), NormalizeImageName(expectedProcessName), StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"Process {processId} is no longer '{NormalizeImageName(expectedProcessName)}'.";
                 return false;
             }
             proc.Kill(entireProcessTree: true);

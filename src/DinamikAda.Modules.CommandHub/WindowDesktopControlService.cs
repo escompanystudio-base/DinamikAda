@@ -491,13 +491,29 @@ public sealed unsafe class WindowDesktopControlService
             rect.Width,
             rect.Height);
 
+        // GetWindowRect/SetWindowPos include the invisible DWM resize borders (~7 px each side on
+        // Windows 10/11), which left visible gaps between snapped halves. Grow the target rect by the
+        // per-side difference between the window rect and its visible extended frame bounds.
+        int left = bounds.LeftPx, top = bounds.TopPx, width = bounds.WidthPx, height = bounds.HeightPx;
+        if (NativeMethods.DwmGetWindowAttribute(target, NativeMethods.DWMWA_EXTENDED_FRAME_BOUNDS, out NativeMethods.RECT frame, Marshal.SizeOf<NativeMethods.RECT>()) == 0)
+        {
+            int padLeft = Math.Clamp(frame.Left - rect.Left, 0, 32);
+            int padTop = Math.Clamp(frame.Top - rect.Top, 0, 32);
+            int padRight = Math.Clamp(rect.Right - frame.Right, 0, 32);
+            int padBottom = Math.Clamp(rect.Bottom - frame.Bottom, 0, 32);
+            left -= padLeft;
+            top -= padTop;
+            width += padLeft + padRight;
+            height += padTop + padBottom;
+        }
+
         return NativeMethods.SetWindowPos(
             target,
             0,
-            bounds.LeftPx,
-            bounds.TopPx,
-            bounds.WidthPx,
-            bounds.HeightPx,
+            left,
+            top,
+            width,
+            height,
             NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
     }
 
