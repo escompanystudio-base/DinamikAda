@@ -72,9 +72,16 @@ public sealed class AppOrchestrator : IAsyncDisposable
     private readonly HashSet<string> _alertedLowBatteryBtKeys = new(StringComparer.OrdinalIgnoreCase);
     private string? _lastCompletedTransferPath;
     private bool _isGameModeActive;
+    // ReconcileGameMode runs on the fullscreen hook thread, the maintenance thread pool and the UI
+    // thread; without this the check-then-set could switch power plans twice and lose the user's plan.
+    private readonly object _gameModeSync = new();
+    private readonly object _devBuildSync = new();
+    private string? _lastReportedBridgeError;
     private string? _savedPreGamePowerSchemeGuid;
     private bool _isSystemTabVisible;
     private bool _isDormantTelemetryPillVisible;
+    private bool _dockWidgetTelemetryDemand;
+    private bool _dockWidgetExtendedTelemetryDemand;
     private CancellationTokenSource? _devBuildClearCts;
     private int _maintenanceTickCounter;
     private int _bgPollInFlight;
@@ -297,6 +304,18 @@ public sealed class AppOrchestrator : IAsyncDisposable
         Audio.SyncAppRoutingRules(Config.AppAudioRoutes);
         Telemetry.SetPingHost(Config.PingHost);
         DeveloperBridge.UpdateSettings(Config.EnableDeveloperBridge, Config.DeveloperBridgePort);
+        string? bridgeError = Config.EnableDeveloperBridge ? DeveloperBridge.LastBindError : null;
+        if (bridgeError is not null && !string.Equals(bridgeError, _lastReportedBridgeError, StringComparison.Ordinal))
+        {
+            Notifications.AddInternalAlert(
+                "DinamikAda",
+                Strings.Pick(Config.Language, "Geliştirici köprüsü portu kullanılamıyor", "Developer bridge port unavailable"),
+                Strings.Pick(
+                    Config.Language,
+                    $"{bridgeError}. Named pipe çalışmaya devam ediyor; Ayarlar'dan farklı bir port seçin.",
+                    $"{bridgeError}. The named pipe still works; pick another port in Settings."));
+        }
+        _lastReportedBridgeError = bridgeError;
         UpdateMicMutedActivity(Audio.Current);
         UpdateAiQuotaPillActivity();
         ReconcileGameMode(FullscreenDetector.Current);
@@ -434,7 +453,7 @@ public sealed class AppOrchestrator : IAsyncDisposable
         {
             if (d.BatteryPercent is int pct && pct > threshold + 5)
             {
-                _alertedLowBatteryBtKeys.Remove(d.Name);
+                lock (_alertedLowBatteryBtKeys) _alertedLowBatteryBtKeys.Remove(d.Name);
             }
         }
 
@@ -459,7 +478,12 @@ public sealed class AppOrchestrator : IAsyncDisposable
             IconGlyph: glyph,
             TargetTab: ExpandedTabId.Control), "bt.lowbattery");
 
-        if (fireHudAlert && _alertedLowBatteryBtKeys.Add(lowest.Name))
+        bool firstAlert = false;
+        if (fireHudAlert)
+        {
+            lock (_alertedLowBatteryBtKeys) firstAlert = _alertedLowBatteryBtKeys.Add(lowest.Name);
+        }
+        if (firstAlert)
         {
             Coordinator.Publish(new TransientHudEvent(
                 CoalesceKey: "hud:bt-lowbat",
@@ -579,13 +603,16 @@ public sealed class AppOrchestrator : IAsyncDisposable
     public string? GetCurrentLyricLine(MediaPlaybackSnapshot media)
     {
         if (!Config.LyricsEnabled || !media.HasSession) return null;
+        // GSMTC falls back to the app name when a player publishes no title; don't go hunting for
+        // "Spotify.lrc" in the user's Music folder.
+        if (string.Equals(media.Title?.Trim(), media.AppName?.Trim(), StringComparison.OrdinalIgnoreCase)) return null;
         TimeSpan pos = media.Position;
         if (media.IsPlaying)
         {
             double dt = Math.Clamp((DateTimeOffset.UtcNow - media.LastUpdatedUtc).TotalSeconds, 0, 120);
             pos += TimeSpan.FromSeconds(dt * Math.Max(0.25, media.PlaybackRate));
         }
-        return Lyrics.ResolveLine(media.Title, media.Artist, pos);
+        return Lyrics.ResolveLineNonBlocking(media.Title, media.Artist, pos);
     }
 
     public LanDropShareInfo ToggleOrStartLanQrShare(bool forceStart = true)
@@ -600,7 +627,9 @@ public sealed class AppOrchestrator : IAsyncDisposable
             .Select(i => i.FullPath)
             .Where(p => !string.IsNullOrWhiteSpace(p) && File.Exists(p))
             .ToList();
-        string? topClipText = Clipboard.GetEntries().FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.FullText))?.FullText;
+        string? topClipText = Config.LanShareIncludeClipboard
+            ? Clipboard.GetEntries().FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.FullText))?.FullText
+            : null;
         return LanDrop.StartShare(files, topClipText);
     }
 
@@ -701,7 +730,9 @@ public sealed class AppOrchestrator : IAsyncDisposable
 
     private void OnCoordinatorSnapshotChanged(object? sender, IslandCoordinatorSnapshot snap)
     {
-        Widgets.SetPausedWhenCollapsed(snap.State != IslandPresentationState.S4Expanded);
+        // SnapshotChanged is raised outside the coordinator lock from several threads, so the event
+        // argument can be older than the current state; always act on the latest snapshot.
+        Widgets.SetPausedWhenCollapsed(Coordinator.Current.State != IslandPresentationState.S4Expanded);
     }
 
     private void OnFullscreenChanged(object? sender, FullscreenSnapshot snap)
@@ -969,11 +1000,22 @@ public sealed class AppOrchestrator : IAsyncDisposable
         UpdateTelemetrySamplingGates();
     }
 
+    /// <summary>Dock widgets (CPU, RAM, network, battery, top processes…) need live telemetry samples.</summary>
+    public void SetDockWidgetTelemetryDemand(bool sampling, bool extended)
+    {
+        if (_disposed) return;
+        if (_dockWidgetTelemetryDemand == sampling && _dockWidgetExtendedTelemetryDemand == extended) return;
+        _dockWidgetTelemetryDemand = sampling;
+        _dockWidgetExtendedTelemetryDemand = extended;
+        UpdateTelemetrySamplingGates();
+    }
+
     private void UpdateTelemetrySamplingGates()
     {
         bool gamePingActive = _isGameModeActive && Config.EnableGameModeAutomation && Config.GameModeShowPingPill;
-        Telemetry.SetSamplingActive(_isSystemTabVisible || _isDormantTelemetryPillVisible || gamePingActive);
-        Telemetry.SetExtendedMetricsActive(_isSystemTabVisible);
+        Telemetry.SetSamplingActive(_isSystemTabVisible || _isDormantTelemetryPillVisible || gamePingActive ||
+            _dockWidgetTelemetryDemand || _dockWidgetExtendedTelemetryDemand);
+        Telemetry.SetExtendedMetricsActive(_isSystemTabVisible || _dockWidgetExtendedTelemetryDemand);
         Telemetry.SetPingMonitorActive(_isSystemTabVisible || gamePingActive);
     }
 
@@ -1087,14 +1129,31 @@ public sealed class AppOrchestrator : IAsyncDisposable
         if (_disposed) return;
         bool inGame = Config.EnableGameModeAutomation && snap.IsFullscreen && snap.Kind == FullscreenAppKind.Game;
 
-        if (inGame && !_isGameModeActive)
+        bool entering = false;
+        bool exiting = false;
+        string? restoreGuid = null;
+        lock (_gameModeSync)
         {
-            _isGameModeActive = true;
-            if (Connectivity.TrySwitchToHighPerformance(out string? prev))
+            if (inGame && !_isGameModeActive)
             {
-                _savedPreGamePowerSchemeGuid = prev;
+                _isGameModeActive = true;
+                entering = true;
+                if (Connectivity.TrySwitchToHighPerformance(out string? prev))
+                {
+                    _savedPreGamePowerSchemeGuid = prev;
+                }
             }
+            else if (!inGame && _isGameModeActive)
+            {
+                _isGameModeActive = false;
+                exiting = true;
+                restoreGuid = _savedPreGamePowerSchemeGuid;
+                _savedPreGamePowerSchemeGuid = null;
+            }
+        }
 
+        if (entering)
+        {
             UpdateTelemetrySamplingGates();
             if (!Config.GameModeHideIsland && Config.GameModeShowPingPill)
             {
@@ -1116,17 +1175,14 @@ public sealed class AppOrchestrator : IAsyncDisposable
                     IconGlyph: "\uE7FC"));
             }
         }
-        else if (!inGame && _isGameModeActive)
+        else if (exiting)
         {
-            _isGameModeActive = false;
             Coordinator.PublishLiveActivity(null, "game.ping");
             UpdateTelemetrySamplingGates();
 
-            if (!string.IsNullOrWhiteSpace(_savedPreGamePowerSchemeGuid))
+            if (!string.IsNullOrWhiteSpace(restoreGuid))
             {
-                string prevGuid = _savedPreGamePowerSchemeGuid;
-                _savedPreGamePowerSchemeGuid = null;
-                _ = Connectivity.TryRestorePowerScheme(prevGuid);
+                _ = Connectivity.TryRestorePowerScheme(restoreGuid);
             }
 
             Coordinator.Publish(new TransientHudEvent(
@@ -1223,7 +1279,7 @@ public sealed class AppOrchestrator : IAsyncDisposable
         string status = msg.Status?.Trim().ToLowerInvariant() ?? "info";
         (string accent, string glyph) = status switch
         {
-            "success" => ("#30D158", "\uE73E"),
+            "success" or "ok" => ("#30D158", "\uE73E"),
             "error" => ("#FF453A", "\uEA39"),
             "warning" => ("#FF9F0A", "\uE7BA"),
             "progress" => ("#0A84FF", "\uE896"),
@@ -1244,10 +1300,17 @@ public sealed class AppOrchestrator : IAsyncDisposable
 
         if (status == "progress")
         {
-            _devBuildClearCts?.Cancel();
-            _devBuildClearCts?.Dispose();
+            // Bridge clients are served concurrently; swap the token source atomically so one thread
+            // never disposes a CTS that another is cancelling.
             var cts = new CancellationTokenSource();
-            _devBuildClearCts = cts;
+            CancellationTokenSource? previous;
+            lock (_devBuildSync)
+            {
+                previous = _devBuildClearCts;
+                _devBuildClearCts = cts;
+            }
+            previous?.Cancel();
+            previous?.Dispose();
 
             Coordinator.PublishLiveActivity(new LiveActivityState(
                 SourceId: "dev.bridge.build",
@@ -1270,7 +1333,14 @@ public sealed class AppOrchestrator : IAsyncDisposable
             return;
         }
 
-        _devBuildClearCts?.Cancel();
+        CancellationTokenSource? pendingClear;
+        lock (_devBuildSync)
+        {
+            pendingClear = _devBuildClearCts;
+            _devBuildClearCts = null;
+        }
+        pendingClear?.Cancel();
+        pendingClear?.Dispose();
         Coordinator.PublishLiveActivity(null, "dev.bridge.build");
 
         Coordinator.Publish(new TransientHudEvent(

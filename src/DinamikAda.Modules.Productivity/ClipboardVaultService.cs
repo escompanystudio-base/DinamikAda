@@ -735,11 +735,18 @@ public sealed class ClipboardVaultService : IDisposable
 
         uint capped = Math.Min(count, 64u);
         var builder = ImmutableArray.CreateBuilder<string>((int)capped);
-        char* buf = stackalloc char[512];
         for (uint i = 0; i < capped; i++)
         {
-            uint len = ClipboardNative.DragQueryFileW(hDrop, i, buf, 512);
-            if (len > 0) builder.Add(new string(buf, 0, (int)len));
+            // Query the exact length first: long-path-aware apps put paths > 511 chars on the
+            // clipboard, and a fixed buffer would silently truncate them to a wrong path.
+            uint needed = ClipboardNative.DragQueryFileW(hDrop, i, null, 0);
+            if (needed == 0 || needed > 32_767) continue;
+            char[] buf = new char[needed + 1];
+            fixed (char* p = buf)
+            {
+                uint len = ClipboardNative.DragQueryFileW(hDrop, i, p, needed + 1);
+                if (len > 0) builder.Add(new string(p, 0, (int)len));
+            }
         }
         return builder.ToImmutable();
     }

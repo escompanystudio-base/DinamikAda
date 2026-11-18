@@ -75,6 +75,20 @@ public sealed class DeveloperBridgeService : IDisposable
         get { lock (_sync) return _listeningPort; }
     }
 
+    /// <summary>True while the named-pipe transport is running (independent of the TCP port).</summary>
+    public bool IsPipeListening
+    {
+        get { lock (_sync) return _pipeAcceptTask is not null && !_disposed; }
+    }
+
+    /// <summary>Why the HTTP listener could not bind (e.g. port already in use), or null.</summary>
+    public string? LastBindError
+    {
+        get { lock (_sync) return _lastBindError; }
+    }
+
+    private string? _lastBindError;
+
     /// <summary>
     /// Starts or stops the localhost TCP and named-pipe listeners according to <paramref name="enabled"/> and <paramref name="port"/>.
     /// </summary>
@@ -143,11 +157,12 @@ public sealed class DeveloperBridgeService : IDisposable
                 boundPort = ep.Port;
             }
         }
-        catch (SocketException)
+        catch (SocketException ex)
         {
+            // Port taken: keep going so the named-pipe transport still works, and surface the reason.
             try { newTcp?.Stop(); } catch { /* best-effort cleanup */ }
-            newCts.Dispose();
-            return;
+            newTcp = null;
+            lock (_sync) _lastBindError = $"127.0.0.1:{normalizedPort} — {ex.SocketErrorCode}: {ex.Message}";
         }
         catch (ObjectDisposedException)
         {
@@ -159,7 +174,7 @@ public sealed class DeveloperBridgeService : IDisposable
         {
             if (_disposed || !_enabled || _requestedPort != normalizedPort)
             {
-                try { newTcp.Stop(); } catch { }
+                try { newTcp?.Stop(); } catch { }
                 newCts.Dispose();
                 return;
             }
@@ -167,7 +182,11 @@ public sealed class DeveloperBridgeService : IDisposable
             _cts = newCts;
             _tcpListener = newTcp;
             _listeningPort = boundPort;
-            _tcpAcceptTask = Task.Run(() => TcpAcceptLoopAsync(newTcp, newCts.Token));
+            if (newTcp is not null)
+            {
+                _lastBindError = null;
+                _tcpAcceptTask = Task.Run(() => TcpAcceptLoopAsync(newTcp, newCts.Token));
+            }
             _pipeAcceptTask = Task.Run(() => PipeAcceptLoopAsync(_pipeName, newCts.Token));
         }
     }
@@ -262,9 +281,9 @@ public sealed class DeveloperBridgeService : IDisposable
                 string normalized = (statusEl.GetString() ?? string.Empty).Trim().ToLowerInvariant();
                 if (normalized.Length > 0)
                 {
-                    if (normalized is not ("ok" or "error" or "progress" or "info"))
+                    if (normalized is not ("ok" or "success" or "error" or "warning" or "progress" or "info"))
                     {
-                        error = "Field 'status' must be one of: ok, error, progress, info.";
+                        error = "Field 'status' must be one of: ok, success, error, warning, progress, info.";
                         return false;
                     }
 
@@ -485,6 +504,16 @@ public sealed class DeveloperBridgeService : IDisposable
                     return;
                 }
 
+                // Browser-origin protection: any web page can fire a "simple" cross-origin POST at
+                // 127.0.0.1 without a CORS preflight. Browsers always attach Origin to such requests,
+                // while CLI tools (curl, build scripts) never do, so reject anything carrying Origin.
+                // Also pin Host to a loopback name to defeat DNS-rebinding attacks.
+                if (headers.ContainsKey("Origin") || !IsLoopbackHostHeader(headers))
+                {
+                    await WriteJsonResponseAndCloseAsync(client, stream, 403, "Forbidden", new { ok = false, error = "Browser-originated or non-loopback requests are not allowed." }, drainUnread: true, ioCt).ConfigureAwait(false);
+                    return;
+                }
+
                 if (!headers.TryGetValue("Content-Length", out string? clStr) ||
                     !long.TryParse(clStr, out long contentLength) ||
                     contentLength < 0)
@@ -541,6 +570,31 @@ public sealed class DeveloperBridgeService : IDisposable
                 // Ignore client socket drops / malformed connections.
             }
         }
+    }
+
+    public static bool IsLoopbackHostHeader(IReadOnlyDictionary<string, string> headers)
+    {
+        if (!headers.TryGetValue("Host", out string? host) || string.IsNullOrWhiteSpace(host))
+        {
+            return true; // HTTP/1.0 style clients without Host are local tooling, not browsers.
+        }
+
+        host = host.Trim();
+        string name;
+        if (host.StartsWith('['))
+        {
+            int close = host.IndexOf(']');
+            name = close > 0 ? host[1..close] : host;
+        }
+        else
+        {
+            int colon = host.LastIndexOf(':');
+            name = colon >= 0 ? host[..colon] : host;
+        }
+
+        return string.Equals(name, "127.0.0.1", StringComparison.Ordinal)
+            || string.Equals(name, "localhost", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "::1", StringComparison.Ordinal);
     }
 
     private static async Task<(byte[] HeaderBytes, byte[] TrailingBytes)?> ReadHttpHeaderBlockAsync(

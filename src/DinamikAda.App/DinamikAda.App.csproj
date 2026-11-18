@@ -5,6 +5,7 @@
     <UseWPF>true</UseWPF>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\DinamikAda.ico</ApplicationIcon>
     <StartupObject>DinamikAda.App.Program</StartupObject>
     <AssemblyName>DinamikAda.App</AssemblyName>
     <RootNamespace>DinamikAda.App</RootNamespace>

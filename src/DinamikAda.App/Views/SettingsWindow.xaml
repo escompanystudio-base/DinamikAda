@@ -305,6 +305,7 @@
                             <CheckBox x:Name="ChkHideWindowsTaskbar" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Windows Görev Çubuğunu Gizle (Alt Dock Açıkken)"/>
                             <CheckBox x:Name="ChkDockMagnification" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Üzerine Gelince Simge Büyütme Animasyonu"/>
                             <CheckBox x:Name="ChkDockIntellihide" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Akıllı Gizleme (Çakışan Pencerede Gizlen, Alt Kenardan Aç)"/>
+                            <CheckBox x:Name="ChkDockFollowFullscreenHide" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Tam Ekran Oyun/Videoda Dock'u Gizle"/>
 
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
@@ -316,6 +317,17 @@
                                 <Slider x:Name="SliderDockIconSize" AutomationProperties.LabeledBy="{Binding ElementName=LblDockIconSize}" Grid.Column="1" Style="{StaticResource ObsidianSliderStyle}" Minimum="26" Maximum="48" TickFrequency="2" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
                                 <TextBlock x:Name="ValDockIconSize" Grid.Column="2" Text="32 dp" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
+
+                            <TextBlock x:Name="LblDockPinnedApps" Text="Dock'taki Sabit Uygulamalar" Style="{StaticResource NotchSubtitleTextStyle}" Margin="0,14,0,6"/>
+                            <Border CornerRadius="10" Background="#0DFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1" Padding="6,4">
+                                <StackPanel x:Name="PinnedAppsHost"/>
+                            </Border>
+                            <WrapPanel Margin="0,8,0,0">
+                                <Button x:Name="BtnDockAddApp" Style="{StaticResource DarkActionButtonStyle}" Height="30" Padding="12,4" Margin="0,0,8,4" Content="Uygulama / Kısayol Ekle…" Click="OnDockAddAppClick"/>
+                                <Button x:Name="BtnDockAddFolder" Style="{StaticResource DarkActionButtonStyle}" Height="30" Padding="12,4" Margin="0,0,8,4" Content="Klasör Ekle…" Click="OnDockAddFolderClick"/>
+                            </WrapPanel>
+                            <TextBlock x:Name="TxtDockPinsHint" Style="{StaticResource NotchSubtitleTextStyle}" FontSize="11" Opacity="0.7" TextWrapping="Wrap" Margin="0,4,0,0"
+                                       Text="İpucu: Dock'taki simgeleri sürükleyerek sıralayabilir, Dosya Gezgini'nden dosya, kısayol veya klasör bırakarak sabitleyebilirsin."/>
                         </StackPanel>
                     </Border>
 
@@ -389,6 +401,7 @@
                             <Separator Margin="0,10,0,8" Background="#16FFFFFF" Height="1"/>
 
                             <CheckBox x:Name="ChkHardwareRendering" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Donanım GPU İşleme (yeniden başlatma gerekir)"/>
+                            <CheckBox x:Name="ChkAmdSafeCompositing" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="AMD Güvenli Yazılım Kompozisyonu (yeniden başlatma gerekir)"/>
                             <CheckBox x:Name="ChkSpectrumVisualizer" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Ses Spektrum Görselleştirici"/>
                             <CheckBox x:Name="ChkAutoDodge" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Auto-Dodge (Shift basılıyken ada tıklamaları arkaya geçirir)"/>
                             <CheckBox x:Name="ChkFadeWhenIdle" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Boştayken Adanın Opaklığını Azalt"/>
@@ -479,7 +492,18 @@
                             <CheckBox x:Name="ChkMicPrivacyAlert" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Mikrofon Aktif Uyarısını Adada Göster"/>
                             <CheckBox x:Name="ChkMirrorOsNotifications" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Windows Bildirimlerini Adada Aynala"/>
                             <CheckBox x:Name="ChkClipboardVault" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Şifreli Pano Kasası (DPAPI)"/>
+                            <CheckBox x:Name="ChkLanShareClipboard" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="QR LAN Paylaşımına Son Pano Metnini Ekle"/>
                             <CheckBox x:Name="ChkBtBatteryAlerts" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Bluetooth Pil HUD &amp; Düşük Pil Uyarısı"/>
+                            <Grid Margin="0,2,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="52"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="LblBtBatteryThreshold" Grid.Column="0" Text="Düşük Pil Eşiği" Style="{StaticResource NotchSubtitleTextStyle}" VerticalAlignment="Center"/>
+                                <Slider x:Name="SliderBtBatteryThreshold" Grid.Column="1" Style="{StaticResource ObsidianSliderStyle}" Minimum="5" Maximum="40" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="OnSliderValueUpdated"/>
+                                <TextBlock x:Name="ValBtBatteryThreshold" Grid.Column="2" Text="20%" Style="{StaticResource NotchSubtitleTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
                             <CheckBox x:Name="ChkNotchDesktopSwipe" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Çentikte Yatay Kaydırma / Shift+Tekerlek ile Masaüstü Değiştir"/>
                             <CheckBox x:Name="ChkCalendarEnabled" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="Toplantı Geri Sayımı (.ics)"/>
                             <CheckBox x:Name="ChkDownloadsWatch" Style="{StaticResource IosToggleSwitchStyle}" Margin="0,4" Content="İndirmeleri Çentikte İzle"/>
