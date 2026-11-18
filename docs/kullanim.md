@@ -27,11 +27,11 @@
 
 DinamikAda, Windows medya oturumunun paylaştığı albüm kapağından renkleri alır. Yeni kapak gecikirse üst ada önceki paleti kısa süre korur ve kapak geldiğinde yeni renklere yumuşakça geçer. AI kapsülü ve açık ada sekmeleri de aynı paleti kullanır.
 
-![Üst adada parça renk geçişi, genişletme ve sekmeler arasında gezinme](screenshots/upper-island-motion.gif)
+![Üst adanın açılışı, Akış, Ses ve Denetim sekmeleri ile kapanışın tamamı](screenshots/upper-island-motion.gif)
 
 Explorer modunda renkler alt dock, sistem tepsisi, gizli simgeler, Başlat menüsü, bildirim ve takvim panelleri ile Hızlı Ayarlar’a da yansır.
 
-![Parça değişirken üst ada, alt dock ve sağ tepsinin renk geçişi](screenshots/music-colors.gif)
+![Parça değişirken açık medya paneli, alt dock ve sağ tepsi birlikte renk değiştiriyor](screenshots/music-colors.gif)
 
 ![Parça değişirken Başlat menüsünün renk geçişi](screenshots/music-start-menu.gif)
 
