@@ -1426,8 +1426,8 @@ public partial class DockWindow : Window
             CornerRadius = new CornerRadius(Math.Round(iconSize * 0.26)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
-            Background = useGlassPlate ? new SolidColorBrush(Color.FromArgb(0x12, 0xFF, 0xFF, 0xFF)) : Brushes.Transparent,
-            BorderBrush = useGlassPlate ? new SolidColorBrush(Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF)) : Brushes.Transparent,
+            Background = useGlassPlate ? DockTint(0x12) : Brushes.Transparent,
+            BorderBrush = useGlassPlate ? DockTint(0x20) : Brushes.Transparent,
             BorderThickness = new Thickness(useGlassPlate ? 0.7 : 0.0)
         };
 
@@ -1486,7 +1486,7 @@ public partial class DockWindow : Window
                 Text = fallbackGlyph,
                 FontFamily = (FontFamily)FindResource("IconFont"),
                 FontSize = Math.Round(iconSize * 0.48),
-                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(glyphBrushHex)),
+                Foreground = DockGlyph((Color)ColorConverter.ConvertFromString(glyphBrushHex)),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             });
@@ -1581,9 +1581,9 @@ public partial class DockWindow : Window
         {
             _startMenuBtn = plate;
             container.MouseEnter += (_, _) =>
-                plate.Background = new SolidColorBrush(Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF));
+                plate.Background = DockTint(0x24);
             container.MouseLeave += (_, _) =>
-                plate.Background = new SolidColorBrush(Color.FromArgb(0x12, 0xFF, 0xFF, 0xFF));
+                plate.Background = DockTint(0x12);
             container.PreviewMouseLeftButtonDown += (_, ev) =>
             {
                 if (StartLaunchPopup.IsOpen)
@@ -1672,7 +1672,7 @@ public partial class DockWindow : Window
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, Math.Round((iconSize - pillH) * 0.5), 0, 0),
             Background = new SolidColorBrush(Color.FromRgb(0, 0, 0)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x36, 0xFF, 0xFF, 0xFF)),
+            BorderBrush = DockTint(0x36),
             BorderThickness = new Thickness(0.8)
         };
 
@@ -1693,7 +1693,7 @@ public partial class DockWindow : Window
         lensOuter.Children.Add(new Ellipse
         {
             Fill = new SolidColorBrush(Color.FromRgb(10, 14, 24)),
-            Stroke = new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF)),
+            Stroke = DockTint(0x30),
             StrokeThickness = 0.6
         });
         lensOuter.Children.Add(new Ellipse
@@ -1822,8 +1822,8 @@ public partial class DockWindow : Window
             CornerRadius = new CornerRadius(9),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
-            Background = new SolidColorBrush(Color.FromArgb(0x0E, 0xFF, 0xFF, 0xFF)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF)),
+            Background = DockTint(0x0E),
+            BorderBrush = DockTint(0x16),
             BorderThickness = new Thickness(0.6)
         };
 
@@ -1832,7 +1832,7 @@ public partial class DockWindow : Window
             Text = "\uE70E",
             FontFamily = (FontFamily)FindResource("IconFont"),
             FontSize = Math.Max(9.5, Math.Round(iconSize * 0.34)),
-            Foreground = new SolidColorBrush(Color.FromRgb(228, 228, 231)),
+            Foreground = DockGlyph(Color.FromRgb(228, 228, 231)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -1865,13 +1865,13 @@ public partial class DockWindow : Window
 
         container.MouseEnter += (_, _) =>
         {
-            plate.Background = new SolidColorBrush(Color.FromArgb(0x1C, 0xFF, 0xFF, 0xFF));
-            plate.BorderBrush = new SolidColorBrush(Color.FromArgb(0x2A, 0xFF, 0xFF, 0xFF));
+            plate.Background = DockTint(0x1C);
+            plate.BorderBrush = DockTint(0x2A);
         };
         container.MouseLeave += (_, _) =>
         {
-            plate.Background = new SolidColorBrush(Color.FromArgb(0x0E, 0xFF, 0xFF, 0xFF));
-            plate.BorderBrush = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF));
+            plate.Background = DockTint(0x0E);
+            plate.BorderBrush = DockTint(0x16);
         };
         container.PreviewMouseLeftButtonDown += (_, ev) =>
         {
@@ -3007,7 +3007,7 @@ public partial class DockWindow : Window
             Text = "\uE74D",
             FontFamily = (FontFamily)FindResource("IconFont"),
             FontSize = Math.Round(iconSize * 0.54),
-            Foreground = new SolidColorBrush(Color.FromRgb(212, 212, 216)),
+            Foreground = DockGlyph(Color.FromRgb(212, 212, 216)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -3041,7 +3041,7 @@ public partial class DockWindow : Window
 
         // Trash remains completely stationary (no magnification, shift, or click bounce)
         container.MouseEnter += (_, _) =>
-            plate.Background = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF));
+            plate.Background = DockTint(0x16);
         container.MouseLeave += (_, _) =>
             plate.Background = Brushes.Transparent;
         container.MouseLeftButtonUp += (_, ev) =>
@@ -3068,7 +3068,7 @@ public partial class DockWindow : Window
             Height = divH,
             Margin = new Thickness(leftMargin, Math.Round((iconSize - divH) * 0.5), rightMargin, 0),
             VerticalAlignment = VerticalAlignment.Top,
-            Background = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF)),
+            Background = DockTint(0x22),
             IsHitTestVisible = false
         });
     }
@@ -3082,8 +3082,8 @@ public partial class DockWindow : Window
             Padding = new Thickness(8, 0, 8, 0),
             Margin = new Thickness(2, 0, 0, 0),
             CornerRadius = new CornerRadius(9),
-            Background = new SolidColorBrush(Color.FromArgb(0x0E, 0xFF, 0xFF, 0xFF)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF)),
+            Background = DockTint(0x0E),
+            BorderBrush = DockTint(0x16),
             BorderThickness = new Thickness(0.6),
             VerticalAlignment = VerticalAlignment.Top
         };
@@ -3093,14 +3093,14 @@ public partial class DockWindow : Window
             FontFamily = (FontFamily)FindResource("UiFont"),
             FontSize = 11.2,
             FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)FindResource("TextPrimaryBrush"),
+            Foreground = DockTextBrush(primary: true),
             HorizontalAlignment = HorizontalAlignment.Center
         };
         _clockDateText = new TextBlock
         {
             FontFamily = (FontFamily)FindResource("UiTextFont"),
             FontSize = 8.8,
-            Foreground = (Brush)FindResource("TextSecondaryBrush"),
+            Foreground = DockTextBrush(primary: false),
             HorizontalAlignment = HorizontalAlignment.Center
         };
 
@@ -3111,13 +3111,13 @@ public partial class DockWindow : Window
 
         clockBtn.MouseEnter += (_, _) =>
         {
-            clockBtn.Background = new SolidColorBrush(Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
-            clockBtn.BorderBrush = new SolidColorBrush(Color.FromArgb(0x28, 0xFF, 0xFF, 0xFF));
+            clockBtn.Background = DockTint(0x18);
+            clockBtn.BorderBrush = DockTint(0x28);
         };
         clockBtn.MouseLeave += (_, _) =>
         {
-            clockBtn.Background = new SolidColorBrush(Color.FromArgb(0x0E, 0xFF, 0xFF, 0xFF));
-            clockBtn.BorderBrush = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF));
+            clockBtn.Background = DockTint(0x0E);
+            clockBtn.BorderBrush = DockTint(0x16);
         };
         clockBtn.PreviewMouseLeftButtonDown += (_, ev) =>
         {
