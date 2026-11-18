@@ -101,6 +101,32 @@ public sealed class AppConfig
     // not "never configured" (which would re-import the Windows taskbar pins on next start).
     public bool DockPinsCustomized { get; set; } = false;
 
+    // Dock widgets (live tiles between the apps and the island slot) and dock appearance.
+    public List<string> DockWidgets { get; set; } = new();
+    // False until the default widget set was seeded once; an empty list afterwards means "no widgets".
+    public bool DockWidgetsSeeded { get; set; } = false;
+    public DockVisualStyle DockStyle { get; set; } = DockVisualStyle.Midnight;
+    public DockScreenEdge DockEdge { get; set; } = DockScreenEdge.Bottom;
+    public bool DockClock24h { get; set; } = true;
+    public string WeatherCity { get; set; } = "";
+    public double? WeatherLatitude { get; set; }
+    public double? WeatherLongitude { get; set; }
+    public string WeatherResolvedName { get; set; } = "";
+    public bool WeatherFahrenheit { get; set; } = false;
+    public List<string> WorldClockZones { get; set; } = new() { "Europe/London", "America/New_York", "Asia/Tokyo" };
+    public string WorldTimeZone { get; set; } = "America/Los_Angeles";
+    public string CurrencyFrom { get; set; } = "USD";
+    public string CurrencyTo { get; set; } = "TRY";
+    public string CryptoSymbol { get; set; } = "BTCUSDT";
+    public List<string> StockSymbols { get; set; } = new() { "AAPL", "MSFT", "NVDA" };
+    // Finnhub key, DPAPI-protected (CurrentUser) and base64 encoded; never stored in plain text.
+    public string StockApiKeyProtected { get; set; } = "";
+    public int DockTimerMinutes { get; set; } = 5;
+    public int PomodoroFocusMinutes { get; set; } = 25;
+    public int PomodoroBreakMinutes { get; set; } = 5;
+    public List<DockTodoItem> DockTodos { get; set; } = new();
+    public bool ScreenTimeEnabled { get; set; } = true;
+
     // Local Multi-Account AI Subscription Quota & Reset Tracker (no browser cookies or credential bypass)
     public bool AiQuotaSeeded { get; set; } = false;
     public bool AiQuotaTabMigrated { get; set; } = true;
@@ -175,6 +201,7 @@ public sealed class AppConfig
         FullscreenHideExes = SanitizeExeList(FullscreenHideExes);
         DockIconSizeDip = Math.Clamp(DockIconSizeDip, 26, 48);
         PinnedDockApps = SanitizeExeList(PinnedDockApps);
+        SanitizeDockWidgetSettings();
         AiQuotaSlots = SanitizeAiQuotaSlots(AiQuotaSlots);
 
         PinnedTabs = PinnedTabs is null
@@ -185,6 +212,65 @@ public sealed class AppConfig
         {
             PinnedTabs = CreateDefaultTabs();
         }
+    }
+
+    private void SanitizeDockWidgetSettings()
+    {
+        if (!DockWidgetsSeeded)
+        {
+            DockWidgets = new List<string>(Widgets.DockWidgetCatalog.DefaultWidgets);
+            DockWidgetsSeeded = true;
+        }
+        DockWidgets = Widgets.DockWidgetCatalog.Sanitize(DockWidgets);
+        if (!Enum.IsDefined(DockStyle)) DockStyle = DockVisualStyle.Midnight;
+        if (!Enum.IsDefined(DockEdge)) DockEdge = DockScreenEdge.Bottom;
+        WeatherCity = WeatherCity?.Trim() ?? string.Empty;
+        WeatherResolvedName = WeatherResolvedName?.Trim() ?? string.Empty;
+        if (WeatherLatitude is not { } lat || !double.IsFinite(lat) || lat is < -90 or > 90 ||
+            WeatherLongitude is not { } lon || !double.IsFinite(lon) || lon is < -180 or > 180)
+        {
+            WeatherLatitude = null;
+            WeatherLongitude = null;
+        }
+        WorldClockZones = (WorldClockZones ?? new())
+            .Where(z => !string.IsNullOrWhiteSpace(z))
+            .Select(z => z.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .ToList();
+        WorldTimeZone = string.IsNullOrWhiteSpace(WorldTimeZone) ? "America/Los_Angeles" : WorldTimeZone.Trim();
+        CurrencyFrom = NormalizeCode(CurrencyFrom, "USD", 3);
+        CurrencyTo = NormalizeCode(CurrencyTo, "TRY", 3);
+        CryptoSymbol = NormalizeCode(CryptoSymbol, "BTCUSDT", 16);
+        StockSymbols = (StockSymbols ?? new())
+            .Select(s => NormalizeCode(s, string.Empty, 12))
+            .Where(s => s.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .Take(3)
+            .ToList();
+        StockApiKeyProtected = StockApiKeyProtected?.Trim() ?? string.Empty;
+        DockTimerMinutes = Math.Clamp(DockTimerMinutes, 1, 180);
+        PomodoroFocusMinutes = Math.Clamp(PomodoroFocusMinutes, 5, 120);
+        PomodoroBreakMinutes = Math.Clamp(PomodoroBreakMinutes, 1, 60);
+        DockTodos = (DockTodos ?? new())
+            .Where(t => t is not null && !string.IsNullOrWhiteSpace(t.Text))
+            .Take(50)
+            .Select(t => new DockTodoItem
+            {
+                Id = string.IsNullOrWhiteSpace(t.Id) ? Guid.NewGuid().ToString("N") : t.Id,
+                Text = t.Text.Trim().Length > 200 ? t.Text.Trim()[..200] : t.Text.Trim(),
+                Done = t.Done
+            })
+            .ToList();
+    }
+
+    private static string NormalizeCode(string? value, string fallback, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return fallback;
+        var chars = value.Trim().ToUpperInvariant().Where(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-').ToArray();
+        string s = new(chars);
+        if (s.Length == 0) return fallback;
+        return s.Length > maxLength ? s[..maxLength] : s;
     }
 
     private static List<string> SanitizeExeList(List<string>? items) =>
@@ -586,4 +672,26 @@ public sealed class AppConfigStore
             File.Move(tempPath, _configPath, overwrite: true);
         }
     }
+}
+
+public enum DockVisualStyle
+{
+    Midnight = 0,
+    Black = 1,
+    White = 2,
+    LiquidGlass = 3,
+    IosGlass = 4
+}
+
+public enum DockScreenEdge
+{
+    Bottom = 0,
+    Top = 1
+}
+
+public sealed class DockTodoItem
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Text { get; set; } = string.Empty;
+    public bool Done { get; set; }
 }

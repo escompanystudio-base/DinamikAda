@@ -80,6 +80,8 @@ public sealed class AppOrchestrator : IAsyncDisposable
     private string? _savedPreGamePowerSchemeGuid;
     private bool _isSystemTabVisible;
     private bool _isDormantTelemetryPillVisible;
+    private bool _dockWidgetTelemetryDemand;
+    private bool _dockWidgetExtendedTelemetryDemand;
     private CancellationTokenSource? _devBuildClearCts;
     private int _maintenanceTickCounter;
     private int _bgPollInFlight;
@@ -998,11 +1000,22 @@ public sealed class AppOrchestrator : IAsyncDisposable
         UpdateTelemetrySamplingGates();
     }
 
+    /// <summary>Dock widgets (CPU, RAM, network, battery, top processes…) need live telemetry samples.</summary>
+    public void SetDockWidgetTelemetryDemand(bool sampling, bool extended)
+    {
+        if (_disposed) return;
+        if (_dockWidgetTelemetryDemand == sampling && _dockWidgetExtendedTelemetryDemand == extended) return;
+        _dockWidgetTelemetryDemand = sampling;
+        _dockWidgetExtendedTelemetryDemand = extended;
+        UpdateTelemetrySamplingGates();
+    }
+
     private void UpdateTelemetrySamplingGates()
     {
         bool gamePingActive = _isGameModeActive && Config.EnableGameModeAutomation && Config.GameModeShowPingPill;
-        Telemetry.SetSamplingActive(_isSystemTabVisible || _isDormantTelemetryPillVisible || gamePingActive);
-        Telemetry.SetExtendedMetricsActive(_isSystemTabVisible);
+        Telemetry.SetSamplingActive(_isSystemTabVisible || _isDormantTelemetryPillVisible || gamePingActive ||
+            _dockWidgetTelemetryDemand || _dockWidgetExtendedTelemetryDemand);
+        Telemetry.SetExtendedMetricsActive(_isSystemTabVisible || _dockWidgetExtendedTelemetryDemand);
         Telemetry.SetPingMonitorActive(_isSystemTabVisible || gamePingActive);
     }
 
