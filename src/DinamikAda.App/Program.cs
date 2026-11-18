@@ -518,6 +518,8 @@ public static class Program
                         orch.Coordinator.SetDragShelfActive(false);
 
                         SmokeCheckDockPinEditing(failures);
+                        var widgetDock = new DockWindow(orch, provider.GetRequiredService<WindowsTaskbarManager>());
+                        failures.AddRange(widgetDock.AuditBuildAllWidgets());
 
                         orch.Coordinator.RequestCollapse(forceUnpin: true);
                         orch.Coordinator.PublishLiveActivity(null, "smoke");
@@ -1465,6 +1467,30 @@ public static class Program
         SavePng(dockAudit.RenderStartPopupForAudit(), Path.Combine(outputDir, "36_dock_start_popup.png"));
         savedCount++;
         SavePng(dockAudit.RenderStartPopupForAudit(450, 540, "visual"), Path.Combine(outputDir, "38_dock_start_search_narrow.png"));
+        savedCount++;
+
+        // Dock widgets: showcase rows in every style, the top edge, cards and the picker.
+        string[] widgetShowcase = ["np-mini", "cpu", "ram", "network", "weather", "flip-clock", "battery-ring", "todos", "crypto", "day-progress"];
+        string[] widgetShowcase2 = ["now-playing", "ai-limits", "pomodoro", "forecast", "segment-clock", "battery-core", "quick-toggles"];
+        string[] widgetShowcase3 = ["analog", "day-number", "world-clocks", "screen-time", "sun", "storage", "year-progress"];
+        var widgetDockAudit = new DockWindow(orch, provider.GetRequiredService<WindowsTaskbarManager>());
+        foreach (var style in Enum.GetValues<DockVisualStyle>())
+        {
+            SavePng(widgetDockAudit.RenderWidgetDockForAudit(widgetShowcase, style), Path.Combine(outputDir, $"50_dock_widgets_{style.ToString().ToLowerInvariant()}.png"));
+            savedCount++;
+        }
+        SavePng(widgetDockAudit.RenderWidgetDockForAudit(widgetShowcase2, DockVisualStyle.Midnight), Path.Combine(outputDir, "51_dock_widgets_row2.png"));
+        savedCount++;
+        SavePng(widgetDockAudit.RenderWidgetDockForAudit(widgetShowcase3, DockVisualStyle.LiquidGlass), Path.Combine(outputDir, "52_dock_widgets_row3.png"));
+        savedCount++;
+        SavePng(widgetDockAudit.RenderWidgetDockForAudit(widgetShowcase, DockVisualStyle.Midnight, edge: DockScreenEdge.Top), Path.Combine(outputDir, "53_dock_widgets_top_edge.png"));
+        savedCount++;
+        foreach (var cardId in new[] { "weather", "screen-time", "todos", "now-playing", "network", "ai-limits" })
+        {
+            SavePng(widgetDockAudit.RenderWidgetCardForAudit(cardId), Path.Combine(outputDir, $"54_widget_card_{cardId}.png"));
+            savedCount++;
+        }
+        SavePng(widgetDockAudit.RenderWidgetPickerForAudit(), Path.Combine(outputDir, "55_widget_picker.png"));
         savedCount++;
 
         Console.WriteLine($"RENDER_AUDIT_PASS: {savedCount} files -> {outputDir}");
