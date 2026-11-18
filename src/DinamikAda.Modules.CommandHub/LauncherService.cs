@@ -45,6 +45,16 @@ public sealed class LauncherService
     private bool _activeRebuildIncludesStoreApps;
     private volatile bool _indexReady;
     private volatile bool _storeAppsIndexed;
+    // Apps installed/uninstalled after startup must show up: refresh the index in the background
+    // once it is older than this.
+    private static readonly TimeSpan AppIndexMaxAge = TimeSpan.FromMinutes(5);
+    private long _indexBuiltTickMs;
+    private static readonly EnumerationOptions StartMenuEnumeration = new()
+    {
+        RecurseSubdirectories = true,
+        IgnoreInaccessible = true, // one protected subfolder must not abort the whole root
+        AttributesToSkip = FileAttributes.System
+    };
 
     public event EventHandler<string>? CommandFailed;
     public string Language { get; set; } = "tr";
@@ -133,7 +143,7 @@ public sealed class LauncherService
                     if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
                     try
                     {
-                        foreach (string lnk in Directory.EnumerateFiles(root, "*.lnk", SearchOption.AllDirectories))
+                        foreach (string lnk in Directory.EnumerateFiles(root, "*.lnk", StartMenuEnumeration))
                         {
                             string name = Path.GetFileNameWithoutExtension(lnk);
                             if (string.IsNullOrWhiteSpace(name)) continue;
@@ -144,7 +154,7 @@ public sealed class LauncherService
                             found.TryAdd(name, new AppLaunchItem(name, lnk, IsStoreApp: false));
                         }
 
-                        foreach (string urlFile in Directory.EnumerateFiles(root, "*.url", SearchOption.AllDirectories))
+                        foreach (string urlFile in Directory.EnumerateFiles(root, "*.url", StartMenuEnumeration))
                         {
                             string name = Path.GetFileNameWithoutExtension(urlFile);
                             if (string.IsNullOrWhiteSpace(name)) continue;
@@ -202,6 +212,7 @@ public sealed class LauncherService
                     _indexedApps.AddRange(found.Values.OrderBy(a => a.DisplayName, StringComparer.CurrentCultureIgnoreCase));
                     _indexReady = true;
                     if (includeStoreApps) _storeAppsIndexed = true;
+                    _indexBuiltTickMs = Environment.TickCount64;
                 }
             }).ConfigureAwait(false);
         }
@@ -221,7 +232,17 @@ public sealed class LauncherService
         string q = rawQuery?.Trim() ?? string.Empty;
         if (q.Length > 0 && q[0] is not ('=' or '@' or '#' or '>' or '/'))
         {
-            if (!_indexReady)
+            bool haveStaleIndex;
+            lock (_indexSync) haveStaleIndex = _indexedApps.Count > 0;
+
+            if (_indexReady && Environment.TickCount64 - Interlocked.Read(ref _indexBuiltTickMs) > AppIndexMaxAge.TotalMilliseconds)
+            {
+                // Serve this query from the current index and refresh it in the background.
+                _indexReady = false;
+                _storeAppsIndexed = false;
+            }
+
+            if (!_indexReady && !haveStaleIndex)
             {
                 await RebuildAppIndexAsync(includeStoreApps: false, ct).ConfigureAwait(false);
             }
@@ -590,7 +611,9 @@ public sealed class LauncherService
                 }
 
                 int len = NativeMethods.GetWindowTextLengthW(hwnd);
-                if (len <= 0 || len > 256) return true;
+                if (len <= 0) return true;
+                // Long titles (editor paths, browser tabs) are truncated, never dropped from the switcher.
+                len = Math.Min(len, 512);
                 char* buf = stackalloc char[len + 1];
                 int read = NativeMethods.GetWindowTextW(hwnd, buf, len + 1);
                 if (read <= 0) return true;

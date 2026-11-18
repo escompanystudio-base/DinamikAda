@@ -2082,7 +2082,9 @@ public sealed partial class SystemTelemetryService : IDisposable
         {
             if (NativeMethods.GetSystemPowerStatus(out var pwr) && pwr.BatteryFlag != 128 && pwr.BatteryLifePercent <= 100)
             {
-                bool charging = pwr.ACLineStatus == 1;
+                bool onAc = pwr.ACLineStatus == 1;
+                // "Plugged in" is not "charging": a full battery on AC is idle. BatteryFlag bit 8 = charging.
+                bool charging = (pwr.BatteryFlag & 8) != 0;
                 double? watts = null;
                 uint estSeconds = pwr.BatteryLifeTime > 0 ? (uint)pwr.BatteryLifeTime : 0;
 
@@ -2090,6 +2092,7 @@ public sealed partial class SystemTelemetryService : IDisposable
                 if (CallNtPowerInformation(SystemBatteryStateInfoLevel, 0, 0, &sbs, (uint)sizeof(SYSTEM_BATTERY_STATE)) == 0
                     && sbs.BatteryPresent != 0)
                 {
+                    charging = sbs.Charging != 0;
                     if (sbs.Rate != BatteryUnknownRate && sbs.Rate != 0)
                     {
                         watts = Math.Round(Math.Abs(sbs.Rate) / 1000.0, 2);
@@ -2100,7 +2103,7 @@ public sealed partial class SystemTelemetryService : IDisposable
                     }
                 }
 
-                TimeSpan? eta = !charging && estSeconds > 0 ? TimeSpan.FromSeconds(estSeconds) : null;
+                TimeSpan? eta = !onAc && !charging && estSeconds > 0 ? TimeSpan.FromSeconds(estSeconds) : null;
                 return (true, pwr.BatteryLifePercent, charging, watts, eta);
             }
             return (false, 100, true, null, null);

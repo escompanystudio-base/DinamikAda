@@ -102,7 +102,7 @@ public static class Program
         ServiceProvider? provider = null;
         try
         {
-            var services = ConfigureServices(configStore, initialConfig);
+            var services = ConfigureServices(configStore, initialConfig, isolated: isolatedConfigDir is not null);
             provider = services.BuildServiceProvider();
 
             var app = new System.Windows.Application
@@ -122,6 +122,12 @@ public static class Program
 
             var orch = provider.GetRequiredService<AppOrchestrator>();
             var taskbarManager = provider.GetRequiredService<WindowsTaskbarManager>();
+            // Undo a taskbar hide left behind by a crash or forced kill of the previous session.
+            if (taskbarManager.RecoverFromPreviousSession())
+            {
+                CrashLogger.Log("startup", null, "Restored Windows taskbar state left hidden by previous session.");
+            }
+            InstallGlobalExceptionHandlers(app, orch, taskbarManager);
             var window = provider.GetRequiredService<IslandWindow>();
             app.MainWindow = window;
             app.ShutdownMode = ShutdownMode.OnMainWindowClose;
@@ -140,6 +146,7 @@ public static class Program
                 }
                 catch (Exception ex)
                 {
+                    CrashLogger.Log("startup", ex, "Orchestrator start failed.");
                     orch.Notifications.AddInternalAlert("DinamikAda", "Başlatma uyarısı", ex.Message);
                 }
             });
@@ -180,7 +187,54 @@ public static class Program
         }
     }
 
-    private static ServiceCollection ConfigureServices(AppConfigStore configStore, AppConfig initialConfig)
+    private static void InstallGlobalExceptionHandlers(
+        System.Windows.Application app,
+        AppOrchestrator orch,
+        WindowsTaskbarManager taskbarManager)
+    {
+        long lastAlertTicks = 0;
+
+        app.DispatcherUnhandledException += (_, e) =>
+        {
+            CrashLogger.Log("ui", e.Exception, "Unhandled UI-thread exception (recovered).");
+            // Keep the shell alive: a single faulty handler must not kill the island and leave the
+            // Windows taskbar hidden. Throttle user-facing alerts to one per 30 s.
+            e.Handled = true;
+            long now = Environment.TickCount64;
+            if (now - Interlocked.Read(ref lastAlertTicks) > 30_000)
+            {
+                Interlocked.Exchange(ref lastAlertTicks, now);
+                try
+                {
+                    orch.Notifications.AddInternalAlert(
+                        "DinamikAda",
+                        "Beklenmeyen hata",
+                        $"{e.Exception.GetType().Name}: {e.Exception.Message}");
+                }
+                catch
+                {
+                }
+            }
+        };
+
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            CrashLogger.Log("fatal", e.ExceptionObject as Exception, $"Unhandled exception (terminating={e.IsTerminating}).");
+            if (e.IsTerminating)
+            {
+                try { taskbarManager.Restore(); } catch { }
+                try { NativeMethods.SetThreadExecutionState(NativeMethods.ES_CONTINUOUS); } catch { }
+            }
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            CrashLogger.Log("task", e.Exception, "Unobserved task exception.");
+            e.SetObserved();
+        };
+    }
+
+    private static ServiceCollection ConfigureServices(AppConfigStore configStore, AppConfig initialConfig, bool isolated)
     {
         var services = new ServiceCollection();
 
@@ -252,12 +306,82 @@ public static class Program
         });
 
         services.AddSingleton<DimmerOverlayManager>();
-        services.AddSingleton<WindowsTaskbarManager>();
+        // Smoke/render-audit runs must never read or delete the real session's crash-recovery marker.
+        services.AddSingleton(_ => isolated ? new WindowsTaskbarManager(recoveryStatePath: null) : new WindowsTaskbarManager());
         services.AddSingleton<DockWindow>();
         services.AddSingleton<AppOrchestrator>();
         services.AddSingleton<IslandWindow>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Exercises Dock pin editing (drop-to-pin, folder pins, reorder, offline-target retention and
+    /// Settings reload detection) against an isolated config and temp files.
+    /// </summary>
+    private static void SmokeCheckDockPinEditing(List<string> failures)
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "DinamikAda-smoke-pins-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(dir);
+            string alpha = Path.GetFullPath(Path.Combine(dir, "alpha.txt"));
+            string beta = Path.GetFullPath(Path.Combine(dir, "beta.txt"));
+            string gamma = Path.GetFullPath(Path.Combine(dir, "Gamma"));
+            string offline = Path.Combine(dir, "offline", "delta.exe");
+            File.WriteAllText(alpha, "a");
+            File.WriteAllText(beta, "b");
+            Directory.CreateDirectory(gamma);
+
+            var cfg = new AppConfig { DockPinsCustomized = true, PinnedDockApps = new List<string> { offline } };
+            int saves = 0;
+            var svc = new DockAppsService(cfg, () => saves++);
+
+            bool pinnedAll = svc.PinPath(alpha) & svc.PinPath(beta) & svc.PinPath(gamma, insertIndex: 0);
+            bool duplicateRejected = !svc.PinPath(alpha);
+            var afterPin = cfg.PinnedDockApps.ToList();
+            string[] expectedPin = { gamma, alpha, beta, offline };
+            if (!pinnedAll || !duplicateRejected || !afterPin.SequenceEqual(expectedPin, StringComparer.OrdinalIgnoreCase))
+            {
+                failures.Add($"Dock PinPath produced [{string.Join(", ", afterPin)}], expected [{string.Join(", ", expectedPin)}].");
+            }
+
+            bool moved = svc.MovePinned(beta, 0);
+            string[] expectedMove = { beta, gamma, alpha, offline };
+            if (!moved || !cfg.PinnedDockApps.SequenceEqual(expectedMove, StringComparer.OrdinalIgnoreCase))
+            {
+                failures.Add($"Dock MovePinned produced [{string.Join(", ", cfg.PinnedDockApps)}], expected [{string.Join(", ", expectedMove)}].");
+            }
+
+            var effective = DockAppsService.ResolveEffectivePinnedTargets(cfg);
+            if (!effective.SequenceEqual(new[] { beta, gamma, alpha }, StringComparer.OrdinalIgnoreCase))
+            {
+                failures.Add($"Dock effective pins were [{string.Join(", ", effective)}].");
+            }
+
+            if (svc.ReloadIfConfigChanged())
+            {
+                failures.Add("Dock reloaded pins although only the Dock itself changed them.");
+            }
+            cfg.PinnedDockApps = new List<string> { alpha };
+            if (!svc.ReloadIfConfigChanged())
+            {
+                failures.Add("Dock did not pick up a pin list rewritten by Settings.");
+            }
+
+            if (saves < 4)
+            {
+                failures.Add($"Dock pin edits saved config {saves} times, expected at least 4.");
+            }
+        }
+        catch (Exception ex)
+        {
+            failures.Add($"Dock pin editing check threw: {ex.Message}");
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
     }
 
     private static int RunSmokeTest(System.Windows.Application app, ServiceProvider provider, int durationSec, bool traceMode = false)
@@ -392,6 +516,8 @@ public static class Program
                         if (orch.Coordinator.Current.State != IslandPresentationState.S6DragShelf)
                             failures.Add($"Expected S6DragShelf, got {orch.Coordinator.Current.State}");
                         orch.Coordinator.SetDragShelfActive(false);
+
+                        SmokeCheckDockPinEditing(failures);
 
                         orch.Coordinator.RequestCollapse(forceUnpin: true);
                         orch.Coordinator.PublishLiveActivity(null, "smoke");
@@ -868,6 +994,8 @@ public static class Program
         // 15: SettingsWindow with Live MacBook Bezel Preview
         var settingsWin = new SettingsWindow(orch, hotkeyService, () => { });
         SavePng(settingsWin.RenderToBitmap(), Path.Combine(outputDir, "15_settings_window.png"));
+        savedCount++;
+        SavePng(settingsWin.RenderToBitmap(scrollToDockSection: true), Path.Combine(outputDir, "15b_settings_dock_pins.png"));
         savedCount++;
         SavePng(settingsWin.RenderToBitmap(440, 430, showIntegrations: true), Path.Combine(outputDir, "37_settings_integrations_narrow.png"));
         savedCount++;

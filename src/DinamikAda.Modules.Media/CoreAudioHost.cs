@@ -152,7 +152,17 @@ public sealed unsafe class CoreAudioHost : IAudioBackend
         {
             bool wasActive = _loopbackClient is not null;
             bool wasHfp = _isHfpFallback;
-            if (requested) _lastSignalTickMs = Environment.TickCount64;
+            if (requested)
+            {
+                _lastSignalTickMs = Environment.TickCount64;
+                // A user re-enabling the spectrum is an explicit retry: reset the exhausted backoff so a
+                // transient init failure does not leave the visualizer stuck in fallback forever.
+                if (_isHfpFallback && _hfpRetryAttempts > MaxHfpRetries)
+                {
+                    _hfpRetryAttempts = 0;
+                    _hfpNextRetryTickMs = 0;
+                }
+            }
             EnsureLoopbackStateOnMta();
             if ((_loopbackClient is not null) != wasActive || _isHfpFallback != wasHfp)
             {
@@ -1618,7 +1628,7 @@ public sealed unsafe class CoreAudioHost : IAudioBackend
     private static string FormatOptionLabel(uint sampleRateHz, ushort bitsPerSample, bool isFloat)
     {
         string baseLabel = AudioFormatFormatter.FormatMixFormat(sampleRateHz, bitsPerSample, bitsPerSample, isFloat)
-            ?? $"{sampleRateHz / 1000.0:0.#} kHz \u00B7 {bitsPerSample}-bit";
+            ?? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{sampleRateHz / 1000.0:0.#} kHz \u00B7 {bitsPerSample}-bit");
         return isFloat ? $"{baseLabel} Float" : baseLabel;
     }
 
@@ -1649,7 +1659,7 @@ public sealed unsafe class CoreAudioHost : IAudioBackend
             }
 
             string activeLabel = AudioFormatFormatter.FormatMixFormat(wfx.nSamplesPerSec, wfx.wBitsPerSample, activeValidBits, activeIsFloat)
-                ?? $"{wfx.nSamplesPerSec / 1000.0:0.#} kHz \u00B7 {activeValidBits}-bit";
+                ?? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{wfx.nSamplesPerSec / 1000.0:0.#} kHz \u00B7 {activeValidBits}-bit");
             int activeRate = (int)wfx.nSamplesPerSec;
             int epRate = activeRate;
             ushort epValidBits = activeValidBits;
@@ -2127,11 +2137,12 @@ public sealed unsafe class CoreAudioHost : IAudioBackend
         if (_disposed) return ValueTask.CompletedTask;
         _disposed = true;
         try { _queue.CompleteAdding(); } catch { }
-        if (!_mtaThread.Join(1200))
+        if (_mtaThread.Join(1200))
         {
-            // Timed out waiting on COM teardown
+            _queue.Dispose();
         }
-        _queue.Dispose();
+        // else: the MTA loop is still finishing a slow COM call and will touch _queue again;
+        // disposing it now would throw ObjectDisposedException on that thread and crash shutdown.
         return ValueTask.CompletedTask;
     }
 
