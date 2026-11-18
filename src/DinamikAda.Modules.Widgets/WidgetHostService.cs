@@ -123,7 +123,31 @@ internal sealed class CollectiblePluginLoadContext : AssemblyLoadContext
         }
 
         string? resolved = _resolver.ResolveAssemblyToPath(assemblyName);
-        return resolved is not null ? LoadFromAssemblyPath(resolved) : null;
+        return resolved is not null ? LoadShadowCopy(resolved) : null;
+    }
+
+    /// <summary>
+    /// Loads an assembly from an in-memory copy instead of the file path. LoadFromAssemblyPath keeps
+    /// the DLL locked, so users could not overwrite a plugin while the app runs and the
+    /// FileSystemWatcher hot-reload never saw a new version.
+    /// </summary>
+    public Assembly LoadShadowCopy(string assemblyPath)
+    {
+        using var dll = new MemoryStream(File.ReadAllBytes(assemblyPath));
+        string pdbPath = Path.ChangeExtension(assemblyPath, ".pdb");
+        if (File.Exists(pdbPath))
+        {
+            try
+            {
+                using var pdb = new MemoryStream(File.ReadAllBytes(pdbPath));
+                return LoadFromStream(dll, pdb);
+            }
+            catch (IOException)
+            {
+                dll.Position = 0;
+            }
+        }
+        return LoadFromStream(dll);
     }
 }
 
@@ -387,7 +411,7 @@ public sealed class WidgetHostService : IDisposable
                 try
                 {
                     alc = new CollectiblePluginLoadContext(dllPath);
-                    var asm = alc.LoadFromAssemblyPath(dllPath);
+                    var asm = alc.LoadShadowCopy(dllPath);
                     foreach (var type in asm.GetTypes().Where(t => !t.IsAbstract && typeof(IIslandWidget).IsAssignableFrom(t)))
                     {
                         if (Activator.CreateInstance(type) is not IIslandWidget widget) continue;
@@ -683,8 +707,9 @@ public sealed class WidgetHostService : IDisposable
                     PipeOptions.Asynchronous);
 
                 await server.WaitForConnectionAsync(ct);
-                using var reader = new StreamReader(server, Encoding.UTF8, leaveOpen: true);
-                string? payload = await reader.ReadToEndAsync(ct);
+                // A client that connects and never closes must not block every other widget push,
+                // and payloads are bounded so a runaway writer can't exhaust memory.
+                string? payload = await ReadBoundedPipePayloadAsync(server, ct);
                 if (!string.IsNullOrWhiteSpace(payload))
                 {
                     IngestNamedPipePayload(payload);
@@ -699,6 +724,33 @@ public sealed class WidgetHostService : IDisposable
                 await Task.Delay(300, ct).ConfigureAwait(false);
             }
         }
+    }
+
+    private const int MaxPipePayloadBytes = 64 * 1024;
+    private const int MaxPipeWidgetSlots = 16;
+    private static readonly TimeSpan PipeReadTimeout = TimeSpan.FromSeconds(5);
+
+    private static async Task<string?> ReadBoundedPipePayloadAsync(Stream stream, CancellationToken ct)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(PipeReadTimeout);
+        using var buffer = new MemoryStream();
+        byte[] chunk = new byte[8192];
+        try
+        {
+            while (true)
+            {
+                int read = await stream.ReadAsync(chunk, timeout.Token).ConfigureAwait(false);
+                if (read <= 0) break;
+                if (buffer.Length + read > MaxPipePayloadBytes) return null;
+                buffer.Write(chunk, 0, read);
+            }
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return null; // client stalled past the timeout
+        }
+        return Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
     }
 
     public void IngestNamedPipePayload(string jsonPayload)
@@ -734,6 +786,11 @@ public sealed class WidgetHostService : IDisposable
 
             lock (_sync)
             {
+                if (!_slots.ContainsKey(id) &&
+                    _slots.Keys.Count(k => k.StartsWith("pipe:", StringComparison.OrdinalIgnoreCase)) >= MaxPipeWidgetSlots)
+                {
+                    return; // cap external widgets so arbitrary ids can't grow the slot table forever
+                }
                 _slots[id] = new WidgetSlot
                 {
                     Id = id,

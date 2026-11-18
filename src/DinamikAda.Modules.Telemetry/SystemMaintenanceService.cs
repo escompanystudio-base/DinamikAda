@@ -10,7 +10,8 @@ public sealed record TempCleanupResult(
     long FreedBytes,
     int DeletedFileCount,
     int SkippedLockedCount,
-    int DeletedDirectoryCount);
+    int DeletedDirectoryCount,
+    int SkippedRecentCount = 0);
 
 public sealed record MemoryTrimResult(
     int TrimmedProcessCount,
@@ -45,7 +46,9 @@ public sealed record CloseBackgroundAppsResult(
 /// </summary>
 public sealed class SystemMaintenanceService
 {
-    private static readonly TimeSpan ActiveTempFileGraceAge = TimeSpan.FromMinutes(2);
+    // Installers/archive extractors keep original timestamps and reuse %TEMP% files across stages,
+    // so only files untouched (created AND written) for a full day are considered stale.
+    private static readonly TimeSpan ActiveTempFileGraceAge = TimeSpan.FromHours(24);
 
     public static readonly HashSet<string> ExtraExcludedInfrastructureProcesses = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -152,6 +155,7 @@ public sealed class SystemMaintenanceService
         long freedBytes = 0;
         int deletedFiles = 0;
         int skippedLocked = 0;
+        int skippedRecent = 0;
         int deletedDirs = 0;
 
         foreach (string root in dirs)
@@ -164,7 +168,7 @@ public sealed class SystemMaintenanceService
                 var rootInfo = new DirectoryInfo(root);
                 if ((rootInfo.Attributes & FileAttributes.ReparsePoint) != 0) continue;
 
-                CleanDirectoryRecursive(rootInfo, isRoot: true, cutoffUtc, ct, ref scannedBytes, ref freedBytes, ref deletedFiles, ref skippedLocked, ref deletedDirs);
+                CleanDirectoryRecursive(rootInfo, isRoot: true, cutoffUtc, ct, ref scannedBytes, ref freedBytes, ref deletedFiles, ref skippedLocked, ref deletedDirs, ref skippedRecent);
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
             {
@@ -172,7 +176,7 @@ public sealed class SystemMaintenanceService
             }
         }
 
-        return new TempCleanupResult(scannedBytes, freedBytes, deletedFiles, skippedLocked, deletedDirs);
+        return new TempCleanupResult(scannedBytes, freedBytes, deletedFiles, skippedLocked, deletedDirs, skippedRecent);
     }
 
     public Task<TempCleanupResult> ExecuteTempCleanupAsync(IReadOnlyList<string>? targetDirectories = null, TimeSpan? minFileAge = null, CancellationToken ct = default) =>
@@ -187,7 +191,8 @@ public sealed class SystemMaintenanceService
         ref long freedBytes,
         ref int deletedFiles,
         ref int skippedLocked,
-        ref int deletedDirs)
+        ref int deletedDirs,
+        ref int skippedRecent)
     {
         if (ct.IsCancellationRequested) return;
         if ((dir.Attributes & FileAttributes.ReparsePoint) != 0) return;
@@ -206,7 +211,7 @@ public sealed class SystemMaintenanceService
         foreach (var sub in subDirs)
         {
             if (ct.IsCancellationRequested) break;
-            CleanDirectoryRecursive(sub, isRoot: false, cutoffUtc, ct, ref scannedBytes, ref freedBytes, ref deletedFiles, ref skippedLocked, ref deletedDirs);
+            CleanDirectoryRecursive(sub, isRoot: false, cutoffUtc, ct, ref scannedBytes, ref freedBytes, ref deletedFiles, ref skippedLocked, ref deletedDirs, ref skippedRecent);
         }
 
         FileInfo[] files;
@@ -230,9 +235,10 @@ public sealed class SystemMaintenanceService
                 long len = file.Length;
                 scannedBytes += len;
 
-                if (file.LastWriteTimeUtc > cutoffUtc)
+                DateTime newestStampUtc = file.LastWriteTimeUtc > file.CreationTimeUtc ? file.LastWriteTimeUtc : file.CreationTimeUtc;
+                if (newestStampUtc > cutoffUtc)
                 {
-                    skippedLocked++;
+                    skippedRecent++; // still potentially in use, not a locked/failed delete
                     continue;
                 }
 
@@ -514,7 +520,15 @@ public sealed class SystemMaintenanceService
                         continue;
                     }
 
-                    proc.Kill(entireProcessTree: true);
+                    // The PID was captured at scan time and may have been recycled by another app.
+                    if (!string.Equals(clean, HungProcessService.NormalizeImageName(candidate.ProcessName), StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    // Every instance PID is listed in candidate.Pids, so killing just this process is
+                    // enough; tree-kill would also take down unrelated child apps it launched.
+                    proc.Kill(entireProcessTree: false);
                     anyClosedForCandidate = true;
                 }
                 catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)

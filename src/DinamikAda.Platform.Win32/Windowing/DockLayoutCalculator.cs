@@ -383,4 +383,36 @@ public static class DockLayoutCalculator
         double y = 0.5 + Math.Sin(phase * freqY + phaseOffset * 0.7) * ampY;
         return (Math.Clamp(x, 0.05, 0.95), Math.Clamp(y, 0.10, 0.90));
     }
+
+    /// <summary>
+    /// Index a pinned slot should land at when released at <paramref name="cursorX"/>.
+    /// <paramref name="centersX"/> are the resting slot centers in Dock order. Pass
+    /// <paramref name="draggedIndex"/> = -1 for an external drop (insertion, range 0..n).
+    /// </summary>
+    public static int ComputeReorderTargetIndex(IReadOnlyList<double> centersX, double cursorX, int draggedIndex)
+    {
+        int target = 0;
+        for (int i = 0; i < centersX.Count; i++)
+        {
+            if (i == draggedIndex) continue;
+            if (centersX[i] < cursorX) target++;
+        }
+        return target;
+    }
+
+    /// <summary>
+    /// Horizontal preview offset for pinned slot <paramref name="index"/> while a reorder or
+    /// external drop is in progress, so the other icons visibly make room at the target.
+    /// </summary>
+    public static double ComputeReorderShift(int index, int draggedIndex, int targetIndex, double pitch)
+    {
+        if (draggedIndex < 0)
+        {
+            return index < targetIndex ? -pitch * 0.5 : pitch * 0.5;
+        }
+        if (index == draggedIndex) return 0.0;
+        if (draggedIndex < targetIndex && index > draggedIndex && index <= targetIndex) return -pitch;
+        if (draggedIndex > targetIndex && index >= targetIndex && index < draggedIndex) return pitch;
+        return 0.0;
+    }
 }

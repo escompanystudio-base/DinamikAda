@@ -107,6 +107,8 @@ public sealed class LyricsService
     private List<string> _searchFolders = [];
     private string _cachedTrackKey = string.Empty;
     private IReadOnlyList<LrcLine> _cachedLines = [];
+    private string? _loadingTrackKey;
+    private int _configGeneration;
 
     public LyricsService()
     {
@@ -142,7 +144,54 @@ public sealed class LyricsService
             _searchFolders = dirs.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             _cachedTrackKey = string.Empty;
             _cachedLines = [];
+            _loadingTrackKey = null;
+            _configGeneration++;
         }
+    }
+
+    /// <summary>
+    /// UI-safe variant of <see cref="ResolveLine"/>: never touches the disk on the caller's thread.
+    /// On a track change it returns null and loads the matching .lrc on the thread pool (folder scans
+    /// can stall for seconds on OneDrive/network Music folders); the next call returns the line.
+    /// </summary>
+    public string? ResolveLineNonBlocking(string? title, string? artist, TimeSpan position)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return null;
+        string cleanTitle = title.Trim();
+        string cleanArtist = artist?.Trim() ?? string.Empty;
+        string trackKey = $"{cleanArtist}|{cleanTitle}";
+
+        IReadOnlyList<LrcLine> lines;
+        lock (_sync)
+        {
+            if (!_enabled) return null;
+            if (!string.Equals(trackKey, _cachedTrackKey, StringComparison.Ordinal))
+            {
+                if (!string.Equals(trackKey, _loadingTrackKey, StringComparison.Ordinal))
+                {
+                    _loadingTrackKey = trackKey;
+                    int generation = _configGeneration;
+                    List<string> folders = _searchFolders;
+                    _ = Task.Run(() =>
+                    {
+                        IReadOnlyList<LrcLine> loaded;
+                        try { loaded = LoadMatchingLrc(folders, cleanTitle, cleanArtist); }
+                        catch { loaded = []; }
+                        lock (_sync)
+                        {
+                            if (generation != _configGeneration || !string.Equals(_loadingTrackKey, trackKey, StringComparison.Ordinal)) return;
+                            _cachedTrackKey = trackKey;
+                            _cachedLines = loaded;
+                            _loadingTrackKey = null;
+                        }
+                    });
+                }
+                return null;
+            }
+            lines = _cachedLines;
+        }
+
+        return LrcLyricsParser.FindActiveLine(lines, position);
     }
 
     public string? ResolveLine(string? title, string? artist, TimeSpan position)
@@ -157,7 +206,7 @@ public sealed class LyricsService
             if (!string.Equals(trackKey, _cachedTrackKey, StringComparison.Ordinal))
             {
                 _cachedTrackKey = trackKey;
-                _cachedLines = LoadMatchingLrcLocked(title.Trim(), artist?.Trim() ?? string.Empty);
+                _cachedLines = LoadMatchingLrc(_searchFolders, title.Trim(), artist?.Trim() ?? string.Empty);
             }
             lines = _cachedLines;
         }
@@ -165,7 +214,7 @@ public sealed class LyricsService
         return LrcLyricsParser.FindActiveLine(lines, position);
     }
 
-    private IReadOnlyList<LrcLine> LoadMatchingLrcLocked(string title, string artist)
+    private static IReadOnlyList<LrcLine> LoadMatchingLrc(List<string> searchFolders, string title, string artist)
     {
         string safeTitle = SanitizeMatchToken(title);
         string safeArtist = SanitizeMatchToken(artist);
@@ -176,7 +225,7 @@ public sealed class LyricsService
             ? [safeTitle, cleanTitle]
             : [safeTitle];
 
-        foreach (string folder in _searchFolders)
+        foreach (string folder in searchFolders)
         {
             if (!Directory.Exists(folder)) continue;
             foreach (string t in titleVariants)

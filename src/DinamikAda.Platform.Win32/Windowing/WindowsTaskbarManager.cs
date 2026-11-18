@@ -21,6 +21,83 @@ public sealed unsafe class WindowsTaskbarManager : IDisposable
     private bool _hasAppBarRegistered;
     private int? _savedTaskbarState;
     private bool _disposed;
+    private readonly string? _recoveryStatePath;
+
+    /// <summary>
+    /// Default crash-recovery marker location. Written while the taskbar is hidden so that a crash or
+    /// forced kill (where ProcessExit never fires) can be undone on the next launch.
+    /// </summary>
+    public static string DefaultRecoveryStatePath { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "DinamikAda",
+        "taskbar-recovery.state");
+
+    public WindowsTaskbarManager() : this(DefaultRecoveryStatePath)
+    {
+    }
+
+    /// <param name="recoveryStatePath">Crash-recovery marker path, or null to disable persistence.</param>
+    public WindowsTaskbarManager(string? recoveryStatePath)
+    {
+        _recoveryStatePath = recoveryStatePath;
+    }
+
+    /// <summary>
+    /// If a previous session crashed while the taskbar was hidden, restores the original
+    /// auto-hide state and taskbar visibility. Safe to call on every launch.
+    /// </summary>
+    public bool RecoverFromPreviousSession()
+    {
+        if (_recoveryStatePath is null) return false;
+        lock (_sync)
+        {
+            string? text;
+            try
+            {
+                if (!File.Exists(_recoveryStatePath)) return false;
+                text = File.ReadAllText(_recoveryStatePath).Trim();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+
+            if (int.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int prevState)
+                && prevState >= 0)
+            {
+                SetShellTrayState(prevState);
+            }
+
+            ShowAllTaskbarWindows();
+            DeleteRecoveryMarker();
+            return true;
+        }
+    }
+
+    private void WriteRecoveryMarker()
+    {
+        if (_recoveryStatePath is null) return;
+        try
+        {
+            string? dir = Path.GetDirectoryName(_recoveryStatePath);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            // Never overwrite an existing marker's original state with an already-modified one.
+            if (File.Exists(_recoveryStatePath) && _savedTaskbarState is null) return;
+            File.WriteAllText(
+                _recoveryStatePath,
+                (_savedTaskbarState ?? -1).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private void DeleteRecoveryMarker()
+    {
+        if (_recoveryStatePath is null) return;
+        try { File.Delete(_recoveryStatePath); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    }
 
     public bool IsTaskbarHidden
     {
@@ -51,7 +128,11 @@ public sealed unsafe class WindowsTaskbarManager : IDisposable
             if (!reserveFullWidthWorkArea)
             {
                 RemoveAppBarWorkArea();
-                _savedTaskbarState ??= ReadShellTrayState();
+                if (_savedTaskbarState is null)
+                {
+                    _savedTaskbarState = ReadShellTrayState();
+                    WriteRecoveryMarker();
+                }
                 if (_savedTaskbarState is not null && ReadShellTrayState() != NativeMethods.ABS_AUTOHIDE)
                 {
                     SetShellTrayState(NativeMethods.ABS_AUTOHIDE);
@@ -65,6 +146,7 @@ public sealed unsafe class WindowsTaskbarManager : IDisposable
                 SetShellTrayState(prevState);
                 _savedTaskbarState = null;
             }
+            WriteRecoveryMarker();
             HideAllTaskbarWindows();
 
             if (primaryMonitor is not null && reservedBottomPx > 0)
@@ -193,25 +275,10 @@ public sealed unsafe class WindowsTaskbarManager : IDisposable
 
     private void RestoreCore()
     {
+        bool wasActive = _hideActive;
         _hideActive = false;
         UninstallHook();
-
-        nint primary = NativeMethods.FindWindowW("Shell_TrayWnd", null);
-        if (primary != 0 && !NativeMethods.IsWindowVisible(primary))
-        {
-            NativeMethods.ShowWindow(primary, NativeMethods.SW_SHOW);
-        }
-
-        nint sec = 0;
-        for (int guard = 0; guard < 16; guard++)
-        {
-            sec = NativeMethods.FindWindowExW(0, sec, "Shell_SecondaryTrayWnd", null);
-            if (sec == 0) break;
-            if (!NativeMethods.IsWindowVisible(sec))
-            {
-                NativeMethods.ShowWindow(sec, NativeMethods.SW_SHOW);
-            }
-        }
+        ShowAllTaskbarWindows();
 
         foreach (nint cached in _knownTaskbarHwnds)
         {
@@ -227,6 +294,28 @@ public sealed unsafe class WindowsTaskbarManager : IDisposable
         {
             SetShellTrayState(prevState);
             _savedTaskbarState = null;
+        }
+
+        if (wasActive) DeleteRecoveryMarker();
+    }
+
+    private static void ShowAllTaskbarWindows()
+    {
+        nint primary = NativeMethods.FindWindowW("Shell_TrayWnd", null);
+        if (primary != 0 && !NativeMethods.IsWindowVisible(primary))
+        {
+            NativeMethods.ShowWindow(primary, NativeMethods.SW_SHOW);
+        }
+
+        nint sec = 0;
+        for (int guard = 0; guard < 16; guard++)
+        {
+            sec = NativeMethods.FindWindowExW(0, sec, "Shell_SecondaryTrayWnd", null);
+            if (sec == 0) break;
+            if (!NativeMethods.IsWindowVisible(sec))
+            {
+                NativeMethods.ShowWindow(sec, NativeMethods.SW_SHOW);
+            }
         }
     }
 
