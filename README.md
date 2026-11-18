@@ -6,7 +6,7 @@
 
 [English quick start](#quick-start) · [Türkçe kullanım kılavuzu](docs/kullanim.md)
 
-<img src="docs/screenshots/now-feed.png" alt="DinamikAda island with media and activity controls" width="760" />
+<img src="docs/screenshots/explorer-taskbar.png" alt="DinamikAda’s default Explorer taskbar with separate app row and system tray" />
 
 </div>
 
@@ -48,18 +48,7 @@ Open **AI Quota** in the expanded island and use the add button for your provide
 
 Cards indicate when they show a saved reading, are waiting for quota data, or need a new sign-in.
 
-![AI Quota tab showing separate sample account cards and usage windows](docs/screenshots/widgets-ai-quota.png)
-
-![Claude usage windows and a ChatGPT card that needs reconnection](docs/screenshots/ai-quota-claude.png)
-
-## Screenshots
-
-| Media and commands | System and dock |
-| --- | --- |
-| ![Compact media controls](docs/screenshots/compact-media.png) | ![System control center](docs/screenshots/control-center.png) |
-| ![Keyboard command palette](docs/screenshots/command-palette.png) | ![System telemetry](docs/screenshots/system-telemetry.png) |
-| ![Per-app audio mixer](docs/screenshots/audio-mixer.png) | ![Standalone dock and running app indicators](docs/screenshots/bottom-dock.png) |
-| ![Standalone dock calendar](docs/screenshots/dock-calendar-popup.png) | ![Standalone dock tray overflow](docs/screenshots/dock-tray-popup.png) |
+## Other tools
 
 The top island also includes a clipboard vault, file shelf, OCR, LAN file sharing, hardware and software brightness controls, lyrics and per-app audio routing.
 

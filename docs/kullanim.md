@@ -16,7 +16,7 @@
 5. Sağ uçtaki oka tıklayarak sistem tepsisini küçült. Aynı düğme tepsiyi geri açar. Gizli simgelere erişmek için önce tepsiyi aç. Ses ayarı için **Win+A** kullan.
 6. Windows’a albüm kapağı ileten bir oynatıcıda müzik aç. Üst ada, uygulama sırası, sağ tepsi ve Başlat menüsü albüm renklerini alır. Alt çubukta renkler oynatma boyunca hareket eder.
 
-![Explorer uygulama sırası ve sağ tepsi](screenshots/explorer-taskbar.png)
+![Explorer uygulama sırası ve sağ tepsinin sade görünümü](screenshots/explorer-taskbar.png)
 
 ![Alt kenardan açılan uygulama sırası](screenshots/explorer-dock.gif)
 
@@ -43,10 +43,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup-explorer-tas
 4. **ChatGPT / Codex** kartında sağlayıcının döndürdüğü 5 saatlik ve haftalık Codex kotasını ve yenilenme zamanlarını ayrı ayrı görebilirsin.
 5. **Claude** kartında canlı ölçüm için uyumlu bir Claude Code oturumu gerekir. Karttaki kullanım simgesi tarayıcıda Claude kullanım sayfasını açar.
 6. **Antigravity** kartındaki model havuzlarını ayrı ayrı kontrol et. Kayıtlı veri gösteriliyorsa son ölçüm zamanı kartta yer alır.
-
-![Örnek hesaplarla AI Kota ekranı](screenshots/widgets-ai-quota.png)
-
-![Claude kota pencereleri ve yeniden bağlanması gereken ChatGPT kartı](screenshots/ai-quota-claude.png)
 
 ## Genel kontroller
 
