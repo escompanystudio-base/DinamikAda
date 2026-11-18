@@ -45,6 +45,7 @@ public partial class SettingsWindow : Window
         LoadFromConfig(_orch.Config);
         CaptureExternallyMutableBaseline();
         LoadPinnedAppsEditor();
+        LoadDockWidgetSettings();
         SourceInitialized += (_, _) => CenterOnIslandMonitorWorkArea();
         CenterOnIslandMonitorWorkArea();
     }
@@ -478,6 +479,7 @@ public partial class SettingsWindow : Window
             "İpucu: Dock'taki simgeleri sürükleyerek sıralayabilir, Dosya Gezgini'nden dosya, kısayol veya klasör bırakarak sabitleyebilirsin.",
             "Tip: drag icons on the Dock to reorder them, or drop files, shortcuts or folders from File Explorer onto it to pin them.");
         if (_pinnedEditorLoaded) RenderPinnedAppsList();
+        if (_widgetSettingsLoaded) RebuildDockWidgetSettingsForLanguage();
 
         HdrMotionSection.Text = Strings.Pick(lang, "Performans, Yenileme Hızı & Etkileşim", "Performance, Refresh Rate & Interaction");
         LblTargetFpsCap.Text = Strings.TargetFpsCapLabel(lang);
@@ -1047,6 +1049,7 @@ public partial class SettingsWindow : Window
             cfg.DockFollowFullscreenHide = ChkDockFollowFullscreenHide.IsChecked == true;
             cfg.DockIconSizeDip = (int)Math.Round(SliderDockIconSize.Value);
             ApplyPinnedAppsEdits(cfg);
+            ApplyDockWidgetSettings(cfg);
             cfg.MonitorMode = GetSelectedValue(ComboMonitorMode, cfg.MonitorMode);
             if (cfg.MonitorMode == MonitorPlacementMode.PinnedMonitor)
             {

@@ -328,6 +328,7 @@
                             </WrapPanel>
                             <TextBlock x:Name="TxtDockPinsHint" Style="{StaticResource NotchSubtitleTextStyle}" FontSize="11" Opacity="0.7" TextWrapping="Wrap" Margin="0,4,0,0"
                                        Text="İpucu: Dock'taki simgeleri sürükleyerek sıralayabilir, Dosya Gezgini'nden dosya, kısayol veya klasör bırakarak sabitleyebilirsin."/>
+                            <StackPanel x:Name="DockWidgetSettingsHost"/>
                         </StackPanel>
                     </Border>
 

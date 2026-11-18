@@ -664,6 +664,7 @@ public partial class DockWindow : Window
 
         _orch.Coordinator.SnapshotChanged += OnCoordinatorSnapshotChanged;
         _orch.AiQuota.SlotsChanged += OnDockAiQuotaChanged;
+        _orch.OpenWidgetPickerRequested += OnOpenWidgetPickerRequested;
         ApplyConfigAndSync();
         _reconcileTimer.Start();
     }
@@ -687,6 +688,7 @@ public partial class DockWindow : Window
         _widgetHub?.Dispose();
         _orch.Coordinator.SnapshotChanged -= OnCoordinatorSnapshotChanged;
         _orch.AiQuota.SlotsChanged -= OnDockAiQuotaChanged;
+        _orch.OpenWidgetPickerRequested -= OnOpenWidgetPickerRequested;
         UninstallWindowEventHooks();
         _hwndSource?.RemoveHook(OnDockWndProc);
         _hwndSource = null;

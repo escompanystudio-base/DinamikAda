@@ -428,6 +428,13 @@ public partial class DockWindow
 
     // ---- Picker -------------------------------------------------------------------------------
 
+    private void OnOpenWidgetPickerRequested(object? sender, EventArgs e) =>
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!_orch.Config.UseCustomBottomDock) return;
+            OpenWidgetPicker();
+        });
+
     public void OpenWidgetPicker()
     {
         if (_isClosed) return;
