@@ -129,7 +129,7 @@ public static class FinanceAccountTiles
         mask.GradientStops.Add(mid);
         mask.GradientStops.Add(edge);
         el.OpacityMask = mask;
-        var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
+        var ease = Motion.Gentle;
         var begin = TimeSpan.FromMilliseconds(delayMs);
         var reveal = new DoubleAnimation(-0.08, 1.0, TimeSpan.FromMilliseconds(ms)) { BeginTime = begin, EasingFunction = ease };
         var lead = new DoubleAnimation(0.0, 1.08, TimeSpan.FromMilliseconds(ms)) { BeginTime = begin, EasingFunction = ease };
@@ -241,7 +241,7 @@ public static class FinanceAccountTiles
         {
             int max = 1;
             foreach (var v in values) max = Math.Max(max, v);
-            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            var ease = Motion.Soft;
             for (int i = 0; i < _bars.Count; i++)
             {
                 int v = i < values.Count ? values[i] : 0;

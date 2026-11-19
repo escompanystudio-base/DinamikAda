@@ -215,7 +215,7 @@ public static class DeveloperAccountTiles
         clip.BeginAnimation(RectangleGeometry.RectProperty, new RectAnimation(new Rect(0, -2, width + 4, height + 4), TimeSpan.FromMilliseconds(ms))
         {
             BeginTime = TimeSpan.FromMilliseconds(delayMs),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            EasingFunction = Motion.Soft
         });
     }
 
@@ -230,7 +230,7 @@ public static class DeveloperAccountTiles
         }
         var anim = new DoubleAnimation(from, 1, TimeSpan.FromMilliseconds(620))
         {
-            EasingFunction = new ElasticEase { Oscillations = 2, Springiness = 5, EasingMode = EasingMode.EaseOut }
+            EasingFunction = Motion.Soft
         };
         st.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
         st.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
@@ -242,7 +242,7 @@ public static class DeveloperAccountTiles
         el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(ms))
         {
             BeginTime = TimeSpan.FromMilliseconds(delayMs),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            EasingFunction = Motion.Soft
         });
     }
 
@@ -573,7 +573,7 @@ public static class DeveloperAccountTiles
         {
             var st = (ScaleTransform)_halo.RenderTransform;
             var dur = TimeSpan.FromMilliseconds(760);
-            var grow = new DoubleAnimation(1, 2.3, dur) { RepeatBehavior = new RepeatBehavior(2), EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            var grow = new DoubleAnimation(1, 2.3, dur) { RepeatBehavior = new RepeatBehavior(2), EasingFunction = Motion.Soft };
             st.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
             st.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
             _halo.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0.55, 0, dur) { RepeatBehavior = new RepeatBehavior(2) });
@@ -1008,7 +1008,7 @@ public static class DeveloperAccountTiles
             if (!_attached || _dotHalo is null) return;
             var st = (ScaleTransform)_dotHalo.RenderTransform;
             var dur = TimeSpan.FromSeconds(1.8);
-            var grow = new DoubleAnimation(1, 2.6, dur) { RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            var grow = new DoubleAnimation(1, 2.6, dur) { RepeatBehavior = RepeatBehavior.Forever, EasingFunction = Motion.Soft };
             st.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
             st.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
             _dotHalo.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0.5, 0, dur) { RepeatBehavior = RepeatBehavior.Forever });
@@ -1078,7 +1078,7 @@ public static class DeveloperAccountTiles
                 bar.BeginAnimation(FrameworkElement.HeightProperty, new DoubleAnimation(0, target, TimeSpan.FromMilliseconds(520))
                 {
                     BeginTime = TimeSpan.FromMilliseconds(30 * i),
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                    EasingFunction = Motion.Soft
                 });
             }
             col.Children.Add(chart);

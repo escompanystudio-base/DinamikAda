@@ -172,7 +172,7 @@ public static class SocialMailAccountTiles
         el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(ms))
         {
             BeginTime = TimeSpan.FromMilliseconds(beginMs),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            EasingFunction = Motion.Soft
         }, HandoffBehavior.SnapshotAndReplace);
     }
 
@@ -257,7 +257,7 @@ public static class SocialMailAccountTiles
             BeginAnimation(NumberProperty, new DoubleAnimation(value, TimeSpan.FromMilliseconds(ms))
             {
                 BeginTime = TimeSpan.FromMilliseconds(delayMs),
-                EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.Soft
             }, HandoffBehavior.SnapshotAndReplace);
         }
     }
@@ -626,7 +626,7 @@ public static class SocialMailAccountTiles
                 bar.BeginAnimation(BarGauge.ValueProperty, new DoubleAnimation(0, d.Fraction, TimeSpan.FromMilliseconds(760))
                 {
                     BeginTime = TimeSpan.FromMilliseconds(160 + 110 * i),
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                    EasingFunction = Motion.Soft
                 });
             }
             Bar(ctx.T("Kolay", "Easy"), data.Easy, p.Positive, 0);

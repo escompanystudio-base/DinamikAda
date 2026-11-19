@@ -53,7 +53,7 @@ internal static class MediaAppsFinanceWidgetTiles
 
     private static class Fx
     {
-        public static IEasingFunction EaseOut() => new CubicEase { EasingMode = EasingMode.EaseOut };
+        public static IEasingFunction EaseOut() => Motion.Soft;
 
         /// <summary>Animates opacity; ms = 0 sets it immediately (and clears any held animation).</summary>
         public static void FadeTo(UIElement el, double to, double ms, double? from = null, double beginMs = 0)
@@ -346,7 +346,7 @@ internal static class MediaAppsFinanceWidgetTiles
             var st = new ScaleTransform(0.55, 0.55);
             back.RenderTransformOrigin = new Point(0.5, 0.5);
             back.RenderTransform = st;
-            var pop = new BackEase { Amplitude = 0.5, EasingMode = EasingMode.EaseOut };
+            var pop = Motion.Soft;
             st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.55, 1, TimeSpan.FromMilliseconds(260)) { EasingFunction = pop });
             st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.55, 1, TimeSpan.FromMilliseconds(260)) { EasingFunction = pop });
             Fx.FadeTo(back, 1, 220, 0);
@@ -516,7 +516,7 @@ internal static class MediaAppsFinanceWidgetTiles
                 RepeatBehavior = RepeatBehavior.Forever,
                 Duration = TimeSpan.FromSeconds(hold * 2 + move * 2)
             };
-            var ease = new SineEase { EasingMode = EasingMode.EaseInOut };
+            var ease = Motion.Gentle;
             kf.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
             kf.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(hold))));
             kf.KeyFrames.Add(new EasingDoubleKeyFrame(-dist, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(hold + move)), ease));

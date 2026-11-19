@@ -159,7 +159,7 @@ public sealed class SpeedTestWindow : Window
         content.RenderTransform = tt;
         content.Opacity = 0;
         _stage.Children.Add(content);
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var ease = Motion.Soft;
         tt.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(18, 0, TimeSpan.FromMilliseconds(320)) { EasingFunction = ease });
         content.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(240)));
     }
@@ -248,7 +248,7 @@ public sealed class SpeedTestWindow : Window
             if (!sw.IsRunning && input.Text.Length > 0) sw.Start();
             double frac = _sample.Length == 0 ? 0 : Math.Clamp((double)input.Text.Length / _sample.Length, 0, 1);
             progressScale.BeginAnimation(ScaleTransform.ScaleXProperty,
-                new DoubleAnimation(frac, TimeSpan.FromMilliseconds(160)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                new DoubleAnimation(frac, TimeSpan.FromMilliseconds(160)) { EasingFunction = Motion.Soft });
             if (sw.IsRunning)
             {
                 double live = DictationText.Wpm(GeminiJson.CountWords(input.Text), sw.Elapsed);
@@ -395,7 +395,7 @@ public sealed class SpeedTestWindow : Window
         scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0, Math.Clamp(fraction, 0.02, 1), TimeSpan.FromMilliseconds(900))
         {
             BeginTime = begin,
-            EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseOut }
+            EasingFunction = Motion.Soft
         });
         value.AnimateTo(wpm, 900, delayMs);
         return col;
@@ -407,7 +407,7 @@ public sealed class SpeedTestWindow : Window
         var st = new ScaleTransform(0.96, 0.96);
         root.RenderTransformOrigin = new Point(0.5, 0.5);
         root.RenderTransform = st;
-        var ease = new BackEase { Amplitude = 0.3, EasingMode = EasingMode.EaseOut };
+        var ease = Motion.Soft;
         var dur = TimeSpan.FromMilliseconds(260);
         st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.96, 1, dur) { EasingFunction = ease });
         st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.96, 1, dur) { EasingFunction = ease });
@@ -441,7 +441,7 @@ public sealed class SpeedTestWindow : Window
             BeginAnimation(ValueProperty, new DoubleAnimation(0, target, TimeSpan.FromMilliseconds(durationMs))
             {
                 BeginTime = TimeSpan.FromMilliseconds(delayMs),
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.Soft
             });
         }
 

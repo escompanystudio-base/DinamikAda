@@ -162,7 +162,7 @@ internal static class ProductivityWidgetTiles
         {
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever,
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            EasingFunction = Motion.Gentle
         };
         st.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
         st.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
@@ -182,10 +182,10 @@ internal static class ProductivityWidgetTiles
         var st = EnsureScale(el);
         var a = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(1000) };
         a.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-        a.KeyFrames.Add(new EasingDoubleKeyFrame(1.24, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(170)), new QuadraticEase { EasingMode = EasingMode.EaseOut }));
-        a.KeyFrames.Add(new EasingDoubleKeyFrame(0.92, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(430)), new QuadraticEase()));
-        a.KeyFrames.Add(new EasingDoubleKeyFrame(1.10, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(640)), new QuadraticEase()));
-        a.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1000)), new ElasticEase { Oscillations = 1, Springiness = 5 }));
+        a.KeyFrames.Add(new EasingDoubleKeyFrame(1.24, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(170)), Motion.Soft));
+        a.KeyFrames.Add(new EasingDoubleKeyFrame(0.92, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(430)), Motion.Soft));
+        a.KeyFrames.Add(new EasingDoubleKeyFrame(1.10, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(640)), Motion.Soft));
+        a.KeyFrames.Add(new EasingDoubleKeyFrame(1.0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1000)), Motion.Soft));
         st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
         st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
     }
@@ -210,7 +210,7 @@ internal static class ProductivityWidgetTiles
         {
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever,
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            EasingFunction = Motion.Gentle
         });
     }
 
@@ -224,7 +224,7 @@ internal static class ProductivityWidgetTiles
     {
         var tt = new TranslateTransform(0, fromY);
         el.RenderTransform = tt;
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var ease = Motion.Soft;
         tt.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(fromY, 0, TimeSpan.FromMilliseconds(300)) { EasingFunction = ease });
         el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300)) { EasingFunction = ease });
     }
@@ -288,7 +288,7 @@ internal static class ProductivityWidgetTiles
             _target = c;
             Brush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(c, TimeSpan.FromMilliseconds(ms))
             {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.Soft
             });
         }
     }
@@ -376,7 +376,7 @@ internal static class ProductivityWidgetTiles
         {
             BeginAnimation(ProgressProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(ms))
             {
-                EasingFunction = new SineEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.Soft
             });
         }
 
@@ -885,7 +885,7 @@ internal static class ProductivityWidgetTiles
             BeginAnimation(NowFractionProperty, new DoubleAnimation(fraction, TimeSpan.FromMilliseconds(first ? 1200 : 800))
             {
                 From = first ? 0 : null,
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.Soft
             }, HandoffBehavior.SnapshotAndReplace);
         }
 
@@ -893,7 +893,7 @@ internal static class ProductivityWidgetTiles
         {
             BeginAnimation(GrowProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(ms))
             {
-                EasingFunction = new SineEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.Soft
             });
         }
 
@@ -2163,7 +2163,7 @@ internal static class ProductivityWidgetTiles
 
         public void AnimateCheck()
         {
-            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            var ease = Motion.Soft;
             _tick.Opacity = 1;
             _fill.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(170)));
             _ring.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(170)));
@@ -2577,7 +2577,7 @@ internal static class ProductivityWidgetTiles
                 return;
             }
             incoming.Text = text;
-            var ease = new SineEase { EasingMode = EasingMode.EaseInOut };
+            var ease = Motion.Gentle;
             incoming.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(380)) { EasingFunction = ease });
             outgoing.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(380)) { EasingFunction = ease });
             _aActive = !_aActive;
@@ -3044,7 +3044,7 @@ internal static class ProductivityWidgetTiles
             _swapAngle += 180;
             _swapRot?.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(_swapAngle, TimeSpan.FromMilliseconds(420))
             {
-                EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.35 }
+                EasingFunction = Motion.Soft
             });
             if (ctx.IsAuditMode) return;
             ctx.EditConfig(c => (c.CurrencyFrom, c.CurrencyTo) = (c.CurrencyTo, c.CurrencyFrom));

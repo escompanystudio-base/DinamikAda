@@ -115,13 +115,13 @@ internal static class ClockWidgetTiles
     /// <summary>Fades the element out, applies the change, then fades it back in.</summary>
     private static void FadeSwap(UIElement el, Action change)
     {
-        var o = new DoubleAnimation(0, TimeSpan.FromMilliseconds(140)) { EasingFunction = new QuadraticEase() };
+        var o = new DoubleAnimation(0, TimeSpan.FromMilliseconds(140)) { EasingFunction = Motion.Soft };
         o.Completed += (_, _) =>
         {
             change();
             el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260))
             {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.Soft
             });
         };
         el.BeginAnimation(UIElement.OpacityProperty, o);
@@ -333,11 +333,11 @@ internal static class ClockWidgetTiles
             _flapBottomScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
             _flapBottomScale.ScaleY = 0;
 
-            var fold = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(150)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
+            var fold = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(150)) { EasingFunction = Motion.Exit };
             fold.Completed += (_, _) =>
             {
                 _flapTop.Visibility = Visibility.Hidden;
-                var unfold = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
+                var unfold = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150)) { EasingFunction = Motion.Soft };
                 unfold.Completed += (_, _) =>
                 {
                     _bottomText.Text = _value;
@@ -489,7 +489,7 @@ internal static class ClockWidgetTiles
             }
             rt.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(current, next, TimeSpan.FromMilliseconds(600))
             {
-                EasingFunction = new BackEase { Amplitude = 0.25, EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.Soft
             }, HandoffBehavior.SnapshotAndReplace);
             return next;
         }
@@ -707,7 +707,7 @@ internal static class ClockWidgetTiles
                 _highlight.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(0, target, TimeSpan.FromMilliseconds(520))
                 {
                     BeginTime = TimeSpan.FromMilliseconds(120),
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                    EasingFunction = Motion.Soft
                 });
                 _highlight.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300)));
             }
@@ -977,9 +977,9 @@ internal static class ClockWidgetTiles
                 RenderTransform = _lift
             };
             page.MouseEnter += (_, _) => _lift.BeginAnimation(TranslateTransform.YProperty,
-                new DoubleAnimation(-Math.Max(1.5, h * 0.06), TimeSpan.FromMilliseconds(160)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                new DoubleAnimation(-Math.Max(1.5, h * 0.06), TimeSpan.FromMilliseconds(160)) { EasingFunction = Motion.Soft });
             page.MouseLeave += (_, _) => _lift.BeginAnimation(TranslateTransform.YProperty,
-                new DoubleAnimation(0, TimeSpan.FromMilliseconds(200)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                new DoubleAnimation(0, TimeSpan.FromMilliseconds(200)) { EasingFunction = Motion.Soft });
             return page;
         }
 
@@ -995,13 +995,13 @@ internal static class ClockWidgetTiles
                 _num.Text = day.Day.ToString(CultureInfo.InvariantCulture);
             }
             if (first) { Apply(); return; }
-            var down = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(180)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
+            var down = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(180)) { EasingFunction = Motion.Exit };
             down.Completed += (_, _) =>
             {
                 Apply();
                 _fold.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260))
                 {
-                    EasingFunction = new BackEase { Amplitude = 0.3, EasingMode = EasingMode.EaseOut }
+                    EasingFunction = Motion.Soft
                 });
             };
             _fold.BeginAnimation(ScaleTransform.ScaleYProperty, down);
@@ -1223,7 +1223,7 @@ internal static class ClockWidgetTiles
             {
                 AutoReverse = true,
                 RepeatBehavior = RepeatBehavior.Forever,
-                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                EasingFunction = Motion.Gentle
             });
 
         public override void OnDetached() => _colon.BeginAnimation(UIElement.OpacityProperty, null);

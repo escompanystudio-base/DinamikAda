@@ -5,6 +5,7 @@ using System.Windows.Media.Animation;
 using DinamikAda.Core.Config;
 using DinamikAda.Platform.Win32.Interop;
 using DinamikAda.Platform.Win32.Windowing;
+using DinamikAda.App.Views.DockWidgets;
 
 namespace DinamikAda.App.Views;
 
@@ -63,7 +64,7 @@ public partial class DockWindow
     {
         if (_isSmokeOrAuditMode) return;
         var dur = TimeSpan.FromMilliseconds(320);
-        var ease = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut };
+        var ease = Motion.Soft;
         DockItemsHost.BeginAnimation(OpacityProperty, new DoubleAnimation(0.2, 1, dur));
         var tt = new System.Windows.Media.TranslateTransform(0, IsDockAtTop ? -18 : 18);
         DockItemsHost.RenderTransform = tt;

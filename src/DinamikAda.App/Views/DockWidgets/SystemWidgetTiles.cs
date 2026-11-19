@@ -82,7 +82,7 @@ internal static class SystemWidgetTiles
     {
         brush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(c, TimeSpan.FromMilliseconds(ms))
         {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            EasingFunction = Motion.Soft
         });
     }
 
@@ -91,7 +91,7 @@ internal static class SystemWidgetTiles
         {
             AutoReverse = autoReverse,
             RepeatBehavior = RepeatBehavior.Forever,
-            EasingFunction = autoReverse ? new SineEase { EasingMode = EasingMode.EaseInOut } : null
+            EasingFunction = autoReverse ? Motion.Gentle : null
         };
 
     /// <summary>Returns a frozen brush for a colour, reusing the last one while the colour is unchanged.</summary>
@@ -327,7 +327,7 @@ internal static class SystemWidgetTiles
         private static void SlideIn(FrameworkElement el, int index)
         {
             var begin = TimeSpan.FromMilliseconds(index * 45);
-            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            var ease = Motion.Soft;
             if (el.RenderTransform is TranslateTransform tt && !tt.IsFrozen)
                 tt.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(7, 0, TimeSpan.FromMilliseconds(300)) { BeginTime = begin, EasingFunction = ease });
             el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0.1, 1, TimeSpan.FromMilliseconds(300)) { BeginTime = begin, EasingFunction = ease });
@@ -433,13 +433,13 @@ internal static class SystemWidgetTiles
             _pending = text;
             if (_flipping) return;
             _flipping = true;
-            var close = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(120)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
+            var close = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(120)) { EasingFunction = Motion.Exit };
             close.Completed += (_, _) =>
             {
                 _text.Text = _pending;
                 _flipping = false;
                 _flip.BeginAnimation(ScaleTransform.ScaleYProperty,
-                    new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } });
+                    new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)) { EasingFunction = Motion.Soft });
             };
             _flip.BeginAnimation(ScaleTransform.ScaleYProperty, close);
         }
@@ -925,7 +925,7 @@ internal static class SystemWidgetTiles
                 _sheenMove.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-_bodyW * 0.5, _bodyW, TimeSpan.FromSeconds(1.8))
                 {
                     RepeatBehavior = RepeatBehavior.Forever,
-                    EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                    EasingFunction = Motion.Gentle
                 });
             }
             else
@@ -1314,7 +1314,7 @@ internal static class SystemWidgetTiles
                 _target = angle;
                 _needle.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(angle, TimeSpan.FromMilliseconds(1100))
                 {
-                    EasingFunction = new ElasticEase { Oscillations = 2, Springiness = 5, EasingMode = EasingMode.EaseOut }
+                    EasingFunction = Motion.Soft
                 }, HandoffBehavior.SnapshotAndReplace);
             }
             UpdateLoop(b.Has && b.Charging);
@@ -1598,7 +1598,7 @@ internal static class SystemWidgetTiles
             _value = pct;
             _bar.AnimateTo(pct / 100.0, ms);
             double s = 0.78 + 0.32 * pct / 100.0;
-            var anim = new DoubleAnimation(s, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            var anim = new DoubleAnimation(s, TimeSpan.FromMilliseconds(220)) { EasingFunction = Motion.Soft };
             _sunScale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
             _sunScale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
             _pct.Text = Pct(_ctx, pct);
@@ -1707,7 +1707,7 @@ internal static class SystemWidgetTiles
                 return;
             }
             _angle += 180;
-            var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
+            var ease = Motion.Gentle;
             _rot.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(_angle, TimeSpan.FromMilliseconds(520)) { EasingFunction = ease });
             _moon.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(dark ? 1 : 0, TimeSpan.FromMilliseconds(380)));
             _sun.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(dark ? 0 : 1, TimeSpan.FromMilliseconds(380)));
@@ -1866,7 +1866,7 @@ internal static class SystemWidgetTiles
             var kf = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(700) };
             double[] angles = [0, -18, 15, -11, 7, -3, 0];
             for (int i = 0; i < angles.Length; i++)
-                kf.KeyFrames.Add(new EasingDoubleKeyFrame(angles[i], KeyTime.FromPercent(i / (double)(angles.Length - 1)), new SineEase()));
+                kf.KeyFrames.Add(new EasingDoubleKeyFrame(angles[i], KeyTime.FromPercent(i / (double)(angles.Length - 1)), Motion.Soft));
             _shake.BeginAnimation(RotateTransform.AngleProperty, kf);
         }
 

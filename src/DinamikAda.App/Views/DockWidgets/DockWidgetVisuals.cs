@@ -40,17 +40,16 @@ public sealed class RingGauge : FrameworkElement
 
     private double _target = double.NaN;
 
-    /// <summary>Animates to <paramref name="value"/> (0..1) with an ease-out; no-op when unchanged.</summary>
-    public void AnimateTo(double value, double ms = 520)
+    /// <summary>
+    /// Glides to <paramref name="value"/> (0..1) with the soft motion curve; retargets smoothly mid-flight, so values
+    /// that update every second look continuous. No-op when unchanged.
+    /// </summary>
+    public void AnimateTo(double value, double ms = Motion.ValueMs)
     {
         value = double.IsFinite(value) ? Math.Clamp(value, 0, 1) : 0;
         if (!double.IsNaN(_target) && Math.Abs(_target - value) < 0.0015) return;
         _target = value;
-        var anim = new DoubleAnimation(value, TimeSpan.FromMilliseconds(ms))
-        {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-        };
-        BeginAnimation(ValueProperty, anim, HandoffBehavior.SnapshotAndReplace);
+        BeginAnimation(ValueProperty, Motion.To(value, ms), HandoffBehavior.SnapshotAndReplace);
     }
 
     protected override void OnRender(DrawingContext dc)
@@ -124,15 +123,13 @@ public sealed class BarGauge : FrameworkElement
 
     private double _target = double.NaN;
 
-    public void AnimateTo(double value, double ms = 480)
+    /// <summary>Glides to <paramref name="value"/> (0..1) with the soft motion curve; no-op when unchanged.</summary>
+    public void AnimateTo(double value, double ms = Motion.ValueMs)
     {
         value = double.IsFinite(value) ? Math.Clamp(value, 0, 1) : 0;
         if (!double.IsNaN(_target) && Math.Abs(_target - value) < 0.0015) return;
         _target = value;
-        BeginAnimation(ValueProperty, new DoubleAnimation(value, TimeSpan.FromMilliseconds(ms))
-        {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-        }, HandoffBehavior.SnapshotAndReplace);
+        BeginAnimation(ValueProperty, Motion.To(value, ms), HandoffBehavior.SnapshotAndReplace);
     }
 
     protected override void OnRender(DrawingContext dc)
@@ -155,11 +152,27 @@ public sealed class BarGauge : FrameworkElement
     }
 }
 
-/// <summary>Line chart for a short series with an optional area fill and second series.</summary>
+/// <summary>
+/// Line chart for a short series with an optional area fill and second series.
+/// <list type="bullet">
+/// <item>The line is a smooth curve (Catmull-Rom), not a polyline.</item>
+/// <item>When new data arrives, a rolling window (the old series shifted by one sample) flows left by one step.</item>
+/// <item>Other changes morph point by point, and the vertical scale eases too, so the chart never jumps.</item>
+/// </list>
+/// </summary>
 public sealed class Sparkline : FrameworkElement
 {
-    private IReadOnlyList<double> _values = [];
-    private IReadOnlyList<double>? _second;
+    public static readonly DependencyProperty ProgressProperty = DependencyProperty.Register(
+        nameof(Progress), typeof(double), typeof(Sparkline),
+        new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    private double[] _from = [];
+    private double[] _to = [];
+    private double[]? _fromSecond;
+    private double[]? _toSecond;
+    private bool _shift;
+    private (double Min, double Max) _fromScale;
+    private (double Min, double Max) _toScale;
 
     public Brush Stroke { get; set; } = Brushes.DeepSkyBlue;
     public Brush? SecondStroke { get; set; }
@@ -169,48 +182,129 @@ public sealed class Sparkline : FrameworkElement
     public double? FixedMax { get; set; }
     /// <summary>Draw a dot on the last point.</summary>
     public bool ShowHead { get; set; } = true;
+    /// <summary>Smooth curve (default) instead of straight segments.</summary>
+    public bool Smooth { get; set; } = true;
+    /// <summary>Animate data changes (flow / morph); off draws new data immediately.</summary>
+    public bool AnimateChanges { get; set; } = true;
+
+    /// <summary>Transition progress 0..1 between the previous and the current data (animated).</summary>
+    public double Progress
+    {
+        get => (double)GetValue(ProgressProperty);
+        set => SetValue(ProgressProperty, value);
+    }
 
     public void SetValues(IReadOnlyList<double> values, IReadOnlyList<double>? second = null)
     {
-        _values = values;
-        _second = second;
-        InvalidateVisual();
+        var next = values.ToArray();
+        var nextSecond = second?.ToArray();
+        if (SameSeries(next, _to) && SameSeries(nextSecond, _toSecond)) return;
+
+        bool hadData = _to.Length >= 2;
+        _shift = hadData && IsShiftedByOne(_to, next) && (_toSecond is null || nextSecond is null || IsShiftedByOne(_toSecond, nextSecond));
+        _from = _to;
+        _fromSecond = _toSecond;
+        _fromScale = hadData ? _toScale : Scale(next, nextSecond);
+        _to = next;
+        _toSecond = nextSecond;
+        _toScale = Scale(next, nextSecond);
+
+        if (!AnimateChanges || !hadData)
+        {
+            BeginAnimation(ProgressProperty, null);
+            Progress = 1;
+            InvalidateVisual();
+            return;
+        }
+        BeginAnimation(ProgressProperty, Motion.FromTo(0, 1, Motion.ValueMs), HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private static bool SameSeries(double[]? a, double[]? b)
+    {
+        if (a is null || b is null) return a is null && b is null;
+        if (a.Length != b.Length) return false;
+        for (int i = 0; i < a.Length; i++)
+            if (!(a[i] == b[i] || (double.IsNaN(a[i]) && double.IsNaN(b[i])))) return false;
+        return true;
+    }
+
+    /// <summary>True when <paramref name="next"/> is <paramref name="prev"/> moved left by one sample (a rolling window).</summary>
+    private static bool IsShiftedByOne(double[] prev, double[] next)
+    {
+        if (prev.Length != next.Length || prev.Length < 4) return false;
+        int n = prev.Length;
+        for (int i = 0; i < n - 1; i++)
+        {
+            double a = prev[i + 1], b = next[i];
+            double tol = Math.Max(1e-9, Math.Abs(a) * 1e-6);
+            if (double.IsFinite(a) != double.IsFinite(b) || (double.IsFinite(a) && Math.Abs(a - b) > tol)) return false;
+        }
+        return true;
+    }
+
+    private (double Min, double Max) Scale(double[] values, double[]? second)
+    {
+        double max = FixedMax ?? Math.Max(MaxOf(values), second is null ? double.MinValue : MaxOf(second));
+        double min = FixedMax.HasValue ? 0 : Math.Min(MinOf(values), second is null ? double.MaxValue : MinOf(second));
+        if (FixedMax is null && second is not null) min = Math.Min(min, 0);
+        if (max - min < 1e-9) max = min + 1;
+        return (min, max);
     }
 
     protected override void OnRender(DrawingContext dc)
     {
         double w = ActualWidth, h = ActualHeight;
-        if (w <= 2 || h <= 2 || _values.Count < 2) return;
-        double max = FixedMax ?? Math.Max(MaxOf(_values), _second is null ? double.MinValue : MaxOf(_second));
-        double min = FixedMax.HasValue ? 0 : Math.Min(MinOf(_values), _second is null ? double.MaxValue : MinOf(_second));
-        if (FixedMax is null && _second is not null) min = Math.Min(min, 0);
-        if (max - min < 1e-9) { max = min + 1; }
+        if (w <= 2 || h <= 2 || _to.Length < 2) return;
+        double p = Math.Clamp(Progress, 0, 1);
+        double min = Lerp(_fromScale.Min, _toScale.Min, p);
+        double max = Lerp(_fromScale.Max, _toScale.Max, p);
+        if (max - min < 1e-9) max = min + 1;
 
-        if (_second is { Count: >= 2 } && SecondStroke is not null)
+        dc.PushClip(new RectangleGeometry(new Rect(0, -StrokeThickness * 2, w, h + StrokeThickness * 4)));
+        if (_toSecond is { Length: >= 2 } && SecondStroke is not null)
         {
-            DrawSeries(dc, _second, SecondStroke, w, h, min, max, fill: false, head: false);
+            DrawSeries(dc, Frame(_fromSecond, _toSecond, p, w, h, min, max), SecondStroke, h, fill: false, head: false);
         }
-        DrawSeries(dc, _values, Stroke, w, h, min, max, FillArea, ShowHead);
+        DrawSeries(dc, Frame(_from, _to, p, w, h, min, max), Stroke, h, FillArea, ShowHead);
+        dc.Pop();
     }
 
-    private void DrawSeries(DrawingContext dc, IReadOnlyList<double> values, Brush stroke, double w, double h,
-        double min, double max, bool fill, bool head)
+    /// <summary>Points for the current animation frame: flowing (rolling window), morphing, or the target series.</summary>
+    private Point[] Frame(double[]? from, double[] to, double p, double w, double h, double min, double max)
     {
-        var pts = new Point[values.Count];
-        double pad = StrokeThickness;
-        for (int i = 0; i < values.Count; i++)
+        int n = to.Length;
+        double step = (w - 1) / (n - 1);
+        double pad = StrokeThickness * 1.5;
+        double Y(double v) => pad + (1 - ((double.IsFinite(v) ? v : min) - min) / (max - min)) * (h - pad * 2);
+
+        if (_shift && from is { Length: > 0 } && from.Length == n && p < 1)
         {
-            double v = double.IsFinite(values[i]) ? values[i] : min;
-            double x = values.Count == 1 ? w / 2 : i * (w - 1) / (values.Count - 1);
-            double y = pad + (1 - (v - min) / (max - min)) * (h - pad * 2);
-            pts[i] = new Point(x, y);
+            // Old first sample plus the new series, all sliding left by one step as p goes 0 → 1.
+            var pts = new Point[n + 1];
+            pts[0] = new Point((0 - p) * step, Y(from[0]));
+            for (int i = 0; i < n; i++) pts[i + 1] = new Point((i + 1 - p) * step, Y(to[i]));
+            return pts;
         }
+        var res = new Point[n];
+        bool morph = from is not null && from.Length == n && p < 1;
+        for (int i = 0; i < n; i++)
+        {
+            double v = morph ? Lerp(Finite(from![i], to[i]), to[i], p) : to[i];
+            res[i] = new Point(i * step, Y(v));
+        }
+        return res;
+    }
+
+    private void DrawSeries(DrawingContext dc, Point[] pts, Brush stroke, double h, bool fill, bool head)
+    {
+        if (pts.Length < 2) return;
+        double top = StrokeThickness, bottom = h - StrokeThickness;
 
         var line = new StreamGeometry();
         using (var g = line.Open())
         {
             g.BeginFigure(pts[0], false, false);
-            g.PolyLineTo(pts.Skip(1).ToList(), true, true);
+            AppendCurve(g, pts, top, bottom);
         }
         line.Freeze();
 
@@ -221,21 +315,51 @@ public sealed class Sparkline : FrameworkElement
             {
                 g.BeginFigure(new Point(pts[0].X, h), true, true);
                 g.LineTo(pts[0], false, false);
-                g.PolyLineTo(pts.Skip(1).ToList(), false, true);
+                AppendCurve(g, pts, top, bottom, stroked: false);
                 g.LineTo(new Point(pts[^1].X, h), false, false);
             }
             area.Freeze();
             var c = sb.Color;
-            var grad = new LinearGradientBrush(Color.FromArgb(0x55, c.R, c.G, c.B), Color.FromArgb(0x00, c.R, c.G, c.B), 90);
+            var grad = new LinearGradientBrush(Color.FromArgb(0x4A, c.R, c.G, c.B), Color.FromArgb(0x00, c.R, c.G, c.B), 90);
             grad.Freeze();
             dc.DrawGeometry(grad, null, area);
         }
 
         var pen = new Pen(stroke, StrokeThickness) { LineJoin = PenLineJoin.Round, StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
         dc.DrawGeometry(null, pen, line);
-        if (head) dc.DrawEllipse(stroke, null, pts[^1], StrokeThickness * 1.4, StrokeThickness * 1.4);
+        if (head)
+        {
+            var last = pts[^1];
+            if (stroke is SolidColorBrush hb)
+            {
+                var halo = new SolidColorBrush(Color.FromArgb(0x40, hb.Color.R, hb.Color.G, hb.Color.B));
+                halo.Freeze();
+                dc.DrawEllipse(halo, null, last, StrokeThickness * 3.0, StrokeThickness * 3.0);
+            }
+            dc.DrawEllipse(stroke, null, last, StrokeThickness * 1.35, StrokeThickness * 1.35);
+        }
     }
 
+    /// <summary>Catmull-Rom spline through the points as cubic Béziers, with control points kept inside the chart.</summary>
+    private void AppendCurve(StreamGeometryContext g, Point[] pts, double top, double bottom, bool stroked = true)
+    {
+        if (!Smooth || pts.Length < 3)
+        {
+            g.PolyLineTo(pts.Skip(1).ToList(), stroked, true);
+            return;
+        }
+        const double k = 1.0 / 6.0;
+        for (int i = 0; i < pts.Length - 1; i++)
+        {
+            Point p0 = pts[Math.Max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.Min(pts.Length - 1, i + 2)];
+            var c1 = new Point(p1.X + (p2.X - p0.X) * k, Math.Clamp(p1.Y + (p2.Y - p0.Y) * k, top, bottom));
+            var c2 = new Point(p2.X - (p3.X - p1.X) * k, Math.Clamp(p2.Y - (p3.Y - p1.Y) * k, top, bottom));
+            g.BezierTo(c1, c2, p2, stroked, true);
+        }
+    }
+
+    private static double Lerp(double a, double b, double t) => a + (b - a) * t;
+    private static double Finite(double v, double fallback) => double.IsFinite(v) ? v : fallback;
     private static double MaxOf(IReadOnlyList<double> v) { double m = double.MinValue; foreach (var x in v) if (double.IsFinite(x) && x > m) m = x; return m == double.MinValue ? 0 : m; }
     private static double MinOf(IReadOnlyList<double> v) { double m = double.MaxValue; foreach (var x in v) if (double.IsFinite(x) && x < m) m = x; return m == double.MaxValue ? 0 : m; }
 }
@@ -335,23 +459,24 @@ public static class W
             tt = new TranslateTransform();
             tb.RenderTransform = tt;
         }
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        tt.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(4, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
-        tb.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0.25, 1, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease });
+        // A soft roll: the new value rises a few pixels into place while fading up, no hard swap.
+        double rise = Math.Max(2.5, tb.FontSize * 0.22);
+        tt.BeginAnimation(TranslateTransform.YProperty, Motion.FromTo(rise, 0, Motion.TextMs), HandoffBehavior.SnapshotAndReplace);
+        tb.BeginAnimation(UIElement.OpacityProperty, Motion.FromTo(0.35, 1, Motion.TextMs), HandoffBehavior.SnapshotAndReplace);
     }
 
-    /// <summary>Spring pop-in used when a tile is added to the dock.</summary>
+    /// <summary>Soft entrance (tiles added to the dock, card rows): settles into place with no overshoot.</summary>
     public static void PopIn(FrameworkElement el, double delayMs = 0)
     {
-        var st = new ScaleTransform(0.55, 0.55);
+        var st = new ScaleTransform(0.9, 0.9);
+        var tt = new TranslateTransform(0, 4);
         el.RenderTransformOrigin = new Point(0.5, 0.6);
-        el.RenderTransform = st;
+        el.RenderTransform = new TransformGroup { Children = { st, tt } };
         el.Opacity = 0;
-        var begin = TimeSpan.FromMilliseconds(delayMs);
-        var spring = new ElasticEase { Oscillations = 1, Springiness = 6, EasingMode = EasingMode.EaseOut };
-        st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.55, 1, TimeSpan.FromMilliseconds(560)) { BeginTime = begin, EasingFunction = spring });
-        st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.55, 1, TimeSpan.FromMilliseconds(560)) { BeginTime = begin, EasingFunction = spring });
-        el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)) { BeginTime = begin });
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, Motion.FromTo(0.9, 1, Motion.EnterMs, delayMs: delayMs));
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, Motion.FromTo(0.9, 1, Motion.EnterMs, delayMs: delayMs));
+        tt.BeginAnimation(TranslateTransform.YProperty, Motion.FromTo(4, 0, Motion.EnterMs, delayMs: delayMs));
+        el.BeginAnimation(UIElement.OpacityProperty, Motion.FromTo(0, 1, Motion.EnterMs * 0.7, delayMs: delayMs));
     }
 
     /// <summary>Quick scale "tap" feedback.</summary>
@@ -363,9 +488,13 @@ public static class W
             el.RenderTransformOrigin = new Point(0.5, 0.5);
             el.RenderTransform = st;
         }
-        var anim = new DoubleAnimation(scale, TimeSpan.FromMilliseconds(90)) { AutoReverse = true, EasingFunction = new QuadraticEase() };
-        st.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
-        st.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+        // Gentle press: a small dip that eases back, never a snap.
+        double target = 1 - (1 - scale) * 0.6;
+        var anim = new DoubleAnimationUsingKeyFrames();
+        anim.KeyFrames.Add(new EasingDoubleKeyFrame(target, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(110)), Motion.Gentle));
+        anim.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(420)), Motion.Soft));
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, anim, HandoffBehavior.SnapshotAndReplace);
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, anim, HandoffBehavior.SnapshotAndReplace);
     }
 
     /// <summary>Endless rotation (e.g. a charging spark); returns the clock-free animation so callers can stop it.</summary>
@@ -386,7 +515,7 @@ public static class W
         {
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever,
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            EasingFunction = Motion.Gentle
         });
     }
 

@@ -120,7 +120,7 @@ internal static class WeatherWidgetTiles
             tb.Text = text;
             tb.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260))
             {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.Soft
             });
         };
         tb.BeginAnimation(UIElement.OpacityProperty, o);
@@ -136,7 +136,7 @@ internal static class WeatherWidgetTiles
             el.RenderTransform = tt;
             el.Opacity = 0;
             var begin = TimeSpan.FromMilliseconds(i * stepMs);
-            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            var ease = Motion.Soft;
             tt.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(5, 0, TimeSpan.FromMilliseconds(340)) { BeginTime = begin, EasingFunction = ease });
             el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300)) { BeginTime = begin });
             i++;
@@ -431,7 +431,7 @@ internal static class WeatherWidgetTiles
             if (double.IsNaN(from)) from = -_markerSize / 2;
             _marker.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(from, target, TimeSpan.FromMilliseconds(animate ? 600 : 900))
             {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.Soft
             });
         }
     }
@@ -630,7 +630,7 @@ internal static class WeatherWidgetTiles
                 new Rect(0, 0, 0, _sparkH), new Rect(0, 0, _w, _sparkH), TimeSpan.FromMilliseconds(900))
             {
                 BeginTime = TimeSpan.FromMilliseconds(150),
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+                EasingFunction = Motion.Gentle
             });
         }
 
@@ -670,7 +670,7 @@ internal static class WeatherWidgetTiles
             _target = value;
             var anim = new DoubleAnimation(value, TimeSpan.FromMilliseconds(fromStart ? 1400 : 800))
             {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+                EasingFunction = Motion.Gentle
             };
             if (fromStart) anim.From = 0;
             BeginAnimation(ProgressProperty, anim, HandoffBehavior.SnapshotAndReplace);

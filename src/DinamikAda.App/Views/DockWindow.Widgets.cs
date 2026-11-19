@@ -226,7 +226,7 @@ public partial class DockWindow
             {
                 AutoReverse = true,
                 RepeatBehavior = RepeatBehavior.Forever,
-                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                EasingFunction = Motion.Gentle
             });
         }
         return badge;
@@ -303,40 +303,86 @@ public partial class DockWindow
         WidgetCardPopup.Placement = IsDockAtTop ? PlacementMode.Bottom : PlacementMode.Top;
         WidgetCardPopup.VerticalOffset = IsDockAtTop ? 18 : -18;
         WidgetCardPopup.PlacementTarget = anchor;
-        if (reopen)
+        bool wasClosing = _cardClosing;
+        _cardClosing = false;
+        if (reopen && wasClosing)
         {
-            // Re-anchor an already open card without a flicker.
+            PlayCardOpenAnimation();
+        }
+        else if (reopen)
+        {
+            // Re-anchor an already open card without a flicker and let the new content fade in softly.
             WidgetCardPopup.HorizontalOffset += 0.01;
             WidgetCardPopup.HorizontalOffset -= 0.01;
+            PlayCardContentSwap();
         }
         else
         {
             WidgetCardPopup.IsOpen = true;
+            PlayCardOpenAnimation();
         }
-        PlayCardOpenAnimation();
     }
+
+    private bool _cardClosing;
 
     private void PlayCardOpenAnimation()
     {
         if (_isSmokeOrAuditMode) return;
-        var st = new ScaleTransform(0.94, 0.94);
-        var tt = new TranslateTransform(0, IsDockAtTop ? -8 : 8);
+        double rise = IsDockAtTop ? -10 : 10;
+        var st = new ScaleTransform(0.96, 0.96);
+        var tt = new TranslateTransform(0, rise);
         var tg = new TransformGroup();
         tg.Children.Add(st);
         tg.Children.Add(tt);
         WidgetCardBorder.RenderTransformOrigin = new Point(0.5, IsDockAtTop ? 0.0 : 1.0);
         WidgetCardBorder.RenderTransform = tg;
-        var ease = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut };
-        var dur = TimeSpan.FromMilliseconds(240);
-        st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.94, 1, dur) { EasingFunction = ease });
-        st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.94, 1, dur) { EasingFunction = ease });
-        tt.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(IsDockAtTop ? -8 : 8, 0, dur) { EasingFunction = ease });
-        WidgetCardBorder.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160)));
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, Motion.FromTo(0.96, 1, Motion.EnterMs));
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, Motion.FromTo(0.96, 1, Motion.EnterMs));
+        tt.BeginAnimation(TranslateTransform.YProperty, Motion.FromTo(rise, 0, Motion.EnterMs));
+        WidgetCardBorder.BeginAnimation(OpacityProperty, Motion.FromTo(0, 1, Motion.EnterMs * 0.65));
+    }
+
+    /// <summary>Another tile's card replaces the open one: crossfade the content instead of re-opening.</summary>
+    private void PlayCardContentSwap()
+    {
+        if (_isSmokeOrAuditMode) return;
+        WidgetCardBorder.BeginAnimation(OpacityProperty, Motion.To(1, 200));
+        var tt = new TranslateTransform(0, IsDockAtTop ? -4 : 4);
+        WidgetCardHost.RenderTransform = tt;
+        tt.BeginAnimation(TranslateTransform.YProperty, Motion.To(0, Motion.EnterMs));
+        WidgetCardHost.BeginAnimation(OpacityProperty, Motion.FromTo(0, 1, Motion.EnterMs * 0.7));
     }
 
     private void CloseWidgetCard()
     {
-        if (WidgetCardPopup.IsOpen) WidgetCardPopup.IsOpen = false;
+        if (!WidgetCardPopup.IsOpen || _cardClosing) return;
+        if (_isSmokeOrAuditMode || _isClosed)
+        {
+            WidgetCardPopup.IsOpen = false;
+            return;
+        }
+        // Fade and sink softly, then close the popup.
+        _cardClosing = true;
+        double sink = IsDockAtTop ? -6 : 6;
+        var st = new ScaleTransform(1, 1);
+        var tt = new TranslateTransform(0, 0);
+        var tg = new TransformGroup();
+        tg.Children.Add(st);
+        tg.Children.Add(tt);
+        WidgetCardBorder.RenderTransform = tg;
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, Motion.To(0.97, Motion.ExitMs, Motion.Exit));
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, Motion.To(0.97, Motion.ExitMs, Motion.Exit));
+        tt.BeginAnimation(TranslateTransform.YProperty, Motion.To(sink, Motion.ExitMs, Motion.Exit));
+        var fade = Motion.To(0, Motion.ExitMs, Motion.Exit);
+        fade.Completed += (_, _) =>
+        {
+            if (!_cardClosing) return; // reopened meanwhile
+            _cardClosing = false;
+            WidgetCardPopup.IsOpen = false;
+            WidgetCardBorder.BeginAnimation(OpacityProperty, null);
+            WidgetCardBorder.Opacity = 1;
+        };
+        WidgetCardBorder.BeginAnimation(OpacityProperty, fade);
     }
 
     private void OnWidgetCardOpened(object? sender, EventArgs e)
@@ -405,7 +451,7 @@ public partial class DockWindow
         root.RenderTransformOrigin = new Point(0.5, 0.5);
         root.RenderTransform = st;
         var dur = TimeSpan.FromMilliseconds(180);
-        var shrink = new DoubleAnimation(1, 0.4, dur) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
+        var shrink = new DoubleAnimation(1, 0.4, dur) { EasingFunction = Motion.Exit };
         shrink.Completed += (_, _) => Commit();
         st.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
         st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, 0.4, dur));

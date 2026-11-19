@@ -359,7 +359,7 @@ public sealed class DockWidgetPickerWindow : Window
         var begin = TimeSpan.FromMilliseconds(Math.Min(index, 18) * 22);
         card.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)) { BeginTime = begin });
         ((TranslateTransform)card.RenderTransform).BeginAnimation(TranslateTransform.YProperty,
-            new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(280)) { BeginTime = begin, EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(280)) { BeginTime = begin, EasingFunction = Motion.Soft });
 
         _previews.Add((tile, card, check));
         try
@@ -381,7 +381,7 @@ public sealed class DockWidgetPickerWindow : Window
         {
             tt.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(y, TimeSpan.FromMilliseconds(160))
             {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                EasingFunction = Motion.Soft
             });
         }
     }
@@ -409,7 +409,7 @@ public sealed class DockWidgetPickerWindow : Window
         }
         var anim = new DoubleAnimation(target, TimeSpan.FromMilliseconds(on ? 380 : 160))
         {
-            EasingFunction = on ? new ElasticEase { Oscillations = 1, Springiness = 5 } : new QuadraticEase()
+            EasingFunction = on ? Motion.Soft : Motion.Soft
         };
         st.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
         st.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
@@ -439,7 +439,7 @@ public sealed class DockWidgetPickerWindow : Window
         var st = new ScaleTransform(0.96, 0.96);
         root.RenderTransformOrigin = new Point(0.5, 1.0);
         root.RenderTransform = st;
-        var ease = new BackEase { Amplitude = 0.3, EasingMode = EasingMode.EaseOut };
+        var ease = Motion.Soft;
         var dur = TimeSpan.FromMilliseconds(260);
         st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.96, 1, dur) { EasingFunction = ease });
         st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.96, 1, dur) { EasingFunction = ease });

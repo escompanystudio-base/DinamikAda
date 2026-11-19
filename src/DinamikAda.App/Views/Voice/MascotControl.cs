@@ -6,6 +6,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using DinamikAda.Core.Voice;
+using DinamikAda.App.Views.DockWidgets;
 
 namespace DinamikAda.App.Views.Voice;
 
@@ -495,7 +496,7 @@ public sealed class MascotControl : Viewbox
                     Run(_mouthOpen, ScaleTransform.ScaleYProperty, chatter);
                     var hop = new DoubleAnimationUsingKeyFrames();
                     hop.KeyFrames.Add(new EasingDoubleKeyFrame(-10, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(200)), Ease()));
-                    hop.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(640)), new BounceEase { Bounces = 2, Bounciness = 2.6, EasingMode = EasingMode.EaseOut }));
+                    hop.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(640)), Motion.Soft));
                     hop.Completed += (_, _) => { if (token == _stateToken) StartBob(2.4, 1500); };
                     Run(_move, TranslateTransform.YProperty, hop);
                     var squish = new DoubleAnimationUsingKeyFrames();
@@ -653,7 +654,7 @@ public sealed class MascotControl : Viewbox
     private static DoubleAnimation To(double to, double ms, IEasingFunction? ease = null)
         => new(to, TimeSpan.FromMilliseconds(ms)) { EasingFunction = ease };
 
-    private static IEasingFunction Ease(EasingMode mode = EasingMode.EaseOut) => new SineEase { EasingMode = mode };
+    private static IEasingFunction Ease(EasingMode mode = EasingMode.EaseOut) => Motion.Soft;
 
     private static void AddEllipse(Canvas host, Point c, double rx, double ry, Brush fill)
     {

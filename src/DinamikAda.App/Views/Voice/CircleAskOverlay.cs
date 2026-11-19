@@ -15,6 +15,7 @@ using DinamikAda.Platform.Win32.Interop;
 using WpfPoint = System.Windows.Point;
 using WpfSize = System.Windows.Size;
 using WpfColor = System.Windows.Media.Color;
+using DinamikAda.App.Views.DockWidgets;
 
 namespace DinamikAda.App.Views.Voice;
 
@@ -452,7 +453,7 @@ public sealed class CircleAskOverlay : Window
         BecomeInteractive();
         var target = ToDip(regionPx);
         var start = _strokePath.Data is { Bounds: { IsEmpty: false } b } && b.Width > 4 && b.Height > 4 ? b : target;
-        var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
+        var ease = Motion.Gentle;
         _holeGeom.BeginAnimation(RectangleGeometry.RectProperty,
             new RectAnimation(start, target, Ms(460)) { EasingFunction = ease });
         Fade(_frame, OpacityProperty, 1, 260);
@@ -471,7 +472,7 @@ public sealed class CircleAskOverlay : Window
                 AutoReverse = true,
                 RepeatBehavior = RepeatBehavior.Forever,
                 BeginTime = At(460),
-                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+                EasingFunction = Motion.Gentle
             });
         }
     }
@@ -608,7 +609,7 @@ public sealed class CircleAskOverlay : Window
         var region = ToDip(regionPx);
         var place = AskGeometry.PlaceCard(new AskRect(region.X, region.Y, region.Width, region.Height),
             CardWidthDip, h, ActualWidth, ActualHeight);
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var ease = Motion.Soft;
 
         if (!_cardShown)
         {
@@ -626,7 +627,7 @@ public sealed class CircleAskOverlay : Window
                 AskCardSide.Above => (0.0, 14.0),
                 _ => (0.0, 10.0)
             };
-            var back = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut };
+            var back = Motion.Soft;
             scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.92, 1, Ms(340)) { EasingFunction = back });
             scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.92, 1, Ms(340)) { EasingFunction = back });
             shift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(dx, 0, Ms(340)) { EasingFunction = ease });
@@ -686,7 +687,7 @@ public sealed class CircleAskOverlay : Window
             Close();
             return;
         }
-        var fade = new DoubleAnimation(0, Ms(quick ? 120 : 220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+        var fade = new DoubleAnimation(0, Ms(quick ? 120 : 220)) { EasingFunction = Motion.Exit };
         fade.Completed += (_, _) => Close();
         BeginAnimation(OpacityProperty, fade);
         if (!quick && _card.IsVisible && _card.RenderTransform is TransformGroup g && g.Children[0] is ScaleTransform s)
@@ -700,7 +701,7 @@ public sealed class CircleAskOverlay : Window
 
     private void StartAmbientAnimations()
     {
-        var sine = new SineEase { EasingMode = EasingMode.EaseInOut };
+        var sine = Motion.Gentle;
         _vignette.BeginAnimation(OpacityProperty, new DoubleAnimation(0.55, 0.95, Ms(2400))
         {
             AutoReverse = true,
@@ -720,7 +721,7 @@ public sealed class CircleAskOverlay : Window
 
         var shift = (TranslateTransform)_hint.RenderTransform;
         shift.BeginAnimation(TranslateTransform.YProperty,
-            new DoubleAnimation(-18, 0, Ms(380)) { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } });
+            new DoubleAnimation(-18, 0, Ms(380)) { EasingFunction = Motion.Soft });
         _hint.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(260)));
     }
 
@@ -779,7 +780,7 @@ public sealed class CircleAskOverlay : Window
         {
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever,
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            EasingFunction = Motion.Gentle
         };
         s.BeginAnimation(ScaleTransform.ScaleXProperty, a);
         s.BeginAnimation(ScaleTransform.ScaleYProperty, a);
@@ -853,5 +854,5 @@ public sealed class CircleAskOverlay : Window
     private static TimeSpan At(double ms) => TimeSpan.FromMilliseconds(ms);
 
     private static void Fade(UIElement el, DependencyProperty prop, double to, double ms) =>
-        el.BeginAnimation(prop, new DoubleAnimation(to, Ms(ms)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+        el.BeginAnimation(prop, new DoubleAnimation(to, Ms(ms)) { EasingFunction = Motion.Soft });
 }

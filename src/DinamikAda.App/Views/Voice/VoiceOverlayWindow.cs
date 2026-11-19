@@ -15,6 +15,7 @@ using DinamikAda.App.Services.Voice;
 using DinamikAda.Core.Localization;
 using DinamikAda.Core.Voice;
 using DinamikAda.Platform.Win32.Interop;
+using DinamikAda.App.Views.DockWidgets;
 
 namespace DinamikAda.App.Views.Voice;
 
@@ -586,13 +587,18 @@ internal sealed class VoiceOverlayView : Grid
         {
             double pos = (i - (BarCount - 1) / 2.0) / (BarCount / 2.0);
             double envelope = 0.35 + 0.65 * Math.Exp(-pos * pos * 1.6);
-            double wobble = 0.6 + 0.4 * Math.Abs(Math.Sin(_tick * 0.9 + i * 1.7) * Math.Cos(_tick * 0.37 + i * 0.6));
+            // A slow travelling wave instead of per-tick jitter, so the bars ripple softly.
+            double wobble = 0.8 + 0.2 * Math.Sin(_tick * 0.32 - i * 0.55);
             double target = Math.Clamp(0.12 + shaped * envelope * wobble * 1.05, 0.12, 1);
             _barLevel[i] = target;
             if (Animate)
+            {
+                // Rise quickly with the voice, settle slowly: overlapping glides read as one continuous motion.
+                bool rising = target > _bars[i].ScaleY;
                 _bars[i].BeginAnimation(ScaleTransform.ScaleYProperty,
-                    new DoubleAnimation(target, TimeSpan.FromMilliseconds(90)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } },
+                    Motion.To(target, rising ? 150 : 380, rising ? Motion.Soft : Motion.Gentle),
                     HandoffBehavior.SnapshotAndReplace);
+            }
             else _bars[i].ScaleY = target;
         }
     }
@@ -632,7 +638,7 @@ internal sealed class VoiceOverlayView : Grid
             {
                 var spring = new DoubleAnimation(0.35, 1, TimeSpan.FromMilliseconds(620))
                 {
-                    EasingFunction = new ElasticEase { Oscillations = 1, Springiness = 5, EasingMode = EasingMode.EaseOut }
+                    EasingFunction = Motion.Soft
                 };
                 _bubbleScale.BeginAnimation(ScaleTransform.ScaleXProperty, spring);
                 _bubbleScale.BeginAnimation(ScaleTransform.ScaleYProperty, spring);
@@ -675,7 +681,7 @@ internal sealed class VoiceOverlayView : Grid
             return;
         }
         BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(180)));
-        var pop = new DoubleAnimation(0.82, 1, TimeSpan.FromMilliseconds(360)) { EasingFunction = new BackEase { Amplitude = 0.45, EasingMode = EasingMode.EaseOut } };
+        var pop = new DoubleAnimation(0.82, 1, TimeSpan.FromMilliseconds(360)) { EasingFunction = Motion.Soft };
         _rootScale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
         _rootScale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
     }
@@ -689,10 +695,10 @@ internal sealed class VoiceOverlayView : Grid
             done();
             return;
         }
-        var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(190)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
+        var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(190)) { EasingFunction = Motion.Exit };
         fade.Completed += (_, _) => { if (!_visibleState) done(); };
         BeginAnimation(OpacityProperty, fade);
-        var shrink = new DoubleAnimation(0.9, TimeSpan.FromMilliseconds(190)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
+        var shrink = new DoubleAnimation(0.9, TimeSpan.FromMilliseconds(190)) { EasingFunction = Motion.Exit };
         _rootScale.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
         _rootScale.BeginAnimation(ScaleTransform.ScaleYProperty, shrink);
     }
@@ -796,8 +802,8 @@ internal sealed class VoiceOverlayView : Grid
             }
             var hop = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, BeginTime = TimeSpan.FromMilliseconds(i * 140) };
             hop.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-            hop.KeyFrames.Add(new EasingDoubleKeyFrame(-5, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(260)), new SineEase { EasingMode = EasingMode.EaseOut }));
-            hop.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(520)), new SineEase { EasingMode = EasingMode.EaseIn }));
+            hop.KeyFrames.Add(new EasingDoubleKeyFrame(-5, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(260)), Motion.Soft));
+            hop.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(520)), Motion.Exit));
             hop.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(900))));
             tt.BeginAnimation(TranslateTransform.YProperty, hop);
         }

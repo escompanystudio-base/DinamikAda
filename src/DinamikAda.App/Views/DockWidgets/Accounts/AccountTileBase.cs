@@ -148,7 +148,7 @@ public abstract class AccountTileBase<T> : DockWidgetTileBase where T : class
         if (Math.Abs(el.Opacity - to) < 0.01) return;
         el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(260))
         {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            EasingFunction = Motion.Soft
         });
     }
 
