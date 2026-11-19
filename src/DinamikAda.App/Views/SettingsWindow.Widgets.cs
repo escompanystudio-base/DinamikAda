@@ -265,6 +265,75 @@ public partial class SettingsWindow
         if (TryFindResource("NotchSubtitleTextStyle") is Style hs) hint.Style = hs;
         hint.FontSize = 11;
         host.Children.Add(hint);
+
+        BuildConnectedAccounts(host, T);
+    }
+
+    /// <summary>Connected accounts of the account widgets, each removable right away.</summary>
+    private void BuildConnectedAccounts(StackPanel host, Func<string, string, string> T)
+    {
+        var header = new TextBlock
+        {
+            Text = T("Bağlı Hesaplar", "Connected Accounts"),
+            Margin = new Thickness(0, 18, 0, 6),
+            FontWeight = FontWeights.SemiBold
+        };
+        if (TryFindResource("NotchSubtitleTextStyle") is Style sub) { header.Style = sub; header.FontWeight = FontWeights.SemiBold; }
+        host.Children.Add(header);
+
+        var list = new StackPanel();
+        host.Children.Add(list);
+
+        void Fill()
+        {
+            list.Children.Clear();
+            var connected = (_orch.Config.DockAccounts ?? new())
+                .Select(a => DinamikAda.Core.Accounts.AccountCatalog.Find(a.Service))
+                .Where(s => s is not null)
+                .Select(s => s!)
+                .OrderBy(s => s.Name, StringComparer.CurrentCulture)
+                .ToList();
+            if (connected.Count == 0)
+            {
+                var none = new TextBlock
+                {
+                    Text = T("Henüz bağlı hesap yok. Bir hesap widget'ını (GitHub, Stripe, Gmail…) dock'a ekle ve kartındaki adımlarla bağla.",
+                             "No connected accounts yet. Add an account widget (GitHub, Stripe, Gmail…) to the dock and connect it with the steps on its card."),
+                    TextWrapping = TextWrapping.Wrap,
+                    Opacity = 0.7
+                };
+                if (TryFindResource("NotchSubtitleTextStyle") is Style s) none.Style = s;
+                list.Children.Add(none);
+                return;
+            }
+            foreach (var svc in connected)
+            {
+                var row = new DockPanel { Margin = new Thickness(0, 3, 0, 3) };
+                var remove = new Button { Content = T("Bağlantıyı kaldır", "Disconnect"), Height = 28, Padding = new Thickness(10, 2, 10, 2) };
+                if (TryFindResource("DarkActionButtonStyle") is Style b) remove.Style = b;
+                string id = svc.Id;
+                remove.Click += (_, _) =>
+                {
+                    try
+                    {
+                        AccountStore.Remove(_orch.ConfigStore, _orch.Config, id);
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowInlineError(T("Hesap kaldırılamadı: ", "Could not remove the account: ") + ex.Message);
+                        return;
+                    }
+                    Fill();
+                };
+                DockPanel.SetDock(remove, Dock.Right);
+                row.Children.Add(remove);
+                var name = new TextBlock { Text = "✓  " + svc.Name, VerticalAlignment = VerticalAlignment.Center };
+                if (TryFindResource("NotchSubtitleTextStyle") is Style s2) name.Style = s2;
+                row.Children.Add(name);
+                list.Children.Add(row);
+            }
+        }
+        Fill();
     }
 
     /// <summary>Writes only the widget settings changed in this window, so dock-side edits made meanwhile survive.</summary>

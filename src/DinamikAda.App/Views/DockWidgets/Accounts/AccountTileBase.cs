@@ -10,6 +10,12 @@ using DinamikAda.Core.Widgets;
 
 namespace DinamikAda.App.Views.DockWidgets.Accounts;
 
+/// <summary>Render-audit switch: build the connect form instead of the sample card.</summary>
+public static class AccountAudit
+{
+    public static bool ShowConnectForm { get; set; }
+}
+
 /// <summary>
 /// Base for widgets that read an account (Stripe, GitHub, Gmail…).
 /// <list type="bullet">
@@ -153,7 +159,8 @@ public abstract class AccountTileBase<T> : DockWidgetTileBase where T : class
         _confirmRemove = false;
         _cardStatus = null;
         var r = Result(ctx);
-        if (r.State == AccountState.NotConnected && !ctx.IsAuditMode) return BuildConnectCard(ctx);
+        if ((r.State == AccountState.NotConnected && !ctx.IsAuditMode) || (ctx.IsAuditMode && AccountAudit.ShowConnectForm))
+            return BuildConnectCard(ctx);
 
         var (data, isSample) = Current(ctx);
         FrameworkElement body;

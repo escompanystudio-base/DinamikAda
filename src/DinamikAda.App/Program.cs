@@ -1493,6 +1493,31 @@ public static class Program
         SavePng(widgetDockAudit.RenderWidgetPickerForAudit(), Path.Combine(outputDir, "55_widget_picker.png"));
         savedCount++;
 
+        // Account widgets: tiles (sample data), their sample cards and one generated connect form.
+        string[] accountRow1 = ["stripe-revenue", "lemonsqueezy-revenue", "gumroad-sales", "polar-revenue", "paddle-revenue", "deepseek-balance"];
+        string[] accountRow2 = ["github-activity", "github-notifications", "linear-issues", "resend-emails", "plausible-visitors"];
+        string[] accountRow3 = ["youtube-channel", "leetcode-stats", "gmail-unread", "gcal-next", "unsplash-wallpaper"];
+        SavePng(widgetDockAudit.RenderWidgetDockForAudit(accountRow1, DockVisualStyle.Midnight), Path.Combine(outputDir, "60_account_widgets_finance.png"));
+        SavePng(widgetDockAudit.RenderWidgetDockForAudit(accountRow2, DockVisualStyle.LiquidGlass), Path.Combine(outputDir, "61_account_widgets_developer.png"));
+        SavePng(widgetDockAudit.RenderWidgetDockForAudit(accountRow3, DockVisualStyle.White), Path.Combine(outputDir, "62_account_widgets_social.png"));
+        savedCount += 3;
+        foreach (var cardId in accountRow1.Concat(accountRow2).Concat(accountRow3))
+        {
+            SavePng(widgetDockAudit.RenderWidgetCardForAudit(cardId), Path.Combine(outputDir, $"63_account_card_{cardId}.png"));
+            savedCount++;
+        }
+        DinamikAda.App.Views.DockWidgets.Accounts.AccountAudit.ShowConnectForm = true;
+        try
+        {
+            SavePng(widgetDockAudit.RenderWidgetCardForAudit("stripe-revenue"), Path.Combine(outputDir, "64_account_connect_stripe.png"));
+            SavePng(widgetDockAudit.RenderWidgetCardForAudit("gmail-unread"), Path.Combine(outputDir, "64_account_connect_gmail.png"));
+            savedCount += 2;
+        }
+        finally
+        {
+            DinamikAda.App.Views.DockWidgets.Accounts.AccountAudit.ShowConnectForm = false;
+        }
+
         Console.WriteLine($"RENDER_AUDIT_PASS: {savedCount} files -> {outputDir}");
         return 0;
     }
