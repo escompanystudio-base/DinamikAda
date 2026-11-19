@@ -95,7 +95,7 @@ public static class AccountCatalog
         new("gmail", "Gmail", "", "https://myaccount.google.com/apppasswords",
             [new("user", "Gmail adresi", "Gmail address", Placeholder: "ad@gmail.com"),
              new("key", "Uygulama şifresi", "App password", Secret: true, Placeholder: "abcd efgh ijkl mnop")],
-            ["Google hesabında 2 adımlı doğrulamayı aç.", "myaccount.google.com/apppasswords adresinde \"DinamikAda\" adlı bir uygulama şifresi oluştur.", "Gmail adresini ve 16 haneli uygulama şifresini buraya yaz. Gerçek şifreni yazma.", "Okunmamış sayısı IMAP ile, yalnızca okunarak alınır."],
+            ["Google hesabında 2 adımlı doğrulamayı aç.", "myaccount.google.com/apppasswords adresinde \"DinamikAda\" adlı bir uygulama şifresi oluştur.", "Gmail adresini ve 16 harfli uygulama şifresini buraya yaz. Gerçek şifreni yazma.", "Okunmamış sayısı IMAP ile, yalnızca okunarak alınır."],
             ["Turn on 2-Step Verification for your Google account.", "Create an app password named \"DinamikAda\" at myaccount.google.com/apppasswords.", "Type your Gmail address and the 16-character app password here. Never your real password.", "The unread count is read over IMAP, read-only."], 5),
         new("gcal", "Google Takvim", "", "https://calendar.google.com/calendar/r/settings",
             [new("url", "Gizli iCal adresi", "Secret iCal address", Secret: true, Placeholder: "https://calendar.google.com/calendar/ical/…/basic.ics")],

@@ -128,7 +128,7 @@ public abstract class AccountTileBase<T> : DockWidgetTileBase where T : class
                 break;
         }
         try { ShowData(ctx, data, isSample); }
-        catch (Exception ex) { Services.CrashLogger.Log("AccountWidget", ex, $"Widget '{Id}' could not show data."); }
+        catch (Exception ex) when (!ctx.IsAuditMode) { Services.CrashLogger.Log("AccountWidget", ex, $"Widget '{Id}' could not show data."); }
     }
 
     private void SetBadge(string glyph, Brush fg, Brush bg)
@@ -165,7 +165,7 @@ public abstract class AccountTileBase<T> : DockWidgetTileBase where T : class
         var (data, isSample) = Current(ctx);
         FrameworkElement body;
         try { body = BuildCardBody(ctx, data, isSample); }
-        catch (Exception ex)
+        catch (Exception ex) when (!ctx.IsAuditMode)
         {
             Services.CrashLogger.Log("AccountWidget", ex, $"Widget '{Id}' card failed.");
             body = W.Text(ctx.Palette, ctx.T("Kart gösterilemedi.", "The card could not be shown."), 12.5, ctx.Palette.SecondaryForeground);

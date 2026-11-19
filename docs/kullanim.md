@@ -143,6 +143,18 @@ Veriler doğrudan bu bilgisayardan alınır:
 - Ekran süresi yalnızca bu bilgisayarda tutulur ve son 8 günü kapsar.
 - Bir widget'ı kaldırınca o widget'ın istekleri de durur.
 
+## Hesap Widget'ları
+
+Bazı widget'lar kendi hesaplarını okur: Stripe, Lemon Squeezy, Gumroad, Polar, Paddle, GitHub (katkı tablosu ve bildirimler), Linear, Resend, Plausible, YouTube, LeetCode, Gmail, Google Takvim, DeepSeek ve Unsplash.
+
+- Bağlanana kadar widget soluk renkte örnek veri gösterir. Köşedeki küçük zincir rozeti, bağlantı gerektiğini belirtir.
+- Widget'a tıklayınca kart, bağlanmak için gereken adımları tek tek anlatır. Anahtarı ya da kullanıcı adını karttaki kutuya yapıştırıp **Bağla**'ya bas. **Panoyu aç**, anahtarın oluşturulduğu sayfayı açar.
+- Mümkün olan her yerde salt-okunur bir anahtar kullan. Gmail'de gerçek şifreni değil, Google'ın verdiği 16 harfli uygulama şifresini yaz. Google Takvim'de takvimin "iCal biçimindeki gizli adresi" yeterli.
+- Anahtarlar yalnızca bu bilgisayarda, Windows'un şifrelemesiyle (DPAPI) saklanır. Her widget sadece kendi servisine bağlanır, aradaki hiçbir sunucuya veri gitmez.
+- Bağlıyken kartın altında son güncelleme saati ya da hata mesajı görünür. **Yenile**, **Düzenle** ve **Bağlantıyı kaldır** düğmeleri de oradadır. Hata olursa widget birkaç dakika sonra kendisi yeniden dener.
+- Bağlı hesapların listesi Ayarlar → Alt Dock → **Bağlı Hesaplar** bölümündedir. Bir hesabı oradan da kaldırabilirsin.
+- Bir widget'ı dock'tan kaldırdığında onun istekleri de durur.
+
 ## Genel Kontroller
 
 | İşlem | Nereden Ulaşılır |

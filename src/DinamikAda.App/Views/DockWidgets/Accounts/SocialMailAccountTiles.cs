@@ -76,11 +76,11 @@ public static class SocialMailAccountTiles
             var p = ctx.Palette;
             double h = ctx.TileHeight;
             _ring = W.Ring(p, h * 0.78, Math.Max(2.5, h * 0.11), p.Accent);
-            _amount = W.Text(p, "—", Math.Round(h * 0.40), p.Foreground, FontWeights.SemiBold);
-            _caption = W.Text(p, "DeepSeek", Math.Round(h * 0.26), p.SecondaryForeground);
+            _amount = Tight(W.Text(p, "—", Math.Round(h * 0.40), p.Foreground, FontWeights.SemiBold));
+            _caption = Tight(W.Text(p, "DeepSeek", Math.Round(h * 0.26), p.SecondaryForeground));
             var texts = W.Column(_amount, _caption);
-            texts.Margin = new Thickness(Math.Round(h * 0.18), 0, 0, 0);
-            return W.Row(0, _ring, texts);
+            // W.Row applies the spacing as each later child's left margin.
+            return W.Row(Math.Round(h * 0.18), _ring, texts);
         }
 
         protected override void ShowData(DockWidgetContext ctx, DeepSeekBalance data, bool isSample)
@@ -91,7 +91,7 @@ public static class SocialMailAccountTiles
             // The ring shows how much of the balance is your own top-up (the rest is granted credit).
             double share = total <= 0 ? 0 : Math.Clamp((item!.ToppedUp / total) * 100, 0, 100);
             _ring.Fill = W.Brush(total <= 1 ? ctx.Palette.Negative : total <= 5 ? ctx.Palette.Warning : ctx.Palette.Accent);
-            _ring.AnimateTo(total <= 0 ? 0 : Math.Max(share, 6));
+            _ring.AnimateTo(total <= 0 ? 0 : Math.Max(share, 6) / 100.0); // RingGauge takes 0..1
             _caption.Text = data.IsAvailable ? "DeepSeek" : ctx.T("Bakiye yok", "No balance");
         }
 
@@ -372,22 +372,20 @@ public static class SocialMailAccountTiles
             _caption = W.Text(p, ctx.T("abone", "subscribers"), Fs(ctx, 0.24), p.SecondaryForeground);
             var texts = W.Column(Tight(_subs), Tight(_caption));
 
-            var dock = new DockPanel { LastChildFill = true, VerticalAlignment = VerticalAlignment.Center };
-            DockPanel.SetDock(play, Dock.Left);
-            dock.Children.Add(play);
-            dock.Children.Add(texts);
-
+            // The "+N" chip sits in the row (right side) so it never covers the caption.
             _delta = Chip(p, "+0", p.Positive, Math.Max(7.5, Math.Round(h * 0.22)));
-            _delta.HorizontalAlignment = HorizontalAlignment.Right;
-            _delta.VerticalAlignment = VerticalAlignment.Bottom;
-            _delta.Margin = new Thickness(0, 0, -h * 0.14, -h * 0.16);
+            _delta.VerticalAlignment = VerticalAlignment.Center;
+            _delta.Margin = new Thickness(Math.Round(h * 0.12), 0, 0, 0);
             _delta.Visibility = Visibility.Collapsed;
             _delta.IsHitTestVisible = false;
 
-            var grid = new Grid();
-            grid.Children.Add(dock);
-            grid.Children.Add(_delta);
-            return grid;
+            var dock = new DockPanel { LastChildFill = true, VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(play, Dock.Left);
+            dock.Children.Add(play);
+            DockPanel.SetDock(_delta, Dock.Right);
+            dock.Children.Add(_delta);
+            dock.Children.Add(texts);
+            return dock;
         }
 
         protected override void ShowData(DockWidgetContext ctx, YouTubeChannel data, bool isSample)
