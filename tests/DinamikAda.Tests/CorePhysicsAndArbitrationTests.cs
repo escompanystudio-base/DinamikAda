@@ -533,4 +533,56 @@ public sealed class CorePhysicsAndArbitrationTests
         Assert.Equal(0.0, motion.CompactContentReveal.Value, precision: 3);
         Assert.Equal(1.0, motion.CompactContentReveal.Target, precision: 3);
     }
+
+    [Fact]
+    public void IslandMotionState_EasedMorph_NoOvershoot_SettlesOnTime_AndRetargetsWithoutJumps()
+    {
+        static double EaseOutCubic(double t) => 1.0 - Math.Pow(1.0 - t, 3.0);
+        var motion = new IslandMotionState
+        {
+            MorphEnterEase = EaseOutCubic,
+            MorphExitEase = t => t * t * (3.0 - 2.0 * t),
+            MorphEnterSeconds = 0.52,
+            MorphExitSeconds = 0.36
+        };
+        var compact = new IslandLayoutTarget(IslandPresentationState.S2Compact, 224, 32, 16, 0, 0, false, false);
+        var expanded = new IslandLayoutTarget(IslandPresentationState.S4Expanded, 616, 280, 24, 0, 0, false, false);
+
+        motion.ApplyTarget(compact, isExpanding: false);
+        for (int i = 0; i < 120; i++) motion.StepAll(1.0 / 60.0);
+        Assert.True(motion.IsAllSettled);
+
+        motion.ApplyTarget(expanded, isExpanding: true);
+        double maxW = 0, prevW = motion.Width.Value;
+        for (int i = 0; i < 18; i++) // 300 ms in
+        {
+            motion.StepAll(1.0 / 60.0);
+            maxW = Math.Max(maxW, motion.Width.Value);
+            Assert.True(motion.Width.Value >= prevW - 1e-9, "width must grow monotonically");
+            prevW = motion.Width.Value;
+        }
+
+        // Interrupt mid-flight: the collapse starts exactly where the open was, with no jump.
+        double before = motion.Width.Value;
+        motion.ApplyTarget(compact, isExpanding: false);
+        motion.StepAll(1.0 / 240.0);
+        Assert.True(Math.Abs(motion.Width.Value - before) < 6.0, $"retarget jumped {before} -> {motion.Width.Value}");
+
+        for (int i = 0; i < 30; i++) motion.StepAll(1.0 / 60.0); // 500 ms > 360 ms collapse
+        Assert.True(motion.IsAllSettled);
+        Assert.Equal(224.0, motion.Width.Value, precision: 3);
+        Assert.Equal(1.0, motion.CompactContentReveal.Value, precision: 3);
+        Assert.Equal(0.0, motion.ContentReveal.Value, precision: 3);
+
+        motion.ApplyTarget(expanded, isExpanding: true);
+        for (int i = 0; i < 34; i++)
+        {
+            motion.StepAll(1.0 / 60.0);
+            Assert.True(motion.Width.Value <= 616.0 + 1e-9 && motion.Height.Value <= 280.0 + 1e-9, "no overshoot");
+        }
+        Assert.True(motion.IsAllSettled);
+        Assert.Equal(616.0, motion.Width.Value, precision: 3);
+        Assert.Equal(1.0, motion.ContentRevealTier3, precision: 3);
+        Assert.True(maxW > 224.0);
+    }
 }

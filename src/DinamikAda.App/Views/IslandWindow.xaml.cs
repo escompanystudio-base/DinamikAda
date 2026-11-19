@@ -47,15 +47,15 @@ public partial class IslandWindow : Window
     private const double ExpandedTierH = IslandWindowController.ExpandedTierHeightDip;
 
     private static readonly Brush DefaultShellBrush = new SolidColorBrush(Color.FromArgb(255, 0, 0, 0));
-    private static readonly Brush FloatingShellBrush = new SolidColorBrush(Color.FromArgb(244, 5, 6, 8));
-    private static readonly Brush ActiveTileBgBrush = new SolidColorBrush(Color.FromArgb(56, 10, 132, 255));
-    private static readonly Brush ActiveTileBorderBrush = new SolidColorBrush(Color.FromArgb(145, 10, 132, 255));
-    private static readonly Brush DefaultTileBgBrush = new SolidColorBrush(Color.FromArgb(20, 255, 255, 255));
-    private static readonly Brush DefaultTileBorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
-    private static readonly Brush CardSurfaceBrush = new SolidColorBrush(Color.FromArgb(18, 255, 255, 255));
-    private static readonly Brush CardBorderBrush = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255));
-    private static readonly Brush ActiveTabFgBrush = new SolidColorBrush(Color.FromArgb(255, 245, 245, 247));
-    private static readonly Brush MutedTabFgBrush = new SolidColorBrush(Color.FromArgb(255, 161, 161, 170));
+    private static readonly Brush FloatingShellBrush = new SolidColorBrush(Color.FromArgb(255, 0, 0, 0));
+    private static readonly Brush ActiveTileBgBrush = new SolidColorBrush(Color.FromArgb(46, 10, 132, 255));
+    private static readonly Brush ActiveTileBorderBrush = new SolidColorBrush(Color.FromArgb(0, 10, 132, 255));
+    private static readonly Brush DefaultTileBgBrush = new SolidColorBrush(Color.FromArgb(15, 255, 255, 255));
+    private static readonly Brush DefaultTileBorderBrush = new SolidColorBrush(Color.FromArgb(0, 255, 255, 255));
+    private static readonly Brush CardSurfaceBrush = new SolidColorBrush(Color.FromArgb(14, 255, 255, 255));
+    private static readonly Brush CardBorderBrush = new SolidColorBrush(Color.FromArgb(0, 255, 255, 255));
+    private static readonly Brush ActiveTabFgBrush = new SolidColorBrush(Color.FromArgb(255, 244, 244, 246));
+    private static readonly Brush MutedTabFgBrush = new SolidColorBrush(Color.FromArgb(255, 139, 139, 148));
     private static readonly Brush ActiveAccentDotBrush = new SolidColorBrush(Color.FromArgb(255, 48, 209, 88));
     private static readonly Brush MicLiveBrush = new SolidColorBrush(Color.FromArgb(255, 255, 159, 10));
     private static readonly Brush HungBadgeBgBrush = new SolidColorBrush(Color.FromArgb(46, 255, 69, 58));
@@ -260,6 +260,13 @@ public partial class IslandWindow : Window
             VoiceWaveScale0, VoiceWaveScale1, VoiceWaveScale2, VoiceWaveScale3,
             VoiceWaveScale4, VoiceWaveScale5, VoiceWaveScale6, VoiceWaveScale7
         ];
+
+        ConfigureMorphMotion();
+        _tabPanels = [TabNowPanel, TabAudioPanel, TabControlPanel, TabShelfPanel, TabSystemPanel, TabWidgetsPanel, TabAiQuotaPanel];
+        foreach (var panel in _tabPanels)
+        {
+            panel.RenderTransform = new TranslateTransform();
+        }
 
         NotchShellPath.Data = _mainNotchBuilder.ShellGeometry;
         NotchContentClipHost.Clip = _mainNotchBuilder.ShellGeometry;
@@ -789,25 +796,29 @@ public partial class IslandWindow : Window
         if (ExpandedSurface.Visibility == Visibility.Visible)
         {
             ExpandedSurfaceTransform.X = centerX - ExpandedSurface.Width * 0.5;
-            ExpandedSurfaceTransform.Y = topY + (flush ? 10.0 : 11.0);
-            double expAlpha = activeExp
-                ? (_isRenderAuditMode ? 1.0 : overlayEnter * siblingOverlayGate)
-                : ExpandedSurface.Opacity;
+            ExpandedSurfaceTransform.Y = topY + (flush ? 12.0 : 13.0);
+
+            // Staggered arrival: the header rises in first, the tab content follows a beat later. Both ride the
+            // reveal curve, so leaving plays the same path backwards (content first, then header).
+            double headerIn = _isRenderAuditMode ? 1.0 : _motion.ContentRevealTier1;
+            double contentIn = _isRenderAuditMode ? 1.0 : _motion.ContentRevealTier3;
             if (activeExp)
             {
-                ExpandedSurface.Opacity = expAlpha;
+                ExpandedSurface.Opacity = _isRenderAuditMode ? 1.0 : siblingOverlayGate;
             }
-            double sc = activeExp
-                ? 0.965 + 0.035 * expAlpha
-                : 0.985 + 0.015 * expAlpha;
+            double sc = 0.985 + 0.015 * headerIn;
             ExpandedSurfaceScaleTransform.CenterX = ExpandedSurface.Width * 0.5;
             ExpandedSurfaceScaleTransform.ScaleX = sc;
             ExpandedSurfaceScaleTransform.ScaleY = sc;
 
-            TabContentHost.Opacity = _motion.TabContentOpacity;
-            TabContentSlideTransform.Y = _motion.TabContentTranslateY;
-            TabContentScaleTransform.ScaleX = _motion.TabContentScale;
-            TabContentScaleTransform.ScaleY = _motion.TabContentScale;
+            ExpandedHeaderRow.Opacity = headerIn;
+            ExpandedHeaderTransform.Y = (1.0 - headerIn) * 6.0;
+            TabContentHost.Opacity = contentIn;
+            TabContentSlideTransform.X = 0.0;
+            TabContentSlideTransform.Y = (1.0 - contentIn) * 10.0;
+            TabContentScaleTransform.ScaleX = 1.0;
+            TabContentScaleTransform.ScaleY = 1.0;
+            ApplyTabPanelFrame();
 
             TabIndicatorPill.Width = Math.Max(36.0, _motion.TabIndicatorWidth.Value);
             TabIndicatorTransform.X = _motion.TabIndicatorX.Value;
@@ -855,19 +866,8 @@ public partial class IslandWindow : Window
             SatelliteContentTransform.Y = topY + Math.Max(0.0, (satH - SatelliteInnerGrid.Height) * 0.5);
             SatelliteInnerGrid.Opacity = SpringDamperSolver.SmoothStep(
                 SatelliteInnerGrid.Width * 0.55, SatelliteInnerGrid.Width, satW);
-            var media = _auditMediaOverride ?? _orch.Media.Current;
-            if (_orch.Config.DynamicAlbumGlowEnabled && media.HasSession)
-            {
-                SatelliteGlowRect.Opacity = media.IsPlaying ? 0.70 : 0.34;
-                SatelliteGlowScale.ScaleX = (satW + 2 * satEar) / 140.0;
-                SatelliteGlowScale.ScaleY = satH / 60.0;
-                SatelliteGlowTransform.X = satLocalCenterX - satW * 0.5 - satEar;
-                SatelliteGlowTransform.Y = topY;
-            }
-            else
-            {
-                SatelliteGlowRect.Opacity = 0.0;
-            }
+            // Satellite pills stay pure black like the main notch; their accent dot carries the colour.
+            SatelliteGlowRect.Opacity = 0.0;
             SatelliteHitPath.IsHitTestVisible = snap.State == IslandPresentationState.S2Split && satAlpha >= 0.55;
             SatelliteVisualRoot.Visibility = Visibility.Visible;
         }
@@ -902,13 +902,17 @@ public partial class IslandWindow : Window
         }
 
         bool isCompact = snap.State is IslandPresentationState.S2Compact or IslandPresentationState.S2Split;
-        bool mediaSurface = !isCompact
-            ? snap.ActiveTab == ExpandedTabId.Now
-            : snap.PrimaryActivity?.Kind == ActivityKind.Media;
+        if (isCompact)
+        {
+            // The collapsed notch stays pure black so it reads as part of the bezel; colour lives in the ears.
+            AccentGlowHost.Opacity = 0.0;
+            return;
+        }
+        bool mediaSurface = snap.ActiveTab == ExpandedTabId.Now;
         double baseGlow = mediaSurface
-            ? (media.IsPlaying ? 0.60 : 0.26)
-            : (media.IsPlaying ? 0.43 : 0.20);
-        AccentGlowHost.Opacity = Math.Clamp(baseGlow + _motion.AlbumAuraPulse.Value * 0.24, 0.0, 0.88);
+            ? (media.IsPlaying ? 0.20 : 0.10)
+            : 0.0;
+        AccentGlowHost.Opacity = Math.Clamp(baseGlow + _motion.AlbumAuraPulse.Value * 0.10, 0.0, 0.32);
         if (snap.State == IslandPresentationState.S2Split)
         {
             double sweep = Math.Sin(_glowAnimPhase * 0.9) * 0.20;
@@ -1339,8 +1343,8 @@ public partial class IslandWindow : Window
                 break;
 
             case IslandPresentationState.S4Expanded:
-                ExpandedSurface.Width = Math.Max(420.0, layout.WidthDip - 28.0 * scale);
-                ExpandedSurface.Height = Math.Max(190.0, layout.HeightDip - 22.0 * scale);
+                ExpandedSurface.Width = Math.Max(420.0, layout.WidthDip - 36.0 * scale);
+                ExpandedSurface.Height = Math.Max(190.0, layout.HeightDip - 28.0 * scale);
                 ExpandedSurfaceScaleTransform.CenterX = ExpandedSurface.Width * 0.5;
                 TabContentScaleTransform.CenterX = ExpandedSurface.Width * 0.5;
                 break;
@@ -1475,6 +1479,7 @@ public partial class IslandWindow : Window
                 CompactBadgeText.Visibility = showSpec ? Visibility.Collapsed : Visibility.Visible;
                 CompactBadgeText.Text = media.IsPlaying ? "LIVE" : "II";
                 CompactBadgeText.Foreground = ParseHexBrush(prim.AccentHex, "#0A84FF");
+                UpdateCompactRing(null, CompactBadgeText.Foreground);
             }
             else
             {
@@ -1491,16 +1496,19 @@ public partial class IslandWindow : Window
                     CompactSecondaryText.Visibility = Visibility.Visible;
                     CompactBadgeText.Visibility = Visibility.Visible;
                     CompactBadgeText.Foreground = ParseHexBrush(prim.AccentHex, "#FF9F0A");
+                    UpdateCompactRing(prim.Progress01, CompactBadgeText.Foreground);
                 }
                 else if (prim.Progress01.HasValue)
                 {
                     CompactBadgeText.Text = $"{Math.Clamp(prim.Progress01.Value * 100.0, 0, 100):F0}%";
                     CompactBadgeText.Visibility = Visibility.Visible;
                     CompactBadgeText.Foreground = ParseHexBrush(prim.AccentHex, "#64D2FF");
+                    UpdateCompactRing(prim.Progress01, CompactBadgeText.Foreground);
                 }
                 else
                 {
                     CompactBadgeText.Visibility = Visibility.Collapsed;
+                    UpdateCompactRing(null, CompactBadgeText.Foreground);
                 }
             }
         }
@@ -1893,6 +1901,7 @@ public partial class IslandWindow : Window
         Paint(AuraSatStop0, secondary, 112);
         Paint(AuraSatStop1, primary, 86);
         Paint(AuraSatStop2, highlight, 94);
+        ApplyPremiumPalette(primary, animate);
 
         void Paint(GradientStop stop, Color color, byte opacity)
         {
@@ -1982,13 +1991,7 @@ public partial class IslandWindow : Window
             if (isMatch) targetBtn = btn;
         }
 
-        TabNowPanel.Visibility = activeTab == ExpandedTabId.Now ? Visibility.Visible : Visibility.Collapsed;
-        TabAudioPanel.Visibility = activeTab == ExpandedTabId.Audio ? Visibility.Visible : Visibility.Collapsed;
-        TabControlPanel.Visibility = activeTab == ExpandedTabId.Control ? Visibility.Visible : Visibility.Collapsed;
-        TabShelfPanel.Visibility = activeTab == ExpandedTabId.Shelf ? Visibility.Visible : Visibility.Collapsed;
-        TabSystemPanel.Visibility = activeTab == ExpandedTabId.System ? Visibility.Visible : Visibility.Collapsed;
-        TabWidgetsPanel.Visibility = activeTab == ExpandedTabId.Widgets ? Visibility.Visible : Visibility.Collapsed;
-        TabAiQuotaPanel.Visibility = activeTab == ExpandedTabId.AiQuota ? Visibility.Visible : Visibility.Collapsed;
+        ShowTabPanel(activeTab, snapIndicator);
 
         CloseExpandedOverlays();
         UpdateTabIndicatorTarget(targetBtn, snapIndicator);
@@ -2309,11 +2312,11 @@ public partial class IslandWindow : Window
         {
             var card = new Border
             {
-                CornerRadius = new CornerRadius(9),
+                CornerRadius = new CornerRadius(12),
                 Background = CardSurfaceBrush,
                 BorderBrush = t.IsCompleted ? ActiveTileBorderBrush : CardBorderBrush,
                 BorderThickness = new Thickness(0.8),
-                Padding = new Thickness(8, 4, 8, 4),
+                Padding = new Thickness(10, 3, 4, 3),
                 Margin = new Thickness(0, 0, 0, 4)
             };
 
@@ -2345,6 +2348,7 @@ public partial class IslandWindow : Window
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(6, 0, 4, 0)
             };
+            System.Windows.Documents.Typography.SetNumeralAlignment(timeTb, FontNumeralAlignment.Tabular);
             _timerRowTimeRefs[t.Id] = timeTb;
             Grid.SetColumn(timeTb, 1);
             row.Children.Add(timeTb);
@@ -2428,7 +2432,7 @@ public partial class IslandWindow : Window
 
             var card = new Border
             {
-                CornerRadius = new CornerRadius(10),
+                CornerRadius = new CornerRadius(12),
                 Background = CardSurfaceBrush,
                 BorderBrush = CardBorderBrush,
                 BorderThickness = new Thickness(0.8),
@@ -2449,10 +2453,9 @@ public partial class IslandWindow : Window
                 Width = 24,
                 Height = 24,
                 CornerRadius = new CornerRadius(7),
-                Background = ActiveTileBgBrush,
-                BorderBrush = CardBorderBrush,
-                BorderThickness = new Thickness(0.6),
-                Margin = new Thickness(0, 1, 7, 0),
+                Background = CardSurfaceBrush,
+                BorderThickness = new Thickness(0),
+                Margin = new Thickness(0, 1, 8, 0),
                 VerticalAlignment = VerticalAlignment.Top,
                 ClipToBounds = true
             };
@@ -2951,7 +2954,7 @@ public partial class IslandWindow : Window
             {
                 var card = new Border
                 {
-                    CornerRadius = new CornerRadius(10),
+                    CornerRadius = new CornerRadius(12),
                     Background = CardSurfaceBrush,
                     BorderBrush = CardBorderBrush,
                     BorderThickness = new Thickness(0.8),
@@ -3374,7 +3377,7 @@ public partial class IslandWindow : Window
         {
             var card = new Border
             {
-                CornerRadius = new CornerRadius(9),
+                CornerRadius = new CornerRadius(12),
                 Background = CardSurfaceBrush,
                 BorderBrush = CardBorderBrush,
                 BorderThickness = new Thickness(0.8),
@@ -3659,7 +3662,7 @@ public partial class IslandWindow : Window
         {
             var card = new Border
             {
-                CornerRadius = new CornerRadius(10),
+                CornerRadius = new CornerRadius(12),
                 Background = CardSurfaceBrush,
                 BorderBrush = CardBorderBrush,
                 BorderThickness = new Thickness(0.8),
@@ -3968,7 +3971,7 @@ public partial class IslandWindow : Window
         {
             var card = new Border
             {
-                CornerRadius = new CornerRadius(10),
+                CornerRadius = new CornerRadius(12),
                 Background = CardSurfaceBrush,
                 BorderBrush = entry.IsPinned ? ActiveTileBorderBrush : CardBorderBrush,
                 BorderThickness = new Thickness(0.8),
@@ -4210,7 +4213,7 @@ public partial class IslandWindow : Window
         {
             var card = new Border
             {
-                CornerRadius = new CornerRadius(10),
+                CornerRadius = new CornerRadius(12),
                 Background = proc.IsHung ? HungBadgeBgBrush : CardSurfaceBrush,
                 BorderBrush = proc.IsHung ? HungBadgeFgBrush : CardBorderBrush,
                 BorderThickness = new Thickness(0.8),
@@ -4621,12 +4624,11 @@ public partial class IslandWindow : Window
 
             var groupBox = new Border
             {
-                CornerRadius = new CornerRadius(12),
-                Background = new SolidColorBrush(Color.FromArgb(0x14, provCol.R, provCol.G, provCol.B)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x38, provCol.R, provCol.G, provCol.B)),
-                BorderThickness = new Thickness(0.9),
-                Padding = new Thickness(9, 7, 9, 5),
-                Margin = new Thickness(0, 0, 0, 5.5)
+                CornerRadius = new CornerRadius(16),
+                Background = (Brush)FindResource("ObsidianCardSurfaceBrush"),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(12, 10, 12, 7),
+                Margin = new Thickness(0, 0, 0, 10)
             };
 
             var groupStack = new StackPanel();
@@ -4696,13 +4698,13 @@ public partial class IslandWindow : Window
                     ? Color.FromArgb(0x55, 0xFF, 0x45, 0x3A)
                     : (slot.IsLow
                         ? Color.FromArgb(0x48, 0xFF, 0x9F, 0x0A)
-                        : Color.FromArgb(0x28, 0xFF, 0xFF, 0xFF));
+                        : Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF));
 
                 var card = new Border
                 {
                     Width = 266,
-                    CornerRadius = new CornerRadius(10),
-                    Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x0F, 0x13, 0x1D)),
+                    CornerRadius = new CornerRadius(12),
+                    Background = CardSurfaceBrush,
                     BorderBrush = new SolidColorBrush(cardBorderCol),
                     BorderThickness = new Thickness(0.9),
                     Padding = new Thickness(9, 7, 9, 7),
@@ -7743,6 +7745,7 @@ public partial class IslandWindow : Window
         PinToggleBtn.ToolTip = Strings.PinOpen(lang);
         SettingsHeaderBtn.ToolTip = Strings.Settings(lang);
         CollapseHeaderBtn.ToolTip = Strings.Close(lang);
+        ApplySectionLabelTypography();
         _trayIcon.UpdateTooltip(Strings.AppTitle(lang));
         ApplyHeaderButtonStates(_lastSnapshot);
     }

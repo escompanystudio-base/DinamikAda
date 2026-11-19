@@ -88,6 +88,23 @@ public sealed class IslandMotionState
 
     public double[] SpectrumBars => _spectrumBars;
 
+    /// <summary>
+    /// Optional timed-curve motion. When <see cref="MorphEnterEase"/> is set, the shell morph (width, height and
+    /// every radius), the content reveal, the tab indicator, tab content and hover scale ease over fixed durations
+    /// instead of running as springs, so nothing overshoots or wobbles. Retargeting mid-flight restarts from the
+    /// current value. Left null, the original spring rig is used.
+    /// </summary>
+    public Func<double, double>? MorphEnterEase { get; set; }
+    /// <summary>Curve for shrinking/collapsing morphs and content leaving. Falls back to <see cref="MorphEnterEase"/>.</summary>
+    public Func<double, double>? MorphExitEase { get; set; }
+    public double MorphEnterSeconds { get; set; } = 0.52;
+    public double MorphExitSeconds { get; set; } = 0.36;
+
+    private bool IsEased => MorphEnterEase is not null;
+    private Func<double, double> EnterEase => MorphEnterEase ?? Linear;
+    private Func<double, double> ExitEase => MorphExitEase ?? MorphEnterEase ?? Linear;
+    private static double Linear(double t) => t;
+
     public bool IsAllSettled =>
         Width.IsSettled &&
         Height.IsSettled &&
@@ -152,6 +169,12 @@ public sealed class IslandMotionState
 
     public void SetHoverScale(double targetScale)
     {
+        if (IsEased)
+        {
+            double to = Math.Clamp(targetScale, 0.92, 1.08);
+            HoverScale.AnimateTo(to, to >= HoverScale.Value ? 0.34 : 0.28, EnterEase);
+            return;
+        }
         HoverScale.Retarget(Math.Clamp(targetScale, 0.92, 1.08), stiffness: 240.0, dampingRatio: 0.92);
     }
 
@@ -170,6 +193,11 @@ public sealed class IslandMotionState
             TabIndicatorX.SnapTo(x);
             TabIndicatorWidth.SnapTo(w);
         }
+        else if (IsEased)
+        {
+            TabIndicatorX.AnimateTo(x, 0.42, EnterEase);
+            TabIndicatorWidth.AnimateTo(w, 0.42, EnterEase);
+        }
         else
         {
             TabIndicatorX.Retarget(x, stiffness: 360.0, dampingRatio: 0.88);
@@ -180,6 +208,11 @@ public sealed class IslandMotionState
     public void TriggerTabTransition()
     {
         TabContentSlide.SnapTo(0.0);
+        if (IsEased)
+        {
+            TabContentSlide.AnimateTo(1.0, 0.36, Linear, delaySeconds: 0.04);
+            return;
+        }
         TabContentSlide.Retarget(1.0, stiffness: 320.0, dampingRatio: 0.92);
     }
 
@@ -291,6 +324,12 @@ public sealed class IslandMotionState
             _targetArea = Math.Max(1.0, target.WidthDip * target.HeightDip);
         }
 
+        if (IsEased)
+        {
+            ApplyEasedTarget(target, isExpanding, stateChanged);
+            return;
+        }
+
         if (isExpanding)
         {
             Width.Retarget(target.WidthDip, stiffness: 248.0, dampingRatio: 0.84);
@@ -350,6 +389,65 @@ public sealed class IslandMotionState
             else
             {
                 CompactContentReveal.Retarget(1.0, stiffness: 340.0, dampingRatio: 0.92);
+            }
+        }
+    }
+
+    private void ApplyEasedTarget(IslandLayoutTarget target, bool isExpanding, bool stateChanged)
+    {
+        var shape = isExpanding ? EnterEase : ExitEase;
+        double dur = isExpanding ? MorphEnterSeconds : MorphExitSeconds;
+
+        // Width, height and radii move together on one curve so the outline stays concentric mid-morph.
+        Width.AnimateTo(target.WidthDip, dur, shape);
+        Height.AnimateTo(target.HeightDip, dur, shape);
+        CornerRadius.AnimateTo(target.CornerRadiusDip, dur, shape);
+        EarRadius.AnimateTo(target.EarRadius, dur, shape);
+        TopCornerRadius.AnimateTo(target.TopCornerRadius, dur, shape);
+
+        bool hasSat = target.SatelliteWidthDip > 0.5;
+        double satDur = hasSat ? 0.46 : 0.30;
+        SatelliteWidth.AnimateTo(target.SatelliteWidthDip, satDur, hasSat ? EnterEase : ExitEase);
+        SatelliteHeight.AnimateTo(hasSat ? Math.Min(36.0, target.HeightDip) : 26.0, satDur, hasSat ? EnterEase : ExitEase);
+        SatelliteGap.AnimateTo(target.SatelliteGapDip, satDur, hasSat ? EnterEase : ExitEase);
+        SatelliteScale.AnimateTo(hasSat ? 1.0 : 0.0, satDur, hasSat ? EnterEase : ExitEase);
+
+        bool hidden = target.State == IslandPresentationState.S0Hidden;
+        Opacity.AnimateTo(hidden ? 0.0 : 1.0, hidden ? 0.24 : 0.30, hidden ? ExitEase : EnterEase);
+        if (hidden || target.State is IslandPresentationState.S4Expanded or IslandPresentationState.S5Command or IslandPresentationState.S6DragShelf)
+        {
+            HoverScale.AnimateTo(1.0, 0.30, EnterEase);
+        }
+
+        bool isOverlayState = target.State is IslandPresentationState.S3TransientHud
+            or IslandPresentationState.S4Expanded
+            or IslandPresentationState.S5Command
+            or IslandPresentationState.S6DragShelf;
+
+        // The reveal runs linearly; the tier smooth-steps derived from it shape and stagger each layer.
+        if (isOverlayState)
+        {
+            if (stateChanged && ContentReveal.Value <= 0.04)
+            {
+                ContentReveal.SnapTo(0.0);
+            }
+            double remaining = Math.Clamp(1.0 - ContentReveal.Value, 0.0, 1.0);
+            ContentReveal.AnimateTo(1.0, Math.Max(0.12, 0.42 * remaining), Linear, delaySeconds: remaining > 0.5 ? 0.06 : 0.0);
+            CompactContentReveal.AnimateTo(target.State == IslandPresentationState.S3TransientHud ? 1.0 : 0.0, 0.12, Linear);
+        }
+        else
+        {
+            double remaining = Math.Clamp(ContentReveal.Value, 0.0, 1.0);
+            ContentReveal.AnimateTo(0.0, Math.Max(0.06, 0.16 * remaining), Linear);
+            if (hidden)
+            {
+                CompactContentReveal.AnimateTo(0.0, 0.14, Linear);
+            }
+            else
+            {
+                // Collapsed content returns once the expanded layer has mostly gone.
+                double delay = remaining > 0.3 ? 0.12 : 0.0;
+                CompactContentReveal.AnimateTo(1.0, 0.24, Linear, delaySeconds: delay);
             }
         }
     }
