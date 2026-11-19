@@ -1507,6 +1507,8 @@ public static class Program
         }
         SavePng(widgetDockAudit.RenderWidgetPickerForAudit(), Path.Combine(outputDir, "55_widget_picker.png"));
         savedCount++;
+        SavePng(new DockWindow(orch, provider.GetRequiredService<WindowsTaskbarManager>()).RenderToastsForAudit(), Path.Combine(outputDir, "75_dock_toasts.png"));
+        savedCount++;
 
         // Account widgets: tiles (sample data), their sample cards and one generated connect form.
         string[] accountRow1 = ["stripe-revenue", "lemonsqueezy-revenue", "gumroad-sales", "polar-revenue", "paddle-revenue", "deepseek-balance"];

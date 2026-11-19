@@ -94,6 +94,8 @@ public sealed partial class AppConfig
     public bool DockMagnificationEnabled { get; set; } = true;
     public bool DockIntellihideEnabled { get; set; } = true;
     public bool DockFollowFullscreenHide { get; set; } = true;
+    /// <summary>Meeting, timer and AI-quota toasts that rise from the dock.</summary>
+    public bool DockToastsEnabled { get; set; } = true;
     public bool DockReserveWorkArea { get; set; } = false;
     public int DockIconSizeDip { get; set; } = 32;
     public List<string> PinnedDockApps { get; set; } = new();

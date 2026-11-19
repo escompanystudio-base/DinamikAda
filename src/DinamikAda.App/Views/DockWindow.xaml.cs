@@ -554,6 +554,7 @@ public partial class DockWindow : Window
         _orch.OpenWidgetPickerRequested += OnOpenWidgetPickerRequested;
         ApplyConfigAndSync();
         _reconcileTimer.Start();
+        InitializeDockToasts();
     }
 
     private void OnDockClosing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -576,6 +577,7 @@ public partial class DockWindow : Window
         _orch.Coordinator.SnapshotChanged -= OnCoordinatorSnapshotChanged;
         _orch.AiQuota.SlotsChanged -= OnDockAiQuotaChanged;
         _orch.OpenWidgetPickerRequested -= OnOpenWidgetPickerRequested;
+        ShutdownDockToasts();
         UninstallWindowEventHooks();
         _hwndSource?.RemoveHook(OnDockWndProc);
         _hwndSource = null;
@@ -701,6 +703,7 @@ public partial class DockWindow : Window
                 bounds.HeightPx,
                 NativeMethods.SWP_NOACTIVATE);
         }
+        _toastHost?.Reposition();
     }
 
     private void InstallWindowEventHooks()
