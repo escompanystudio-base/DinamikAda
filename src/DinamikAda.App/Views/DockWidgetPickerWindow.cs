@@ -268,6 +268,14 @@ public sealed class DockWidgetPickerWindow : Window
         }
     }
 
+    private static readonly Brush StageBackground = DockWidgetPalette.Freeze(new LinearGradientBrush(
+        new GradientStopCollection
+        {
+            new(Color.FromRgb(0x2A, 0x33, 0x52), 0.0),
+            new(Color.FromRgb(0x1B, 0x20, 0x33), 0.6),
+            new(Color.FromRgb(0x24, 0x1C, 0x33), 1.0)
+        }, new Point(0, 0), new Point(1, 1)));
+
     private Border? BuildPreviewCard(DockWidgetDescriptor d, int index)
     {
         var p = _palette;
@@ -287,11 +295,13 @@ public sealed class DockWidgetPickerWindow : Window
         {
             Height = 60,
             CornerRadius = new CornerRadius(14),
-            Background = p.PillBackground,
+            // A slice of dock glass over a soft wallpaper tint, so vivid tiles read the way they do on the dock.
+            Background = p.IsLight ? p.PillBackground : StageBackground,
             BorderBrush = W.Brush(p.PillBorderColor),
             BorderThickness = new Thickness(0.8),
             Padding = new Thickness(10, 0, 10, 0),
-            Child = new Grid { Children = { tile.Root } },
+            // Wide widgets (3+ units) scale down to fit the card instead of being clipped.
+            Child = new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Child = new Grid { Children = { tile.Root }, Margin = new Thickness(0, 8, 0, 4) } },
             IsHitTestVisible = false
         };
         tile.Root.HorizontalAlignment = HorizontalAlignment.Center;

@@ -504,14 +504,24 @@ internal static class ProductivityWidgetTiles
     // AI
     // =============================================================================================
 
-    private sealed record AiPlan(string Id, string Label, double Pct, bool HasData, DateTimeOffset? ResetUtc);
+    /// <summary>One AI plan: effective remaining percent plus, when known, the session and weekly windows.</summary>
+    private sealed record AiPlan(string Id, string Label, double Pct, bool HasData, DateTimeOffset? ResetUtc,
+        string Provider = "", double? SessionPct = null, DateTimeOffset? SessionReset = null,
+        double? WeeklyPct = null, DateTimeOffset? WeeklyReset = null);
+
+    private static double? Finite(double? v) => v is { } x && double.IsFinite(x) ? Math.Clamp(x, 0, 100) : null;
 
     private static AiPlan ToPlan(AiQuotaSlotSnapshot s) => new(
         s.Id,
         string.IsNullOrWhiteSpace(s.Label) ? s.Provider : s.Label,
         double.IsFinite(s.EffectiveRemainingPercent) ? Math.Clamp(s.EffectiveRemainingPercent, 0, 100) : 0,
         s.HasQuotaData && !s.QuotaAwaitingRefresh,
-        s.NextResetUtc ?? s.BlockingResetUtc ?? s.WeeklyResetUtc);
+        s.NextResetUtc ?? s.BlockingResetUtc ?? s.WeeklyResetUtc,
+        s.Provider ?? "",
+        s.HasPrimaryQuota && !s.QuotaAwaitingRefresh ? Finite(s.RemainingPercent) : null,
+        s.NextResetUtc ?? s.BlockingResetUtc,
+        s.QuotaAwaitingRefresh ? null : Finite(s.WeeklyRemainingPercent),
+        s.WeeklyResetUtc);
 
     private static List<AiPlan> LoadAiPlans(DockWidgetContext ctx, out AiPlan? attention)
     {
@@ -531,8 +541,11 @@ internal static class ProductivityWidgetTiles
         if (list.Count == 0 && ctx.IsAuditMode)
         {
             var now = new DateTimeOffset(ctx.Now);
-            list.Add(new AiPlan("audit-1", "Claude Max", 38, true, now.AddMinutes(87)));
-            list.Add(new AiPlan("audit-2", "ChatGPT Plus", 81, true, now.AddHours(3).AddMinutes(12)));
+            var monday = now.Date.AddDays(((int)DayOfWeek.Monday - (int)now.DayOfWeek + 7) % 7 is 0 ? 7 : ((int)DayOfWeek.Monday - (int)now.DayOfWeek + 7) % 7).AddHours(9);
+            list.Add(new AiPlan("audit-1", "Claude Max", 36, true, now.AddHours(3).AddMinutes(14), "claude",
+                41, now.AddHours(3).AddMinutes(14), 36, new DateTimeOffset(monday)));
+            list.Add(new AiPlan("audit-2", "ChatGPT Plus", 81, true, now.AddHours(3).AddMinutes(12), "openai",
+                81, now.AddHours(3).AddMinutes(12)));
         }
         attention ??= list.FirstOrDefault();
         return list;
@@ -579,7 +592,20 @@ internal static class ProductivityWidgetTiles
             public TextBlock? Pct;
         }
 
-        private readonly PlanRow[] _rows = new PlanRow[2];
+        /// <summary>One usage line on the tile: "Session  3h 14m  59%" over a thin coloured progress line.</summary>
+        private sealed class UsageLine
+        {
+            public FrameworkElement Root = null!;
+            public TextBlock Name = null!;
+            public TextBlock When = null!;
+            public TextBlock Used = null!;
+            public BarGauge Bar = null!;
+            public LiveBrush Fill = null!;
+        }
+
+        private readonly UsageLine[] _lines = new UsageLine[2];
+        private Border _badgeHost = null!;
+        private string _badgeKey = "";
         private TextBlock _empty = null!;
         private StackPanel? _cardList;
         private string _cardKey = "\0";
@@ -591,50 +617,132 @@ internal static class ProductivityWidgetTiles
         {
             var p = ctx.Palette;
             double h = ctx.TileHeight;
-            double w = ContentWidth(ctx, Descriptor);
-            double fs = Fs(ctx, 0.25, 7.5);
-            double barH = Math.Max(3, Math.Round(h * 0.12));
-            var g = new Grid { VerticalAlignment = VerticalAlignment.Center };
-            g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            double badge = Math.Round(h * 0.78);
+            _badgeHost = new Border { Width = badge, Height = badge, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, Math.Round(h * 0.22), 0) };
+            var rows = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             for (int i = 0; i < 2; i++)
             {
-                var row = MakeTileRow(p, fs, barH, w * 0.33, w * 0.36, Math.Max(3, h * 0.12));
-                row.Root.Margin = new Thickness(0, i == 0 ? 0 : Math.Max(1, Math.Round(h * 0.07)), 0, 0);
-                Grid.SetRow(row.Root, i);
-                g.Children.Add(row.Root);
-                _rows[i] = row;
+                _lines[i] = MakeLine(p, h);
+                _lines[i].Root.Margin = new Thickness(0, i == 0 ? 0 : Math.Max(1, Math.Round(h * 0.06)), 0, 0);
+                rows.Children.Add(_lines[i].Root);
             }
-            _empty = W.Text(p, ctx.T("AI hesabı yok", "No AI accounts"), fs, p.SecondaryForeground);
+            _empty = W.Text(p, ctx.T("AI hesabı yok", "No AI accounts"), Vivid.LabelSize(h), p.SecondaryForeground);
             _empty.Visibility = Visibility.Collapsed;
-            Grid.SetRowSpan(_empty, 2);
+            var g = new Grid { VerticalAlignment = VerticalAlignment.Center };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.Children.Add(_badgeHost);
+            Grid.SetColumn(rows, 1);
+            g.Children.Add(rows);
+            Grid.SetColumn(_empty, 1);
             g.Children.Add(_empty);
             return g;
         }
 
-        private static PlanRow MakeTileRow(DockWidgetPalette p, double fs, double barH, double labelMax, double resetMax, double gap)
+        private static UsageLine MakeLine(DockWidgetPalette p, double h)
         {
-            var r = new PlanRow();
-            var g = new Grid();
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            r.Label = W.Text(p, "", fs, p.Foreground, FontWeights.SemiBold);
-            r.Label.MaxWidth = labelMax;
-            r.Label.Margin = new Thickness(0, 0, gap, 0);
-            r.Fill = new LiveBrush(p.Positive);
-            r.Bar = new BarGauge { Height = barH, Track = p.Track, Fill = r.Fill.Brush, VerticalAlignment = VerticalAlignment.Center, MinWidth = 6 };
-            Grid.SetColumn(r.Bar, 1);
-            r.Reset = Tabular(W.Text(p, "", Math.Max(7, fs - 0.5), p.SecondaryForeground));
-            r.Reset.MaxWidth = resetMax;
-            r.Reset.Margin = new Thickness(gap, 0, 0, 0);
-            r.Reset.TextAlignment = TextAlignment.Right;
-            Grid.SetColumn(r.Reset, 2);
-            g.Children.Add(r.Label);
-            g.Children.Add(r.Bar);
-            g.Children.Add(r.Reset);
-            r.Root = g;
-            return r;
+            var l = new UsageLine();
+            double fs = Math.Max(7.5, Math.Round(h * 0.25 * 2) / 2);
+            l.Name = W.Text(p, "", fs, p.SecondaryForeground, FontWeights.SemiBold);
+            l.When = Tabular(W.Text(p, "", fs, p.Foreground, FontWeights.SemiBold));
+            l.When.Margin = new Thickness(Math.Round(h * 0.16), 0, Math.Round(h * 0.12), 0);
+            l.Used = Tabular(W.Text(p, "", fs, p.Foreground, FontWeights.Bold));
+            l.Used.TextAlignment = TextAlignment.Right;
+            l.Used.TextTrimming = TextTrimming.None;
+            var top = new Grid();
+            top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Round(h * 1.1)) });
+            top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            top.Children.Add(l.Name);
+            Grid.SetColumn(l.When, 1);
+            top.Children.Add(l.When);
+            Grid.SetColumn(l.Used, 2);
+            top.Children.Add(l.Used);
+            l.Fill = new LiveBrush(p.Positive);
+            l.Bar = new BarGauge
+            {
+                Height = Math.Max(1.5, Math.Round(h * 0.055 * 2) / 2),
+                Track = p.Track,
+                Fill = l.Fill.Brush,
+                Margin = new Thickness(0, Math.Max(0.5, h * 0.02), 0, 0)
+            };
+            var col = new StackPanel();
+            col.Children.Add(top);
+            col.Children.Add(l.Bar);
+            l.Root = col;
+            return l;
+        }
+
+        private static void ShowLine(UsageLine l, string name, string when, double? remaining)
+        {
+            l.Root.Visibility = Visibility.Visible;
+            if (l.Name.Text != name) l.Name.Text = name;
+            W.SetTextAnimated(l.When, when);
+            if (remaining is { } r)
+            {
+                double used = 100 - r;
+                W.SetTextAnimated(l.Used, W.Pct(used));
+                l.Bar.AnimateTo(used / 100, 900);
+                var c = TileColors.Usage(used);
+                l.Fill.To(Color.FromRgb(c.R, c.G, c.B));
+            }
+            else
+            {
+                W.SetTextAnimated(l.Used, "—");
+                l.Bar.AnimateTo(0);
+            }
+        }
+
+        private static string SessionWhen(DockWidgetContext ctx, DateTimeOffset? reset)
+        {
+            if (reset is not { } r) return "—";
+            var left = r - new DateTimeOffset(ctx.Now);
+            return left <= TimeSpan.Zero ? ctx.T("şimdi", "now") : Dur(ctx, left);
+        }
+
+        private static string WeeklyWhen(DockWidgetContext ctx, DateTimeOffset? reset) =>
+            reset is { } r ? r.ToLocalTime().ToString("ddd d", Culture(ctx)) : "—";
+
+        protected override void Refresh(DockWidgetContext ctx)
+        {
+            var list = LoadAiPlans(ctx, out var attention);
+            var two = PickTwo(list, attention);
+            bool none = two.Count == 0;
+            _empty.Visibility = none ? Visibility.Visible : Visibility.Collapsed;
+            if (none)
+            {
+                _lines[0].Root.Visibility = _lines[1].Root.Visibility = Visibility.Collapsed;
+                return;
+            }
+            var a = two[0];
+            string key = a.Provider + "|" + a.Label;
+            if (key != _badgeKey)
+            {
+                _badgeKey = key;
+                _badgeHost.Child = new ProviderBadge(a.Provider, a.Label, _badgeHost.Width);
+                W.Pulse(_badgeHost, 0.92);
+            }
+            if (a.SessionPct is not null || a.WeeklyPct is not null)
+            {
+                ShowLine(_lines[0], ctx.T("Oturum", "Session"), SessionWhen(ctx, a.SessionReset), a.SessionPct ?? (a.HasData ? a.Pct : null));
+                if (a.WeeklyPct is not null) ShowLine(_lines[1], ctx.T("Haftalık", "Weekly"), WeeklyWhen(ctx, a.WeeklyReset), a.WeeklyPct);
+                else if (two.Count > 1) ShowLine(_lines[1], ShortName(two[1].Label), SessionWhen(ctx, two[1].ResetUtc), two[1].HasData ? two[1].Pct : null);
+                else _lines[1].Root.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                for (int i = 0; i < 2; i++)
+                {
+                    if (i < two.Count) ShowLine(_lines[i], ShortName(two[i].Label), SessionWhen(ctx, two[i].ResetUtc), two[i].HasData ? two[i].Pct : null);
+                    else _lines[i].Root.Visibility = Visibility.Collapsed;
+                }
+            }
+        }
+
+        private static string ShortName(string label)
+        {
+            var first = label.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? label;
+            return first.Length > 8 ? first[..8] : first;
         }
 
         private static void Apply(DockWidgetContext ctx, PlanRow row, AiPlan plan, string resetText)
@@ -648,18 +756,6 @@ internal static class ProductivityWidgetTiles
             {
                 W.SetTextAnimated(row.Pct, plan.HasData ? W.Pct(plan.Pct) : "—");
                 row.Pct.Foreground = row.Fill.Brush;
-            }
-        }
-
-        protected override void Refresh(DockWidgetContext ctx)
-        {
-            var list = LoadAiPlans(ctx, out var attention);
-            var two = PickTwo(list, attention);
-            _empty.Visibility = two.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            for (int i = 0; i < 2; i++)
-            {
-                if (i < two.Count) Apply(ctx, _rows[i], two[i], ResetIn(ctx, two[i]));
-                else _rows[i].Root.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -1203,22 +1299,19 @@ internal static class ProductivityWidgetTiles
         {
             var p = ctx.Palette;
             double h = ctx.TileHeight;
-            _total = Tabular(W.Text(p, "", Fs(ctx, 0.3, 8.5), p.Foreground, FontWeights.SemiBold));
-            _caption = W.Text(p, ctx.T("bugün", "today"), Fs(ctx, 0.2, 7), p.TertiaryForeground);
-            _caption.Margin = new Thickness(4, 0, 0, 0);
-            var head = new DockPanel { LastChildFill = true };
-            DockPanel.SetDock(_total, Dock.Left);
-            head.Children.Add(_total);
-            head.Children.Add(_caption);
+            // Counter layout: app square, the day's total big, a tiny label; the hourly bars live in the card.
+            var square = Vivid.AppSquare(p, ServiceColors.For("screen-time"), Descriptor.Glyph, Math.Round(h * 0.78));
+            square.Margin = new Thickness(0, 0, Math.Round(h * 0.2), 0);
+            _total = Vivid.Value(p, "", h, p.Foreground, 0.9);
+            _caption = Vivid.Label(p, ctx.T("bugün", "today"), h);
             _bars = NewBars(p, 7);
-            _bars.Height = Math.Max(6, Math.Round((h - 4) * 0.42));
-            _bars.Margin = new Thickness(0, 1, 0, 0);
             var g = new Grid { VerticalAlignment = VerticalAlignment.Center };
-            g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            Grid.SetRow(_bars, 1);
-            g.Children.Add(head);
-            g.Children.Add(_bars);
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.Children.Add(square);
+            var col = W.Column(_total, _caption);
+            Grid.SetColumn(col, 1);
+            g.Children.Add(col);
             return g;
         }
 
@@ -2692,42 +2785,13 @@ internal static class ProductivityWidgetTiles
         {
             var p = ctx.Palette;
             double h = ctx.TileHeight;
-            double bh = Math.Max(16, h - 6);
-            double band = Math.Round(bh * 0.36);
-            _dow = W.Text(p, "", Math.Max(5.5, band * 0.7), Brushes.White, FontWeights.Bold);
-            _dow.HorizontalAlignment = HorizontalAlignment.Center;
-            var bandBorder = new Border
-            {
-                Height = band,
-                Background = W.Brush(p.Negative),
-                CornerRadius = new CornerRadius(5, 5, 0, 0),
-                Child = _dow
-            };
-            _day = Tabular(W.Text(p, "", Math.Max(8, (bh - band) * 0.74), p.Foreground, FontWeights.SemiBold));
-            _day.HorizontalAlignment = HorizontalAlignment.Center;
-            var badgeGrid = new Grid();
-            badgeGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            badgeGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            Grid.SetRow(_day, 1);
-            badgeGrid.Children.Add(bandBorder);
-            badgeGrid.Children.Add(_day);
-            var badge = new Border
-            {
-                Width = Math.Round(bh * 0.92),
-                Height = bh,
-                CornerRadius = new CornerRadius(5),
-                Background = p.TileHoverBackground,
-                BorderBrush = p.TileBorder,
-                BorderThickness = new Thickness(0.6),
-                Child = badgeGrid,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, Math.Max(4, h * 0.18), 0)
-            };
+            var badge = Vivid.CalendarPage(p, Math.Round(h * 0.82), out _dow, out _day);
+            badge.Margin = new Thickness(0, 0, Math.Round(h * 0.2), 0);
 
-            _title = W.Text(p, "", Fs(ctx, 0.27, 8), p.Foreground, FontWeights.SemiBold);
+            _title = W.Text(p, "", Fs(ctx, 0.32, 9), p.Foreground, FontWeights.Bold);
             double ds = Math.Max(4, Math.Round(h * 0.15));
             _dot = new Ellipse { Width = ds, Height = ds, Fill = W.Brush(p.Warning), Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
-            _when = Tabular(W.Text(p, "", Fs(ctx, 0.21, 7), p.SecondaryForeground));
+            _when = Tabular(W.Text(p, "", Vivid.LabelSize(h), p.SecondaryForeground, FontWeights.SemiBold));
             var whenRow = new DockPanel();
             DockPanel.SetDock(_dot, Dock.Left);
             whenRow.Children.Add(_dot);
@@ -2753,7 +2817,7 @@ internal static class ProductivityWidgetTiles
                 return ctx.T($"Şimdi · {Dur(ctx, end - now)} kaldı", $"Now · {Dur(ctx, end - now)} left");
             var left = start - now;
             if (left.TotalHours < 12 || start.Date == now.Date)
-                return ctx.T($"{Dur(ctx, left)} sonra", $"in {Dur(ctx, left)}");
+                return $"{start:HH:mm} · " + ctx.T($"{Dur(ctx, left)} sonra", $"in {Dur(ctx, left)}");
             string day = start.Date == now.Date.AddDays(1) ? ctx.T("Yarın", "Tomorrow") : DayAbbrev(ctx, start);
             return $"{day} {start:HH:mm}";
         }

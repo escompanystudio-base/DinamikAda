@@ -148,6 +148,25 @@ internal static class SystemWidgetTiles
     private static Color BatteryColor(DockWidgetPalette p, BatteryState b) =>
         b.Charging ? p.Positive : b.Pct <= 15 ? p.Negative : b.Pct <= 30 ? p.Warning : p.Accent;
 
+    private static readonly Dictionary<Color, Brush> BatteryBodies = new();
+
+    /// <summary>
+    /// Solid body colour for battery tiles: green while charging, red when low, amber when getting low, else the
+    /// accent; always dark enough for white text.
+    /// </summary>
+    private static Brush BatteryBody(DockWidgetPalette p, BatteryState b)
+    {
+        Color c = !b.Has ? Color.FromRgb(0x5A, 0x60, 0x70)
+            : b.Charging ? Color.FromRgb(0x2F, 0xC2, 0x5B)
+            : b.Pct <= 20 ? Color.FromRgb(0xFF, 0x45, 0x3A)
+            : b.Pct <= 30 ? Color.FromRgb(0xFF, 0x9F, 0x0A)
+            : p.Accent;
+        var safe = TileColors.ForWhiteText(new Rgb(c.R, c.G, c.B), 1.0);
+        var key = Color.FromRgb(safe.R, safe.G, safe.B);
+        if (!BatteryBodies.TryGetValue(key, out var brush)) BatteryBodies[key] = brush = Vivid.Solid(key);
+        return brush;
+    }
+
     // =============================================================================================
     // CPU / RAM ring (reference tile)
     // =============================================================================================
@@ -946,19 +965,19 @@ internal static class SystemWidgetTiles
 
         public BatteryRingTile(DockWidgetDescriptor d, DockWidgetContext c) : base(d, c) { }
 
-        protected override bool ShowChrome => false;
+        protected override bool VividByDefault => true;
 
         protected override FrameworkElement BuildContent(DockWidgetContext ctx)
         {
-            var p = ctx.Palette;
+            var p = Vivid.On(ctx.Palette);
             double h = ctx.TileHeight;
-            _ring = W.Ring(p, h - 2, Math.Max(2.5, h * 0.09), p.Positive);
-            _value = W.Text(p, "", Fs(h, 0.27, 8.5), weight: FontWeights.SemiBold);
+            _ring = W.Ring(p, Math.Round(h * 0.8), Math.Max(1.6, Math.Round(h * 0.06 * 2) / 2), Colors.White);
+            _value = W.Text(p, "", Fs(h, 0.36, 10), Vivid.OnColor, FontWeights.Bold);
             _value.HorizontalAlignment = HorizontalAlignment.Center;
             _value.TextTrimming = TextTrimming.None;
-            _bolt = W.Glyph(p, BoltGlyph, Math.Max(6, h * 0.18), W.Brush(p.Positive));
-            _bolt.VerticalAlignment = VerticalAlignment.Top;
-            _bolt.Margin = new Thickness(0, h * 0.16, 0, 0);
+            _bolt = W.Glyph(p, BoltGlyph, Math.Max(6, Math.Round(h * 0.17)), Vivid.OnColor);
+            _bolt.VerticalAlignment = VerticalAlignment.Bottom;
+            _bolt.Margin = new Thickness(0, 0, 0, Math.Round(h * 0.1));
             _bolt.Visibility = Visibility.Collapsed;
             var g = new Grid();
             g.Children.Add(_ring);
@@ -972,14 +991,14 @@ internal static class SystemWidgetTiles
             var b = ReadBattery(ctx);
             if (!b.Has)
             {
+                SetTileBackground(BatteryBody(ctx.Palette, b));
                 _ring.AnimateTo(1);
-                _ring.Fill = _fill.Get(ColorOf(ctx.Palette.SecondaryForeground, ctx.Palette.Accent));
                 W.SetTextAnimated(_value, "AC", false);
                 _bolt.Visibility = Visibility.Collapsed;
                 UpdateLoop(false);
                 return;
             }
-            _ring.Fill = _fill.Get(BatteryColor(ctx.Palette, b));
+            SetTileBackground(BatteryBody(ctx.Palette, b));
             _ring.AnimateTo(b.Pct / 100.0, 700);
             W.SetTextAnimated(_value, b.Pct.ToString(CultureInfo.InvariantCulture));
             _bolt.Visibility = b.Charging ? Visibility.Visible : Visibility.Collapsed;
@@ -1005,15 +1024,15 @@ internal static class SystemWidgetTiles
 
         public BatteryCoreTile(DockWidgetDescriptor d, DockWidgetContext c) : base(d, c) { }
 
-        protected override bool ShowChrome => false;
+        protected override bool VividByDefault => true;
 
         protected override FrameworkElement BuildContent(DockWidgetContext ctx)
         {
-            var p = ctx.Palette;
+            var p = Vivid.On(ctx.Palette);
             double h = ctx.TileHeight;
-            double s = h - 2;
-            _lit = new SolidColorBrush(p.Positive);
-            _dim = p.Track;
+            double s = Math.Round(h * 0.84);
+            _lit = new SolidColorBrush(Colors.White);
+            _dim = Vivid.OnColorTrack;
             var canvas = new Canvas { Width = s, Height = s, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             double cw = Math.Max(1.6, s * 0.1), ch = Math.Max(3, s * 0.2);
             double r = s / 2 - ch / 2 - 0.5;
@@ -1037,7 +1056,7 @@ internal static class SystemWidgetTiles
                 canvas.Children.Add(rect);
                 _cells[i] = rect;
             }
-            _value = W.Text(p, "", Fs(h, 0.25, 8), weight: FontWeights.SemiBold);
+            _value = W.Text(p, "", Fs(h, 0.3, 8.5), Vivid.OnColor, FontWeights.Bold);
             _value.HorizontalAlignment = HorizontalAlignment.Center;
             _value.TextTrimming = TextTrimming.None;
             var g = new Grid();
@@ -1050,8 +1069,7 @@ internal static class SystemWidgetTiles
         {
             var b = ReadBattery(ctx);
             int pct = b.Has ? b.Pct : 100;
-            var color = b.Has ? BatteryColor(ctx.Palette, b) : ColorOf(ctx.Palette.SecondaryForeground, ctx.Palette.Accent);
-            if (_lit.Color != color) _lit.Color = color;
+            SetTileBackground(BatteryBody(ctx.Palette, b));
             W.SetTextAnimated(_value, b.Has ? pct.ToString(CultureInfo.InvariantCulture) : "AC", b.Has);
             int lit = DockWidgetMath.LitCells(pct, Cells);
             if (lit != _litCount)
@@ -1334,15 +1352,16 @@ internal static class SystemWidgetTiles
     /// <summary>Wi-Fi, Bluetooth, hotspot and airplane-mode round buttons with cross-fading state.</summary>
     private sealed class QuickTogglesTile : DockWidgetTileBase
     {
-        private sealed class Toggle(Border button, SolidColorBrush background, SolidColorBrush glyph)
+        private sealed class Toggle(Border button, SolidColorBrush background, SolidColorBrush outline, SolidColorBrush glyph)
         {
             public Border Button { get; } = button;
             public SolidColorBrush Background { get; } = background;
+            public SolidColorBrush Outline { get; } = outline;
             public SolidColorBrush GlyphBrush { get; } = glyph;
             public bool? On { get; set; }
         }
 
-        private readonly Toggle[] _toggles = new Toggle[4];
+        private readonly Toggle[] _toggles = new Toggle[2];
         private DockWidgetContext _ctx = null!;
         private RowsPanel? _cardRows;
         private bool _auditWifi = true, _auditBt = true;
@@ -1354,49 +1373,51 @@ internal static class SystemWidgetTiles
             _ctx = ctx;
             var p = ctx.Palette;
             double h = ctx.TileHeight;
-            double chipW = Math.Round(h * Descriptor.WidthUnits + (Descriptor.WidthUnits - 1) * 6);
-            double gap = Math.Max(3, h * 0.12);
-            double size = Math.Min(h - 6, (chipW - 2 * Math.Round(h * 0.22) - 3 * gap) / 4);
-            string[] glyphs = ["", "", "", ""];
-            string[] tips =
-            [
-                "Wi-Fi",
-                "Bluetooth",
-                ctx.T("Mobil etkin nokta", "Mobile hotspot"),
-                ctx.T("Uçak modu", "Airplane mode")
-            ];
-            var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            for (int i = 0; i < 4; i++)
+            double pillH = Math.Round(h * 0.74);
+            double gap = Math.Max(4, Math.Round(h * 0.16));
+            string[] glyphs = ["\uE701", "\uE702"];
+            string[] tips = ["Wi-Fi", "Bluetooth"];
+            var g = new Grid { VerticalAlignment = VerticalAlignment.Center };
+            for (int i = 0; i < 2; i++)
             {
                 int idx = i;
-                var bg = new SolidColorBrush(ColorOf(p.CardRowBackground, Colors.Transparent));
+                g.ColumnDefinitions.Add(new ColumnDefinition());
+                var bg = new SolidColorBrush(Colors.Transparent);
+                var outline = new SolidColorBrush(ColorOf(p.TertiaryForeground, Colors.White));
                 var fg = new SolidColorBrush(ColorOf(p.Foreground, Colors.White));
-                var glyph = W.Glyph(p, glyphs[i], size * 0.46, fg);
+                var glyph = W.Glyph(p, glyphs[i], Math.Round(pillH * 0.48), fg);
+                var chevron = W.Glyph(p, "\uE70D", Math.Max(6, Math.Round(pillH * 0.3)), fg);
+                chevron.Opacity = 0.7;
+                var content = new DockPanel { LastChildFill = false, Margin = new Thickness(Math.Round(pillH * 0.34), 0, Math.Round(pillH * 0.28), 0) };
+                DockPanel.SetDock(glyph, Dock.Left);
+                DockPanel.SetDock(chevron, Dock.Right);
+                content.Children.Add(glyph);
+                content.Children.Add(chevron);
                 var b = new Border
                 {
-                    Width = size,
-                    Height = size,
-                    CornerRadius = new CornerRadius(size / 2),
+                    Height = pillH,
+                    CornerRadius = new CornerRadius(pillH / 2),
                     Background = bg,
-                    BorderBrush = p.TileBorder,
-                    BorderThickness = new Thickness(0.6),
-                    Child = glyph,
+                    BorderBrush = outline,
+                    BorderThickness = new Thickness(1.1),
+                    Child = content,
                     Cursor = Cursors.Hand,
                     ToolTip = tips[i],
-                    Margin = new Thickness(i == 0 ? 0 : gap, 0, 0, 0)
+                    Margin = new Thickness(i == 0 ? 0 : gap / 2, 0, i == 0 ? gap / 2 : 0, 0)
                 };
                 System.Windows.Automation.AutomationProperties.SetName(b, tips[i]);
                 b.MouseLeftButtonDown += (_, e) => e.Handled = true;
                 b.MouseLeftButtonUp += (_, e) =>
                 {
                     e.Handled = true;
-                    W.Pulse(b, 0.82);
+                    W.Pulse(b, 0.92);
                     OnToggle(idx);
                 };
-                row.Children.Add(b);
-                _toggles[i] = new Toggle(b, bg, fg);
+                Grid.SetColumn(b, i);
+                g.Children.Add(b);
+                _toggles[i] = new Toggle(b, bg, outline, fg);
             }
-            return row;
+            return g;
         }
 
         private void OnToggle(int idx)
@@ -1426,8 +1447,6 @@ internal static class SystemWidgetTiles
             bool bt = ctx.IsAuditMode ? _auditBt : c.IsBluetoothOn;
             SetState(ctx, _toggles[0], wifi, ctx.IsAuditMode || c.IsWifiAvailable);
             SetState(ctx, _toggles[1], bt, ctx.IsAuditMode || c.IsBluetoothAvailable);
-            SetState(ctx, _toggles[2], false, true);
-            SetState(ctx, _toggles[3], false, true);
         }
 
         private static void SetState(DockWidgetContext ctx, Toggle t, bool on, bool available)
@@ -1437,16 +1456,20 @@ internal static class SystemWidgetTiles
             bool first = t.On is null;
             t.On = on;
             var p = ctx.Palette;
-            var bg = on ? p.Accent : ColorOf(p.CardRowBackground, Colors.Transparent);
-            var fg = on ? OnAccent(p) : ColorOf(p.Foreground, Colors.White);
+            // On: accent outline with a soft accent wash; off: a quiet neutral outline.
+            var bg = on ? Color.FromArgb(0x30, p.Accent.R, p.Accent.G, p.Accent.B) : Color.FromArgb(0, p.Accent.R, p.Accent.G, p.Accent.B);
+            var outline = on ? p.Accent : ColorOf(p.TertiaryForeground, Colors.White);
+            var fg = on ? (p.IsLight ? p.Accent : Colors.White) : ColorOf(p.SecondaryForeground, Colors.White);
             if (first)
             {
                 t.Background.Color = bg;
+                t.Outline.Color = outline;
                 t.GlyphBrush.Color = fg;
             }
             else
             {
                 ColorTo(t.Background, bg, 280);
+                ColorTo(t.Outline, outline, 280);
                 ColorTo(t.GlyphBrush, fg, 280);
             }
         }
@@ -1455,7 +1478,10 @@ internal static class SystemWidgetTiles
         {
             var p = ctx.Palette;
             _cardRows = new RowsPanel();
-            return W.Card(p, Descriptor.Glyph, Descriptor.Name(ctx.Lang), _cardRows.Panel, 280,
+            var buttons = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+            buttons.Children.Add(W.Button(p, ctx.T("Mobil etkin nokta", "Mobile hotspot"), () => DockWidgetActions.OpenSettings(ctx, "ms-settings:network-mobilehotspot"), "\uE88A"));
+            buttons.Children.Add(W.Button(p, ctx.T("Uçak modu", "Airplane mode"), () => DockWidgetActions.OpenSettings(ctx, "ms-settings:network-airplanemode"), "\uE709"));
+            return W.Card(p, Descriptor.Glyph, Descriptor.Name(ctx.Lang), W.Column(_cardRows.Panel, buttons), 280,
                 W.Button(p, "", () => DockWidgetActions.OpenSettings(ctx, "ms-settings:network"), ""));
         }
 

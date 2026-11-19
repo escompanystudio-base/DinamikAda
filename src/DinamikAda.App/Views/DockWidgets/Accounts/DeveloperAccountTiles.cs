@@ -313,6 +313,8 @@ public static class DeveloperAccountTiles
 
         public GitHubActivityTile(DockWidgetDescriptor d, DockWidgetContext ctx) : base(d, ctx) { }
 
+        protected override bool ShowAppSquare => false;
+
         protected override GitHubContributions Sample(DockWidgetContext ctx)
         {
             var today = DateOnly.FromDateTime(ctx.Now);
@@ -395,8 +397,8 @@ public static class DeveloperAccountTiles
             double h = ctx.TileHeight;
             double pitch = Math.Max(2.6, Math.Floor((h - 5) / 7 * 10) / 10);
             var grid = BuildGrid(TileWeeks, pitch, pitch * 0.78, out _cells);
-            _streak = W.Text(p, "0", Math.Round(h * 0.36), p.Foreground, FontWeights.SemiBold);
-            _caption = W.Text(p, ctx.T("seri", "streak"), Math.Max(7, Math.Round(h * 0.21)), p.SecondaryForeground);
+            _streak = Vivid.Value(p, "0", h);
+            _caption = Vivid.Label(p, ctx.T("seri", "streak"), h);
             _streak.HorizontalAlignment = HorizontalAlignment.Center;
             _caption.HorizontalAlignment = HorizontalAlignment.Center;
             var texts = W.Column(_streak, _caption);
@@ -515,6 +517,8 @@ public static class DeveloperAccountTiles
 
         public GitHubNotificationsTile(DockWidgetDescriptor d, DockWidgetContext ctx) : base(d, ctx) { }
 
+        protected override bool ShowAppSquare => false;
+
         protected override GitHubNotifications Sample(DockWidgetContext ctx)
         {
             var now = ctx.Now.ToUniversalTime();
@@ -549,7 +553,7 @@ public static class DeveloperAccountTiles
             var bellHost = new Grid { Width = bell, Height = bell, VerticalAlignment = VerticalAlignment.Center };
             bellHost.Children.Add(_halo);
             bellHost.Children.Add(_bell);
-            _count = W.Text(p, "0", Math.Round(h * 0.42), p.Foreground, FontWeights.SemiBold);
+            _count = Vivid.Value(p, "0", h);
             return W.Row(Math.Round(h * 0.16), bellHost, _count);
         }
 
@@ -668,7 +672,7 @@ public static class DeveloperAccountTiles
             var p = ctx.Palette;
             double h = ctx.TileHeight;
             _count = W.Text(p, "0", Math.Round(h * 0.5), p.Foreground, FontWeights.SemiBold);
-            _caption = W.Text(p, ctx.T("açık", "open"), Math.Max(7, Math.Round(h * 0.22)), p.SecondaryForeground);
+            _caption = Vivid.Label(p, ctx.T("açık", "open"), h);
             _top = W.Text(p, "—", Math.Max(7, Math.Round(h * 0.24)), p.Foreground, FontWeights.SemiBold, mono: true);
             var texts = W.Column(_caption, _top);
             texts.Margin = new Thickness(Math.Round(h * 0.16), 0, 0, 0);
@@ -783,6 +787,8 @@ public static class DeveloperAccountTiles
 
         public ResendEmailsTile(DockWidgetDescriptor d, DockWidgetContext ctx) : base(d, ctx) { }
 
+        protected override bool ShowAppSquare => false;
+
         protected override ResendSummary Sample(DockWidgetContext ctx)
         {
             var now = ctx.Now.ToUniversalTime();
@@ -805,7 +811,7 @@ public static class DeveloperAccountTiles
             double h = ctx.TileHeight;
             _ring = W.Ring(p, Math.Round(h * 0.74), Math.Max(2.5, h * 0.11), p.Positive);
             _sent = W.Text(p, "0", Math.Round(h * 0.4), p.Foreground, FontWeights.SemiBold);
-            _caption = W.Text(p, ctx.T("7 günde", "in 7 days"), Math.Max(7, Math.Round(h * 0.22)), p.SecondaryForeground);
+            _caption = Vivid.Label(p, ctx.T("7 günde", "in 7 days"), h);
             // W.Row owns the left margin of later children, so the gap goes in as its spacing.
             return W.Row(Math.Round(h * 0.18), _ring, W.Column(_sent, _caption));
         }
@@ -970,8 +976,8 @@ public static class DeveloperAccountTiles
             var dotHost = new Grid { Width = dot, Height = dot, VerticalAlignment = VerticalAlignment.Center };
             dotHost.Children.Add(_dotHalo);
             dotHost.Children.Add(_dot);
-            _realtime = W.Text(p, "0", Math.Round(h * 0.36), p.Foreground, FontWeights.SemiBold);
-            _today = W.Text(p, string.Empty, Math.Max(7, Math.Round(h * 0.22)), p.SecondaryForeground);
+            _realtime = Vivid.Value(p, "0", h);
+            _today = Vivid.Label(p, string.Empty, h);
             var left = W.Column(W.Row(Math.Round(h * 0.12), dotHost, _realtime), _today);
 
             double inner = InnerWidth(ctx, Descriptor.WidthUnits);

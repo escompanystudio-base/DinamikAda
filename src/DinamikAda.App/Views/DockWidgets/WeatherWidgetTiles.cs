@@ -37,7 +37,7 @@ internal static class WeatherWidgetTiles
     {
         double u = d.WidthUnits;
         double tileW = Math.Round(h * u + (u > 1 ? (u - 1) * 6 : 0));
-        double pad = u > 1.05 ? Math.Round(h * 0.22) : 2;
+        double pad = u > 1.05 ? Math.Round(h * 0.26) : 2;
         return Math.Max(10, tileW - pad * 2);
     }
 
@@ -153,8 +153,11 @@ internal static class WeatherWidgetTiles
         private FrameworkElement _main = null!;
         private object? _renderKey;
         private WeatherCard? _card;
+        private SkyKind? _sky;
 
         protected WeatherTileBase(DockWidgetDescriptor d, DockWidgetContext c) : base(d, c) { }
+
+        protected override bool VividByDefault => true;
 
         protected abstract FrameworkElement BuildMain(DockWidgetContext ctx);
         protected abstract void Render(DockWidgetContext ctx, WeatherSnapshot wx, bool animate);
@@ -165,7 +168,7 @@ internal static class WeatherWidgetTiles
 
         protected override FrameworkElement BuildContent(DockWidgetContext ctx)
         {
-            var p = ctx.Palette;
+            var p = Vivid.On(ctx.Palette);
             double h = ctx.TileHeight;
             _main = BuildMain(ctx);
             _empty = W.Text(p, "", Math.Max(7, h * 0.22), p.SecondaryForeground, ui: false);
@@ -174,7 +177,7 @@ internal static class WeatherWidgetTiles
             _empty.TextAlignment = TextAlignment.Center;
             _empty.HorizontalAlignment = HorizontalAlignment.Center;
             _empty.Visibility = Visibility.Collapsed;
-            var g = new Grid();
+            var g = new Grid { ClipToBounds = false };
             g.Children.Add(_main);
             g.Children.Add(_empty);
             return g;
@@ -183,6 +186,12 @@ internal static class WeatherWidgetTiles
         protected override void Refresh(DockWidgetContext ctx)
         {
             var wx = Weather(ctx);
+            var sky = wx is null ? SkyKind.Cloudy : SkyOf(ctx, wx);
+            if (sky != _sky)
+            {
+                SetTileBackground(SkyBrush(sky), animate: _sky is not null);
+                _sky = sky;
+            }
             if (wx is null)
             {
                 _main.Visibility = Visibility.Collapsed;
@@ -213,21 +222,35 @@ internal static class WeatherWidgetTiles
         protected override void RefreshCard(DockWidgetContext ctx) => _card?.Refresh(ctx);
     }
 
-    /// <summary>Full weather card: conditions, feels-like, humidity, wind, rain, high/low, sun times, next 3 days.</summary>
+    private static readonly Dictionary<SkyKind, Brush> SkyBrushes = new();
+
+    private static Brush SkyBrush(SkyKind kind)
+    {
+        if (!SkyBrushes.TryGetValue(kind, out var b)) SkyBrushes[kind] = b = Vivid.Sky(SkyGradient.Stops(kind));
+        return b;
+    }
+
+    /// <summary>The sky right now, using today's sunrise and sunset for golden hour and the sunset glow.</summary>
+    private static SkyKind SkyOf(DockWidgetContext ctx, WeatherSnapshot wx) =>
+        SkyGradient.Classify(wx.Code, wx.IsDay, ctx.Now, ctx.Now.Date + wx.Sunrise.TimeOfDay, ctx.Now.Date + wx.Sunset.TimeOfDay);
+
+    private static bool IsDayAt(WeatherSnapshot wx, DateTime t) =>
+        t.TimeOfDay >= wx.Sunrise.TimeOfDay && t.TimeOfDay <= wx.Sunset.TimeOfDay;
+
+    /// <summary>
+    /// The weather card: a big temperature with the glossy icon, the next hours as a row of icons, and a five-day
+    /// list with temperature range bars, then the details.
+    /// </summary>
     private sealed class WeatherCard
     {
+        private const double Width = 312;
         private StackPanel _body = null!;
-        private TextBlock _title = null!;
         private object? _key = new();
 
         public FrameworkElement Build(DockWidgetContext ctx, DockWidgetDescriptor d)
         {
-            _body = new StackPanel();
-            var card = W.Card(ctx.Palette, d.Glyph, d.Name(ctx.Lang), _body, 300);
-            // The card's header title is the second child of its header DockPanel; we retitle it with the city.
-            if (card is StackPanel sp && sp.Children[0] is DockPanel header && header.Children[^1] is TextBlock tb) _title = tb;
-            else _title = new TextBlock();
-            return card;
+            _body = new StackPanel { Width = Width };
+            return _body;
         }
 
         public void Refresh(DockWidgetContext ctx)
@@ -245,103 +268,231 @@ internal static class WeatherWidgetTiles
                 _body.Children.Add(t);
                 return;
             }
-            _title.Text = string.IsNullOrWhiteSpace(wx.City) ? ctx.T("Hava Durumu", "Weather") : wx.City;
 
-            var glyph = W.Glyph(p, DockWidgetMath.WeatherGlyph(wx.Code, wx.IsDay), 34, p.AccentBrush);
-            var temp = W.Text(p, Deg(ctx, wx.TempC), 36, weight: FontWeights.SemiBold);
-            temp.Margin = new Thickness(10, 0, 0, 0);
-            var cond = W.Text(p, DockWidgetMath.WeatherText(wx.Code, ctx.Lang), 13.5, p.SecondaryForeground, ui: false);
-            cond.Margin = new Thickness(10, 0, 0, 0);
-            var top = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-            top.Children.Add(glyph);
-            top.Children.Add(temp);
-            top.Children.Add(cond);
-            _body.Children.Add(top);
-
-            _body.Children.Add(W.CardRow(p, ctx.T("Hissedilen", "Feels like"), DegUnit(ctx, wx.FeelsLikeC)));
-            _body.Children.Add(W.CardRow(p, ctx.T("Nem", "Humidity"), ctx.En ? $"{wx.Humidity}%" : $"%{wx.Humidity}"));
-            _body.Children.Add(W.CardRow(p, ctx.T("Rüzgâr", "Wind"), $"{wx.WindKmh.ToString("0", CultureInfo.InvariantCulture)} km/h"));
-            _body.Children.Add(W.CardRow(p, ctx.T("Yağış", "Precipitation"),
-                $"{wx.PrecipMm.ToString("0.#", CultureInfo.InvariantCulture)} mm · " + (ctx.En ? $"{wx.PrecipProbability}%" : $"%{wx.PrecipProbability}")));
-            _body.Children.Add(W.CardRow(p, ctx.T("En yüksek / en düşük", "High / low"), $"{Deg(ctx, wx.HighC)} / {Deg(ctx, wx.LowC)}"));
-            _body.Children.Add(W.CardRow(p, ctx.T("Gün doğumu / batımı", "Sunrise / sunset"), $"{Clock(ctx, wx.Sunrise)} / {Clock(ctx, wx.Sunset)}"));
-
-            var next = wx.Days.Where(x => x.Date.Date > ctx.Now.Date).Take(3).ToList();
-            if (next.Count > 0)
+            // Hero: sky-tinted panel with city, condition, big temperature and the icon.
+            var sky = SkyOf(ctx, wx);
+            var on = Vivid.On(p);
+            var city = W.Text(on, string.IsNullOrWhiteSpace(wx.City) ? ctx.T("Hava Durumu", "Weather") : wx.City, 15, weight: FontWeights.SemiBold);
+            var temp = W.Text(on, Deg(ctx, wx.TempC), 48, weight: FontWeights.Bold);
+            temp.Margin = new Thickness(-2, -4, 0, -4);
+            var cond = W.Text(on, DockWidgetMath.WeatherText(wx.Code, ctx.Lang), 13, on.SecondaryForeground, FontWeights.SemiBold, ui: false);
+            var hl = W.Text(on, ctx.T($"Y {Deg(ctx, wx.HighC)}  D {Deg(ctx, wx.LowC)}", $"H {Deg(ctx, wx.HighC)}  L {Deg(ctx, wx.LowC)}"), 12, on.SecondaryForeground, ui: false);
+            var left = W.Column(city, temp, cond, hl);
+            var icon = new WeatherIcon(84, SkyGradient.Icon(wx.Code, wx.IsDay))
             {
-                var grid = new Grid { Margin = new Thickness(0, 10, 0, 0) };
-                for (int i = 0; i < next.Count; i++)
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, -6, -4, 0)
+            };
+            var heroGrid = new Grid();
+            heroGrid.Children.Add(left);
+            heroGrid.Children.Add(icon);
+            var hero = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+            hero.Children.Add(new Border { CornerRadius = new CornerRadius(16), Background = SkyBrush(sky) });
+            hero.Children.Add(new Border
+            {
+                CornerRadius = new CornerRadius(16),
+                Background = DockWidgetPalette.Freeze(new LinearGradientBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF), Color.FromArgb(0, 0xFF, 0xFF, 0xFF), new Point(0, 0), new Point(0, 0.5))),
+                BorderBrush = W.Brush(Colors.White, 0x22),
+                BorderThickness = new Thickness(0.8)
+            });
+            hero.Children.Add(new Border { Padding = new Thickness(16, 12, 14, 12), Child = heroGrid });
+            _body.Children.Add(hero);
+            W.PopIn(hero);
+
+            // Hourly row.
+            var hours = wx.Hours.Take(6).ToList();
+            if (hours.Count > 0)
+            {
+                _body.Children.Add(Section(p, ctx.T("SAATLİK", "HOURLY")));
+                var row = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+                for (int i = 0; i < hours.Count; i++)
                 {
-                    grid.ColumnDefinitions.Add(new ColumnDefinition());
-                    var day = next[i];
-                    var name = W.Text(p, day.Date.ToString("dddd", Cul(ctx)), 12, p.SecondaryForeground, FontWeights.SemiBold);
-                    var g = W.Glyph(p, DockWidgetMath.WeatherGlyph(day.Code), 20, p.Foreground);
-                    g.Margin = new Thickness(0, 4, 0, 4);
-                    var hl = W.Text(p, $"{Deg(ctx, day.HighC)} / {Deg(ctx, day.LowC)}", 12.5, weight: FontWeights.SemiBold);
-                    name.HorizontalAlignment = hl.HorizontalAlignment = HorizontalAlignment.Center;
-                    var col = new Border
-                    {
-                        Background = p.CardRowBackground,
-                        CornerRadius = new CornerRadius(10),
-                        Padding = new Thickness(4, 8, 4, 8),
-                        Margin = new Thickness(i == 0 ? 0 : 3, 0, i == next.Count - 1 ? 0 : 3, 0),
-                        Child = W.Column(name, g, hl)
-                    };
+                    row.ColumnDefinitions.Add(new ColumnDefinition());
+                    var hr = hours[i];
+                    string label = i == 0 ? ctx.T("Şimdi", "Now") : ctx.Config.DockClock24h
+                        ? hr.Time.ToString("HH", CultureInfo.InvariantCulture)
+                        : hr.Time.ToString("%h", CultureInfo.InvariantCulture) + DockWidgetMath.AmPm(hr.Time);
+                    var t = W.Text(p, label, 11, p.SecondaryForeground, FontWeights.SemiBold);
+                    var ic = new WeatherIcon(26, SkyGradient.Icon(hr.Code, IsDayAt(wx, hr.Time))) { Margin = new Thickness(0, 4, 0, 4) };
+                    var v = W.Text(p, Deg(ctx, hr.TempC), 13, weight: FontWeights.SemiBold);
+                    t.HorizontalAlignment = v.HorizontalAlignment = ic.HorizontalAlignment = HorizontalAlignment.Center;
+                    t.TextTrimming = v.TextTrimming = TextTrimming.None;
+                    var col = W.Column(t, ic, v);
                     Grid.SetColumn(col, i);
-                    grid.Children.Add(col);
+                    row.Children.Add(col);
+                    W.PopIn(col, 18 * (i + 1));
                 }
-                _body.Children.Add(grid);
+                _body.Children.Add(row);
             }
+
+            // Five-day list with range bars on a shared scale.
+            var days = wx.Days.Where(x => x.Date.Date >= ctx.Now.Date).Take(5).ToList();
+            if (days.Count > 0)
+            {
+                _body.Children.Add(Section(p, ctx.T("5 GÜN", "5 DAYS")));
+                double min = days.Min(x => x.LowC), max = days.Max(x => x.HighC);
+                if (max - min < 1) max = min + 1;
+                for (int i = 0; i < days.Count; i++)
+                {
+                    var day = days[i];
+                    var g = new Grid { Margin = new Thickness(0, 2, 0, 2), Height = 26 };
+                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(62) });
+                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
+                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
+                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
+                    var name = W.Text(p, i == 0 ? ctx.T("Bugün", "Today") : day.Date.ToString("ddd", Cul(ctx)), 13, p.Foreground, FontWeights.SemiBold);
+                    var ic = new WeatherIcon(22, SkyGradient.Icon(day.Code, true));
+                    var lo = W.Text(p, Deg(ctx, day.LowC), 13, p.SecondaryForeground, FontWeights.SemiBold);
+                    lo.HorizontalAlignment = HorizontalAlignment.Right;
+                    var hi = W.Text(p, Deg(ctx, day.HighC), 13, p.Foreground, FontWeights.SemiBold);
+                    hi.HorizontalAlignment = HorizontalAlignment.Right;
+                    var bar = new RangeBar((day.LowC - min) / (max - min), (day.HighC - min) / (max - min), p.Track)
+                    {
+                        Height = 5,
+                        Margin = new Thickness(10, 0, 4, 0),
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    Grid.SetColumn(ic, 1);
+                    Grid.SetColumn(lo, 2);
+                    Grid.SetColumn(bar, 3);
+                    Grid.SetColumn(hi, 4);
+                    g.Children.Add(name);
+                    g.Children.Add(ic);
+                    g.Children.Add(lo);
+                    g.Children.Add(bar);
+                    g.Children.Add(hi);
+                    _body.Children.Add(g);
+                    W.PopIn(g, 18 * (i + 7));
+                }
+            }
+
+            // Details.
+            var details = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+            details.Children.Add(W.CardRow(p, ctx.T("Hissedilen", "Feels like"), DegUnit(ctx, wx.FeelsLikeC)));
+            details.Children.Add(W.CardRow(p, ctx.T("Nem · Rüzgâr", "Humidity · Wind"),
+                (ctx.En ? $"{wx.Humidity}%" : $"%{wx.Humidity}") + $" · {wx.WindKmh.ToString("0", CultureInfo.InvariantCulture)} km/h"));
+            details.Children.Add(W.CardRow(p, ctx.T("Gün doğumu / batımı", "Sunrise / sunset"), $"{Clock(ctx, wx.Sunrise)} / {Clock(ctx, wx.Sunset)}"));
+            _body.Children.Add(new Border { Height = 1, Background = p.Track, Opacity = 0.6, Margin = new Thickness(0, 8, 0, 0) });
+            _body.Children.Add(details);
             var upd = W.Text(p, ctx.T($"Güncellendi {Clock(ctx, wx.FetchedLocal)}", $"Updated {Clock(ctx, wx.FetchedLocal)}"), 11, p.TertiaryForeground, ui: false);
-            upd.Margin = new Thickness(0, 8, 0, 0);
+            upd.Margin = new Thickness(0, 6, 0, 0);
             _body.Children.Add(upd);
+        }
+
+        private static TextBlock Section(DockWidgetPalette p, string text)
+        {
+            var t = W.Text(p, text, 10.5, p.TertiaryForeground, FontWeights.SemiBold, ui: false);
+            t.Margin = new Thickness(1, 0, 0, 6);
+            return t;
+        }
+    }
+
+    /// <summary>A temperature range bar: a cool-to-warm gradient segment from <c>lo</c> to <c>hi</c> (0..1) on a track.</summary>
+    private sealed class RangeBar : FrameworkElement
+    {
+        private readonly double _lo, _hi;
+        private readonly Brush _track;
+        private static readonly Brush Warm = DockWidgetPalette.Freeze(new LinearGradientBrush(
+            new GradientStopCollection
+            {
+                new(Color.FromRgb(0x5A, 0xC8, 0xFA), 0.0),
+                new(Color.FromRgb(0xA6, 0xE2, 0x6A), 0.45),
+                new(Color.FromRgb(0xFF, 0xC4, 0x3D), 0.75),
+                new(Color.FromRgb(0xFF, 0x8A, 0x3D), 1.0)
+            }, 0));
+
+        public RangeBar(double lo, double hi, Brush track)
+        {
+            _lo = Math.Clamp(lo, 0, 1);
+            _hi = Math.Clamp(Math.Max(hi, lo), 0, 1);
+            _track = track;
+        }
+
+        protected override void OnRender(DrawingContext dc)
+        {
+            double w = ActualWidth, h = ActualHeight;
+            if (w < 4 || h < 1) return;
+            double r = h / 2;
+            dc.DrawRoundedRectangle(_track, null, new Rect(0, 0, w, h), r, r);
+            double x0 = _lo * w, x1 = Math.Max(x0 + h, _hi * w);
+            dc.PushClip(new RectangleGeometry(new Rect(x0, 0, x1 - x0, h), r, r));
+            dc.DrawRectangle(Warm, null, new Rect(0, 0, w, h));
+            dc.Pop();
         }
     }
 
     // ---- weather ---------------------------------------------------------------------------------
 
+    /// <summary>
+    /// The sky tile: a large glossy icon that rises a little out of the tile, condition over city, and a big
+    /// temperature on the right.
+    /// </summary>
     private sealed class WeatherNowTile : WeatherTileBase
     {
-        private TextBlock _glyph = null!, _temp = null!, _hl = null!;
+        private WeatherIcon _icon = null!;
+        private TextBlock _temp = null!, _cond = null!, _city = null!;
         private bool _floating;
 
         public WeatherNowTile(DockWidgetDescriptor d, DockWidgetContext c) : base(d, c) { }
 
+        protected override Thickness ContentPadding(double h) => new(Math.Round(h * 0.06), 0, Math.Round(h * 0.26), 0);
+
         protected override FrameworkElement BuildMain(DockWidgetContext ctx)
         {
-            var p = ctx.Palette;
+            var p = Vivid.On(ctx.Palette);
             double h = ctx.TileHeight;
-            _glyph = W.Glyph(p, "", Math.Max(11, h * 0.5), p.AccentBrush);
-            _temp = W.Text(p, "", Math.Max(10, h * 0.38), weight: FontWeights.SemiBold);
-            _hl = W.Text(p, "", Math.Max(6, h * 0.18), p.SecondaryForeground, FontWeights.SemiBold);
-            _hl.Margin = new Thickness(0, -h * 0.04, 0, 0);
-            var right = W.Column(_temp, _hl);
-            right.Margin = new Thickness(Math.Max(2, h * 0.1), 0, 0, 0);
-            var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-            row.Children.Add(_glyph);
-            row.Children.Add(right);
-            return Fit(row);
+            double iconSize = Math.Round(h * 1.12);
+            _icon = new WeatherIcon(iconSize)
+            {
+                Margin = new Thickness(0, -Math.Round(h * 0.26), Math.Round(h * 0.02), -Math.Round(h * 0.12)),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            _cond = W.Text(p, "", Math.Max(8, Math.Round(h * 0.25)), p.Foreground, FontWeights.SemiBold);
+            _city = W.Text(p, "", Vivid.LabelSize(h), p.SecondaryForeground, FontWeights.Medium, ui: false);
+            var text = W.Column(_cond, _city);
+            text.Margin = new Thickness(0, 0, Math.Round(h * 0.1), 0);
+            _temp = Vivid.Value(p, "", h, p.Foreground, 1.12);
+            _temp.TextTrimming = TextTrimming.None;
+            var g = new Grid { ClipToBounds = false };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.Children.Add(_icon);
+            Grid.SetColumn(text, 1);
+            g.Children.Add(text);
+            Grid.SetColumn(_temp, 2);
+            g.Children.Add(_temp);
+            return g;
         }
 
         protected override void Render(DockWidgetContext ctx, WeatherSnapshot wx, bool animate)
         {
-            _glyph.Text = DockWidgetMath.WeatherGlyph(wx.Code, wx.IsDay);
+            _icon.Kind = SkyGradient.Icon(wx.Code, wx.IsDay);
             W.SetTextAnimated(_temp, Deg(ctx, wx.TempC), animate);
-            _hl.Text = ctx.T($"Y {Deg(ctx, wx.HighC)}  D {Deg(ctx, wx.LowC)}", $"H {Deg(ctx, wx.HighC)}  L {Deg(ctx, wx.LowC)}");
+            if (animate) CrossFade(_cond, DockWidgetMath.WeatherText(wx.Code, ctx.Lang));
+            else _cond.Text = DockWidgetMath.WeatherText(wx.Code, ctx.Lang);
+            _city.Text = string.IsNullOrWhiteSpace(wx.City)
+                ? ctx.T($"Y {Deg(ctx, wx.HighC)}  D {Deg(ctx, wx.LowC)}", $"H {Deg(ctx, wx.HighC)}  L {Deg(ctx, wx.LowC)}")
+                : wx.City;
         }
 
         public override void OnAttached(DockWidgetContext ctx)
         {
             _floating = true;
-            W.FloatForever(_glyph, Math.Max(1, ctx.TileHeight * 0.045), 2.6);
+            FloatIcon(_icon, ctx.TileHeight);
         }
 
         public override void OnDetached()
         {
-            if (_floating) StopFloat(_glyph);
+            if (_floating) StopFloat(_icon);
             _floating = false;
         }
     }
+
+    /// <summary>A slow, tiny float that keeps the icon's layout margin (it overflows the tile).</summary>
+    private static void FloatIcon(FrameworkElement el, double h) => W.FloatForever(el, Math.Max(0.8, h * 0.035), 3.2);
 
     // ---- weather-details -------------------------------------------------------------------------
 
@@ -356,7 +507,7 @@ internal static class WeatherWidgetTiles
 
         protected override FrameworkElement BuildMain(DockWidgetContext ctx)
         {
-            var p = ctx.Palette;
+            var p = Vivid.On(ctx.Palette);
             double h = ctx.TileHeight;
             double innerW = InnerWidth(Descriptor, h);
             double font = Math.Max(6.5, h * 0.2);
@@ -392,13 +543,13 @@ internal static class WeatherWidgetTiles
             var accent = p.Accent;
             _bar = W.Bar(p, _barW, barH, accent);
             _bar.Fill = DockWidgetPalette.Freeze(new LinearGradientBrush(
-                Color.FromArgb(0xFF, 0x4F, 0xA8, 0xFF), p.Warning, 0));
+                Color.FromArgb(0xFF, 0x9B, 0xE2, 0xFF), Color.FromArgb(0xFF, 0xFF, 0xC4, 0x3D), 0));
             _marker = new Ellipse
             {
                 Width = _markerSize,
                 Height = _markerSize,
                 Fill = p.Foreground,
-                Stroke = p.IsLight ? W.Brush(Colors.White) : W.Brush(Color.FromRgb(0x10, 0x12, 0x18)),
+                Stroke = W.Brush(Color.FromArgb(0x60, 0x00, 0x10, 0x30)),
                 StrokeThickness = 1
             };
             Canvas.SetTop(_marker, (barH - _markerSize) / 2);
@@ -441,7 +592,7 @@ internal static class WeatherWidgetTiles
     private sealed class ForecastTile : WeatherTileBase
     {
         private readonly TextBlock[] _names = new TextBlock[4];
-        private readonly TextBlock[] _glyphs = new TextBlock[4];
+        private readonly WeatherIcon[] _glyphs = new WeatherIcon[4];
         private readonly TextBlock[] _temps = new TextBlock[4];
         private readonly FrameworkElement[] _cols = new FrameworkElement[4];
 
@@ -449,15 +600,15 @@ internal static class WeatherWidgetTiles
 
         protected override FrameworkElement BuildMain(DockWidgetContext ctx)
         {
-            var p = ctx.Palette;
+            var p = Vivid.On(ctx.Palette);
             double h = ctx.TileHeight;
             var g = new Grid();
             for (int i = 0; i < 4; i++)
             {
                 g.ColumnDefinitions.Add(new ColumnDefinition());
-                _names[i] = W.Text(p, "", Math.Max(6, h * 0.17), i == 0 ? p.AccentBrush : p.SecondaryForeground, FontWeights.SemiBold);
-                _glyphs[i] = W.Glyph(p, "", Math.Max(8, h * 0.3), p.Foreground);
-                _temps[i] = W.Text(p, "", Math.Max(6, h * 0.17), weight: FontWeights.SemiBold);
+                _names[i] = W.Text(p, "", Math.Max(6.5, Math.Round(h * 0.2)), i == 0 ? p.Foreground : p.SecondaryForeground, FontWeights.SemiBold);
+                _glyphs[i] = new WeatherIcon(Math.Max(9, Math.Round(h * 0.36))) { HorizontalAlignment = HorizontalAlignment.Center };
+                _temps[i] = W.Text(p, "", Math.Max(6.5, Math.Round(h * 0.2)), weight: FontWeights.Bold);
                 _names[i].HorizontalAlignment = _temps[i].HorizontalAlignment = HorizontalAlignment.Center;
                 _names[i].TextTrimming = _temps[i].TextTrimming = TextTrimming.None;
                 var col = W.Column(_names[i], _glyphs[i], _temps[i]);
@@ -480,8 +631,8 @@ internal static class WeatherWidgetTiles
                 {
                     var d = days[i];
                     _names[i].Text = ShortDay(ctx, d.Date, today);
-                    _glyphs[i].Text = DockWidgetMath.WeatherGlyph(d.Code, i != 0 || wx.IsDay);
-                    _temps[i].Text = $"{Deg(ctx, d.HighC)}/{Deg(ctx, d.LowC)}";
+                    _glyphs[i].Kind = SkyGradient.Icon(d.Code, i != 0 || wx.IsDay);
+                    _temps[i].Text = Deg(ctx, d.HighC);
                     _cols[i].Visibility = Visibility.Visible;
                 }
                 else
@@ -499,19 +650,19 @@ internal static class WeatherWidgetTiles
 
     private sealed class WeatherStatusTile : WeatherTileBase
     {
-        private TextBlock _glyph = null!, _cond = null!, _city = null!;
+        private WeatherIcon _glyph = null!;
+        private TextBlock _cond = null!, _city = null!;
 
         public WeatherStatusTile(DockWidgetDescriptor d, DockWidgetContext c) : base(d, c) { }
 
         protected override FrameworkElement BuildMain(DockWidgetContext ctx)
         {
-            var p = ctx.Palette;
+            var p = Vivid.On(ctx.Palette);
             double h = ctx.TileHeight;
             double innerW = InnerWidth(Descriptor, h);
-            _glyph = W.Glyph(p, "", Math.Max(10, h * 0.42), p.AccentBrush);
-            _glyph.Margin = new Thickness(0, 0, Math.Max(3, h * 0.14), 0);
-            _cond = W.Text(p, "", Math.Max(8, h * 0.27), weight: FontWeights.SemiBold);
-            _city = W.Text(p, "", Math.Max(6.5, h * 0.19), p.SecondaryForeground);
+            _glyph = new WeatherIcon(Math.Round(h * 0.9)) { Margin = new Thickness(-Math.Round(h * 0.12), -Math.Round(h * 0.16), Math.Max(3, h * 0.1), -Math.Round(h * 0.08)) };
+            _cond = W.Text(p, "", Math.Max(8, Math.Round(h * 0.28)), weight: FontWeights.Bold);
+            _city = W.Text(p, "", Vivid.LabelSize(h), p.SecondaryForeground, FontWeights.Medium, ui: false);
             _city.Margin = new Thickness(0, -h * 0.03, 0, 0);
             var text = W.Column(_cond, _city);
             var dp = new DockPanel { LastChildFill = true, Width = innerW, VerticalAlignment = VerticalAlignment.Center };
@@ -523,18 +674,16 @@ internal static class WeatherWidgetTiles
 
         protected override void Render(DockWidgetContext ctx, WeatherSnapshot wx, bool animate)
         {
-            string glyph = DockWidgetMath.WeatherGlyph(wx.Code, wx.IsDay);
+            _glyph.Kind = SkyGradient.Icon(wx.Code, wx.IsDay);
             string cond = $"{DockWidgetMath.WeatherText(wx.Code, ctx.Lang)} · {Deg(ctx, wx.TempC)}";
             string city = string.IsNullOrWhiteSpace(wx.City) ? "—" : wx.City;
             if (animate)
             {
-                CrossFade(_glyph, glyph);
                 CrossFade(_cond, cond);
                 CrossFade(_city, city);
             }
             else
             {
-                _glyph.Text = glyph;
                 _cond.Text = cond;
                 _city.Text = city;
             }
@@ -546,7 +695,7 @@ internal static class WeatherWidgetTiles
     private sealed class HourlyTile : WeatherTileBase
     {
         private readonly TextBlock[] _times = new TextBlock[6];
-        private readonly TextBlock[] _glyphs = new TextBlock[6];
+        private readonly WeatherIcon[] _glyphs = new WeatherIcon[6];
         private readonly TextBlock[] _temps = new TextBlock[6];
         private readonly FrameworkElement[] _cols = new FrameworkElement[6];
         private Sparkline _spark = null!;
@@ -557,7 +706,7 @@ internal static class WeatherWidgetTiles
 
         protected override FrameworkElement BuildMain(DockWidgetContext ctx)
         {
-            var p = ctx.Palette;
+            var p = Vivid.On(ctx.Palette);
             double h = ctx.TileHeight;
             _w = InnerWidth(Descriptor, h);
             double innerH = InnerHeight(h);
@@ -567,11 +716,11 @@ internal static class WeatherWidgetTiles
             {
                 Width = _w,
                 Height = _sparkH,
-                Stroke = W.Brush(p.Accent),
+                Stroke = W.Brush(Colors.White),
                 StrokeThickness = Math.Max(1, h * 0.04),
                 ShowHead = false,
                 FillArea = true,
-                Opacity = 0.55,
+                Opacity = 0.4,
                 VerticalAlignment = VerticalAlignment.Center,
                 Clip = _sparkClip,
                 IsHitTestVisible = false
@@ -580,9 +729,9 @@ internal static class WeatherWidgetTiles
             for (int i = 0; i < 6; i++)
             {
                 cols.ColumnDefinitions.Add(new ColumnDefinition());
-                _times[i] = W.Text(p, "", Math.Max(6, h * 0.17), p.SecondaryForeground, FontWeights.SemiBold);
-                _glyphs[i] = W.Glyph(p, "", Math.Max(7, h * 0.26), p.Foreground);
-                _temps[i] = W.Text(p, "", Math.Max(6, h * 0.18), weight: FontWeights.SemiBold);
+                _times[i] = W.Text(p, "", Math.Max(6.5, Math.Round(h * 0.19)), p.SecondaryForeground, FontWeights.SemiBold);
+                _glyphs[i] = new WeatherIcon(Math.Max(8, Math.Round(h * 0.32))) { HorizontalAlignment = HorizontalAlignment.Center };
+                _temps[i] = W.Text(p, "", Math.Max(6.5, Math.Round(h * 0.2)), weight: FontWeights.Bold);
                 _times[i].HorizontalAlignment = _temps[i].HorizontalAlignment = HorizontalAlignment.Center;
                 _times[i].TextTrimming = _temps[i].TextTrimming = TextTrimming.None;
                 var fit = Fit(W.Column(_times[i], _glyphs[i], _temps[i]));
@@ -610,7 +759,7 @@ internal static class WeatherWidgetTiles
                         ? hr.Time.ToString("HH", CultureInfo.InvariantCulture)
                         : hr.Time.ToString("%h", CultureInfo.InvariantCulture) + DockWidgetMath.AmPm(hr.Time)[..1];
                     bool day = hr.Time.TimeOfDay >= wx.Sunrise.TimeOfDay && hr.Time.TimeOfDay <= wx.Sunset.TimeOfDay;
-                    _glyphs[i].Text = DockWidgetMath.WeatherGlyph(hr.Code, day);
+                    _glyphs[i].Kind = SkyGradient.Icon(hr.Code, day);
                     _temps[i].Text = Deg(ctx, hr.TempC);
                     _cols[i].Visibility = Visibility.Visible;
                     values.Add(ToDisplayTemp(hr.TempC, ctx.Config.WeatherFahrenheit));
@@ -742,7 +891,7 @@ internal static class WeatherWidgetTiles
 
         protected override FrameworkElement BuildMain(DockWidgetContext ctx)
         {
-            var p = ctx.Palette;
+            var p = Vivid.On(ctx.Palette);
             double h = ctx.TileHeight;
             double innerW = InnerWidth(Descriptor, h);
             double innerH = InnerHeight(h);
@@ -752,8 +901,8 @@ internal static class WeatherWidgetTiles
                 Width = innerW,
                 Height = Math.Max(8, innerH - small * 1.3),
                 Track = p.Track,
-                Trail = W.Brush(p.Warning, 0xC0),
-                SunColor = p.Warning,
+                Trail = W.Brush(Color.FromRgb(0xFF, 0xD6, 0x5C), 0xE0),
+                SunColor = Color.FromRgb(0xFF, 0xD0, 0x40),
                 Thickness = Math.Max(1.1, h * 0.045)
             };
             _rise = W.Text(p, "", small, p.SecondaryForeground, FontWeights.SemiBold);
@@ -766,7 +915,7 @@ internal static class WeatherWidgetTiles
             var day = W.Column(_arc, times);
             _dayView = day;
 
-            var moon = W.Glyph(p, MoonGlyph, Math.Max(10, h * 0.42), p.SecondaryForeground);
+            var moon = new WeatherIcon(Math.Round(h * 0.7), WeatherIconKind.Moon);
             moon.Margin = new Thickness(0, 0, Math.Max(3, h * 0.12), 0);
             _nightLabel = W.Text(p, "", Math.Max(6, h * 0.18), p.SecondaryForeground);
             _nightTime = W.Text(p, "", Math.Max(9, h * 0.32), weight: FontWeights.SemiBold);
