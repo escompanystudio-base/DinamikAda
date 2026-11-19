@@ -166,6 +166,7 @@ public partial class DockWindow : Window
         _activeMonitor = ResolveDockMonitor();
 
         InitializeComponent();
+        InitializePanels();
 
         Height = HostHeightDip;
         _reconcileTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
@@ -375,48 +376,6 @@ public partial class DockWindow : Window
         }
     }
 
-    private void UpdateDockAiBadgeAndTooltip()
-    {
-        var summary = _orch.AiQuota.GetSummary();
-        bool showAi = _orch.Config.ShowAiQuotaInIslandAndDock && summary.TotalCount > 0;
-
-        if (_islandAiBadge is not null && _islandAiBadgeText is not null)
-        {
-            if (showAi)
-            {
-                Color accent = ParseHexColor(summary.DockBadgeHex, Color.FromRgb(48, 209, 88));
-                _islandAiBadgeText.Text = summary.DockBadgeText;
-                _islandAiBadgeText.Foreground = new SolidColorBrush(accent);
-                _islandAiBadge.Background = new SolidColorBrush(Color.FromArgb(0x28, accent.R, accent.G, accent.B));
-                _islandAiBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, accent.R, accent.G, accent.B));
-                _islandAiBadge.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                _islandAiBadge.Visibility = Visibility.Collapsed;
-            }
-        }
-
-        if (_islandSyncSlot is not null)
-        {
-            string baseLabel = Strings.DockIslandSyncLabel(_orch.Config.Language);
-            if (showAi)
-            {
-                var focus = summary.AttentionSlot ?? _orch.AiQuota.GetSnapshots().FirstOrDefault();
-                string detail = focus is not null && focus.TotalQuota > 0
-                    ? $" · {focus.Label}: %{(int)Math.Round(focus.RemainingPercent)}"
-                    : string.Empty;
-                _islandSyncSlot.TooltipLabel = $"{baseLabel} · AI {summary.DockBadgeText}{detail}";
-            }
-            else
-            {
-                _islandSyncSlot.TooltipLabel = baseLabel;
-            }
-        }
-
-        UpdateStartAiStatusPill();
-    }
-
     private void UpdateStartAiStatusPill()
     {
         if (StartAiStatusText is null || StartAiStatusDot is null) return;
@@ -479,90 +438,6 @@ public partial class DockWindow : Window
         bmp.Render(DockRootGrid);
         if (bmp.CanFreeze) bmp.Freeze();
         return bmp;
-    }
-
-    public RenderTargetBitmap RenderCalendarPopupForAudit(int width = 300, int height = 340)
-    {
-        SetSmokeOrAuditMode(true);
-        _popupDisplayMonth = new DateTime(2026, 11, 1);
-        _popupRenderedToday = new DateTime(2026, 11, 16);
-        UpdatePopupLiveClockAndFooter();
-        RebuildPopupCalendarGrid();
-        SyncCoordinatorState(_orch.Coordinator.Current);
-
-        ClockCalendarCard.Measure(new Size(264, double.PositiveInfinity));
-        double cardH = Math.Ceiling(ClockCalendarCard.DesiredSize.Height);
-        ClockCalendarCard.Arrange(new Rect(0, 0, 264, cardH));
-        ClockCalendarCard.UpdateLayout();
-
-        int finalW = Math.Max(width, 288);
-        int finalH = Math.Max(height, (int)cardH + 24);
-        var dv = new DrawingVisual();
-        using (var dc = dv.RenderOpen())
-        {
-            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(8, 10, 16)), null, new Rect(0, 0, finalW, finalH));
-            var vb = new VisualBrush(ClockCalendarCard) { Stretch = Stretch.None };
-            double x = Math.Round((finalW - 264) * 0.5);
-            double y = Math.Round((finalH - cardH) * 0.5);
-            dc.DrawRectangle(vb, null, new Rect(x, y, 264, cardH));
-        }
-
-        var bmp = new RenderTargetBitmap(finalW, finalH, 96, 96, PixelFormats.Pbgra32);
-        bmp.Render(dv);
-        if (bmp.CanFreeze) bmp.Freeze();
-        return bmp;
-    }
-
-    public RenderTargetBitmap RenderTrayPopupForAudit(int width = 412, int height = 460, bool empty = false)
-    {
-        SetSmokeOrAuditMode(true);
-        // Keep the closed PopupRoot out of the standalone capture's layout pass.
-        TrayOverflowPopup.Child = null;
-        try
-        {
-            var demoItems = new BackgroundTrayAppItem[]
-            {
-                new("audit:discord", "Discord", "Discord.exe", null, 1, 0, 0, null),
-                new("audit:whatsapp", "WhatsApp", "WhatsApp.Root.exe", null, 2, 0, 0, null),
-                new("audit:steam", "Steam", "steam.exe", null, 3, 0, 0, null),
-                new("audit:ytmusic", "YouTube Music", "YouTube Music.exe", null, 4, 0, 0, null),
-                new("audit:chatgpt", "ChatGPT", "ChatGPT.exe", null, 5, 0, 0, null),
-                new("audit:wpe", "Wallpaper Engine", "wallpaper32.exe", null, 6, 0, 0, null)
-            };
-            TrayOverflowCard.Width = Math.Clamp(width - 24, 300, 388);
-            RebuildTrayOverflowGrid(empty ? [] : demoItems);
-            SyncCoordinatorState(_orch.Coordinator.Current);
-
-            double cardW = TrayOverflowCard.Width;
-            TrayOverflowCard.InvalidateMeasure();
-            TrayOverflowCard.Measure(new Size(cardW, double.PositiveInfinity));
-            double cardH = Math.Ceiling(TrayOverflowCard.DesiredSize.Height);
-            TrayOverflowCard.Arrange(new Rect(0, 0, cardW, cardH));
-            TrayOverflowCard.UpdateLayout();
-            var cardBitmap = new RenderTargetBitmap((int)Math.Ceiling(cardW), (int)cardH, 96, 96, PixelFormats.Pbgra32);
-            cardBitmap.Render(TrayOverflowCard);
-            cardBitmap.Freeze();
-
-            int finalW = Math.Max(width, (int)cardW + 24);
-            int finalH = Math.Max(height, (int)cardH + 24);
-            var dv = new DrawingVisual();
-            using (var dc = dv.RenderOpen())
-            {
-                dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(8, 10, 16)), null, new Rect(0, 0, finalW, finalH));
-                double x = Math.Round((finalW - cardW) * 0.5);
-                double y = Math.Round((finalH - cardH) * 0.5);
-                dc.DrawImage(cardBitmap, new Rect(x, y, cardW, cardH));
-            }
-
-            var bmp = new RenderTargetBitmap(finalW, finalH, 96, 96, PixelFormats.Pbgra32);
-            bmp.Render(dv);
-            if (bmp.CanFreeze) bmp.Freeze();
-            return bmp;
-        }
-        finally
-        {
-            TrayOverflowPopup.Child = TrayOverflowCard;
-        }
     }
 
     public RenderTargetBitmap RenderStartPopupForAudit(int width = 680, int height = 650, string query = "")
@@ -1667,163 +1542,6 @@ public partial class DockWindow : Window
         DockItemsHost.Children.Add(container);
     }
 
-    private void AddIslandSyncSlot(string lang, int iconSize, double tileW, double tileH, bool showAiSlot)
-    {
-        var scale = new ScaleTransform(1.0, 1.0, tileW * 0.5, tileH);
-        var translate = new TranslateTransform(0.0, 0.0);
-        var tg = new TransformGroup();
-        tg.Children.Add(scale);
-        tg.Children.Add(translate);
-
-        var container = new Grid
-        {
-            Width = tileW,
-            Height = tileH + 9.0,
-            Cursor = Cursors.Hand,
-            Background = Brushes.Transparent,
-            RenderTransform = tg
-        };
-
-        // Sleek miniature Dynamic Island pill synced with top notch (+ live AI Quota ready pill)
-        double pillH = Math.Max(20.0, Math.Round(iconSize * 0.68));
-        double pillW = showAiSlot
-            ? Math.Max(54.0, iconSize + 20.0)
-            : Math.Max(36.0, iconSize + 10.0);
-        var plate = new Border
-        {
-            Width = pillW,
-            Height = pillH,
-            CornerRadius = new CornerRadius(pillH * 0.5),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, Math.Round((iconSize - pillH) * 0.5), 0, 0),
-            Background = new SolidColorBrush(Color.FromRgb(0, 0, 0)),
-            BorderBrush = DockTint(0x36),
-            BorderThickness = new Thickness(0.8)
-        };
-
-        var row = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        // Mini camera lens ring
-        var lensOuter = new Grid
-        {
-            Width = 8,
-            Height = 8,
-            Margin = new Thickness(0, 0, 4, 0)
-        };
-        lensOuter.Children.Add(new Ellipse
-        {
-            Fill = new SolidColorBrush(Color.FromRgb(10, 14, 24)),
-            Stroke = DockTint(0x30),
-            StrokeThickness = 0.6
-        });
-        lensOuter.Children.Add(new Ellipse
-        {
-            Width = 3.5,
-            Height = 3.5,
-            Fill = new SolidColorBrush(Color.FromRgb(22, 64, 130))
-        });
-
-        var liveDot = new Ellipse
-        {
-            Width = 6,
-            Height = 6,
-            Fill = new SolidColorBrush(Color.FromRgb(48, 209, 88)),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        _islandSyncDot = liveDot;
-
-        _islandAiBadgeText = new TextBlock
-        {
-            FontSize = 8.4,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(48, 209, 88)),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        _islandAiBadge = new Border
-        {
-            CornerRadius = new CornerRadius(5),
-            Background = new SolidColorBrush(Color.FromArgb(0x28, 0x30, 0xD1, 0x58)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, 0x30, 0xD1, 0x58)),
-            BorderThickness = new Thickness(0.5),
-            Padding = new Thickness(3.5, 0.2, 3.5, 0.2),
-            Margin = new Thickness(4, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Visibility = Visibility.Collapsed,
-            IsHitTestVisible = false,
-            Child = _islandAiBadgeText
-        };
-
-        row.Children.Add(lensOuter);
-        row.Children.Add(liveDot);
-        row.Children.Add(_islandAiBadge);
-
-        var inner = new Grid();
-        inner.Children.Add(row);
-
-        _islandSyncBadgeText = new TextBlock
-        {
-            FontSize = 8.5,
-            FontWeight = FontWeights.Bold,
-            Foreground = Brushes.White
-        };
-        _islandSyncBadge = new Border
-        {
-            CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Color.FromRgb(255, 69, 58)),
-            Padding = new Thickness(3.5, 0, 3.5, 0),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(0, -4, -3, 0),
-            Visibility = Visibility.Collapsed,
-            IsHitTestVisible = false,
-            Child = _islandSyncBadgeText
-        };
-        inner.Children.Add(_islandSyncBadge);
-        plate.Child = inner;
-        container.Children.Add(plate);
-
-        var slotVisual = new DockSlotVisual
-        {
-            Container = container,
-            Scale = scale,
-            Translate = translate,
-            IconPlate = plate,
-            RunningDot = null,
-            RunningPill = null,
-            TooltipLabel = Strings.DockIslandSyncLabel(lang),
-            Kind = SlotKind.IslandSync
-        };
-        _islandSyncSlot = slotVisual;
-
-        container.MouseLeftButtonUp += (_, ev) =>
-        {
-            ev.Handled = true;
-            if (_orch.Coordinator.Current.State == IslandPresentationState.S4Expanded)
-            {
-                _orch.Coordinator.RequestCollapse(forceUnpin: true);
-            }
-            else
-            {
-                _orch.Coordinator.RequestExpand(_orch.Coordinator.Current.PrimaryActivity?.TargetTab);
-            }
-        };
-        container.MouseRightButtonUp += (_, ev) =>
-        {
-            ev.Handled = true;
-            HandleSlotContextMenu(slotVisual);
-        };
-
-        _slots.Add(slotVisual);
-        DockItemsHost.Children.Add(container);
-        UpdateDockAiBadgeAndTooltip();
-    }
-
     private void AddTrayChevronSlot(string lang, int iconSize, double tileW, double tileH)
     {
         var scale = new ScaleTransform(1.0, 1.0, tileW * 0.5, tileH);
@@ -1901,9 +1619,9 @@ public partial class DockWindow : Window
         };
         container.PreviewMouseLeftButtonDown += (_, ev) =>
         {
-            if (TrayOverflowPopup.IsOpen)
+            if (IsPanelVisible(TrayOverflowPopup))
             {
-                TrayOverflowPopup.IsOpen = false;
+                ClosePanel(TrayOverflowPopup);
                 _suppressNextTrayOpenOnUp = true;
                 ev.Handled = true;
             }
@@ -2068,7 +1786,7 @@ public partial class DockWindow : Window
                 foregroundChanged: false,
                 contextMenuOpen: false))
         {
-            TrayOverflowPopup.IsOpen = false;
+            ClosePanel(TrayOverflowPopup);
         }
 
         if (WidgetCardPopup.IsOpen && WindowRestoreGeometry.ShouldLightDismissPopup(
@@ -2096,7 +1814,7 @@ public partial class DockWindow : Window
                 foregroundChanged: false,
                 contextMenuOpen: false))
         {
-            ClockCalendarPopup.IsOpen = false;
+            ClosePanel(ClockCalendarPopup);
         }
     }
 
@@ -2137,61 +1855,18 @@ public partial class DockWindow : Window
 
         if (TrayOverflowPopup.IsOpen)
         {
-            TrayOverflowPopup.IsOpen = false;
+            ClosePanel(TrayOverflowPopup);
         }
 
         if (ClockCalendarPopup.IsOpen)
         {
-            ClockCalendarPopup.IsOpen = false;
+            ClosePanel(ClockCalendarPopup);
         }
 
         if (WidgetCardPopup.IsOpen)
         {
             WidgetCardPopup.IsOpen = false;
         }
-    }
-
-    private void ToggleTrayPopup()
-    {
-        if (_trayChevronBtn is null) return;
-        StartLaunchPopup.IsOpen = false;
-        ClockCalendarPopup.IsOpen = false;
-        if (TrayOverflowPopup.IsOpen)
-        {
-            TrayOverflowPopup.IsOpen = false;
-            return;
-        }
-
-        double scale = Math.Max(1.0, _activeMonitor.DpiScale);
-        TrayOverflowCard.Width = Math.Clamp(_activeMonitor.EffectiveWorkWidthPx / scale - 32, 300, 388);
-        TrayAppsScroller.MaxHeight = Math.Clamp(_activeMonitor.EffectiveWorkHeightPx / scale - 180, 90, 380);
-        TrayOverflowPopup.PlacementTarget = _trayChevronBtn;
-        TrayOverflowPopup.IsOpen = true;
-    }
-
-    private void OnTrayPopupOpened(object? sender, EventArgs e)
-    {
-        if (_isClosed) return;
-        TrayPopupStatusText.Visibility = Visibility.Collapsed;
-        RebuildTrayOverflowGrid(_cachedTrayItems);
-        TrayAppsScroller.ScrollToTop();
-        SyncCoordinatorState(_orch.Coordinator.Current);
-        if (!_isSmokeOrAuditMode)
-        {
-            StartPopupLightDismissWatcher();
-            _ = RefreshTrayAppsAsync(showLoading: _cachedTrayItems.Count == 0);
-            _ = Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
-            {
-                if (TrayOverflowPopup.IsOpen && !TrayOverflowCard.IsKeyboardFocusWithin)
-                    BtnTrayPopupRefresh.Focus();
-            });
-        }
-    }
-
-    private void OnTrayPopupClosed(object? sender, EventArgs e)
-    {
-        StopPopupLightDismissWatcherIfIdle();
-        ScheduleIntellihideEval();
     }
 
     private readonly List<AppLaunchItem> _displayedStartApps = new(48);
@@ -2751,178 +2426,6 @@ public partial class DockWindow : Window
         menu.IsOpen = true;
     }
 
-    private Task RefreshTrayAppsAsync(bool showLoading = false)
-    {
-        if (_isClosed || _isSmokeOrAuditMode || _trayActionBusy) return Task.CompletedTask;
-        if (_trayRefreshTask is { IsCompleted: false })
-        {
-            if (showLoading)
-            {
-                SetTrayStatus(Strings.Pick(_orch.Config.Language, "Uygulamalar kontrol ediliyor…", "Checking apps…"));
-                TrayPopupEmptyText.Visibility = Visibility.Collapsed;
-            }
-            return _trayRefreshTask;
-        }
-        return _trayRefreshTask = RefreshTrayAppsCoreAsync(showLoading);
-    }
-
-    private async Task RefreshTrayAppsCoreAsync(bool showLoading)
-    {
-        BtnTrayPopupRefresh.IsEnabled = false;
-        if (showLoading)
-        {
-            SetTrayStatus(Strings.Pick(_orch.Config.Language, "Uygulamalar kontrol ediliyor…", "Checking apps…"));
-            TrayPopupEmptyText.Visibility = Visibility.Collapsed;
-        }
-        try
-        {
-            var items = await Task.Run(() => _appsService.QueryBackgroundTrayApps());
-            if (_isClosed) return;
-            _cachedTrayItems = items;
-            _lastTrayAppCount = items.Count;
-            if (_trayActiveDot is not null) _trayActiveDot.Opacity = items.Count > 0 ? 1.0 : 0.0;
-            if (TrayOverflowPopup.IsOpen && _activeContextMenu is not { IsOpen: true } && !_trayActionBusy)
-            {
-                if (!_renderedTrayItems.SequenceEqual(items)) RebuildTrayOverflowGrid(items);
-                TrayPopupEmptyText.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-                TrayPopupStatusText.Visibility = Visibility.Collapsed;
-            }
-        }
-        catch (Exception)
-        {
-            if (!_isClosed && TrayOverflowPopup.IsOpen)
-                SetTrayStatus(Strings.Pick(_orch.Config.Language, "Liste yenilenemedi. Yeniden deneyin.", "Could not refresh the list. Try again."), isError: true);
-        }
-        finally
-        {
-            if (!_isClosed) BtnTrayPopupRefresh.IsEnabled = true;
-        }
-    }
-
-    private void SetTrayStatus(string message, bool isError = false)
-    {
-        TrayPopupStatusText.Text = message;
-        TrayPopupStatusText.Foreground = isError
-            ? new SolidColorBrush(Color.FromRgb(255, 180, 171))
-            : (Brush)FindResource("AccentCyanBrush");
-        TrayPopupStatusText.Visibility = Visibility.Visible;
-    }
-
-    private async void OnTrayPopupRefreshClick(object sender, RoutedEventArgs e) =>
-        await RefreshTrayAppsAsync(showLoading: true);
-
-    private void OnTrayCardPreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Escape)
-        {
-            e.Handled = true;
-            TrayOverflowPopup.IsOpen = false;
-        }
-        else if (e.Key == Key.F5)
-        {
-            e.Handled = true;
-            _ = RefreshTrayAppsAsync(showLoading: true);
-        }
-        else if (e.Key == Key.Down && Keyboard.FocusedElement == BtnTrayPopupRefresh && TrayOverflowGrid.Children.Count > 0)
-        {
-            e.Handled = true;
-            TrayOverflowGrid.Children[0].Focus();
-        }
-    }
-
-    private void RebuildTrayOverflowGrid(IReadOnlyList<BackgroundTrayAppItem> items)
-    {
-        string lang = _orch.Config.Language;
-        string? focusedKey = (Keyboard.FocusedElement as Button)?.Tag as string;
-        double scrollOffset = TrayAppsScroller.VerticalOffset;
-        _renderedTrayItems = items;
-        _lastTrayAppCount = items.Count;
-        if (_trayActiveDot is not null) _trayActiveDot.Opacity = items.Count > 0 ? 1.0 : 0.0;
-
-        TrayPopupTitleText.Text = Strings.TrayOverflowHeader(lang);
-        TrayPopupEmptyText.Text = Strings.TrayOverflowEmpty(lang);
-        TrayPopupCountText.Text = items.Count.ToString(CultureInfo.InvariantCulture);
-        BtnTrayPopupRefresh.ToolTip = Strings.Pick(lang, "Yenile (F5)", "Refresh (F5)");
-        AutomationProperties.SetName(BtnTrayPopupRefresh, Strings.Pick(lang, "Uygulama listesini yenile", "Refresh the app list"));
-        TrayOverflowGrid.Children.Clear();
-        TrayPopupEmptyText.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-
-        foreach (var item in items)
-        {
-            var row = new Button
-            {
-                Tag = item.Key,
-                Style = (Style)FindResource("DarkActionButtonStyle"),
-                HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                Padding = new Thickness(10, 8, 10, 8),
-                Margin = new Thickness(0, 0, 0, 6),
-                Background = new SolidColorBrush(Color.FromRgb(24, 32, 47)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(43, 56, 75)),
-                ToolTip = string.IsNullOrWhiteSpace(item.ExePath) ? item.DisplayName : item.ExePath
-            };
-            AutomationProperties.SetName(row, item.DisplayName);
-            AutomationProperties.SetHelpText(row, Strings.TrayOpenApp(lang));
-
-            var content = new Grid { Width = Math.Max(180, TrayOverflowCard.Width - 58) };
-            content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
-            content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
-            FrameworkElement icon = item.Icon is not null
-                ? new Image { Source = item.Icon, Width = 28, Height = 28, Stretch = Stretch.Uniform }
-                : new Border
-                {
-                    Width = 30, Height = 30, CornerRadius = new CornerRadius(9),
-                    Background = new SolidColorBrush(Color.FromRgb(31, 54, 83)),
-                    Child = new TextBlock
-                    {
-                        Text = string.IsNullOrWhiteSpace(item.DisplayName) ? "?" : StringInfo.GetNextTextElement(item.DisplayName).ToUpperInvariant(),
-                        Foreground = (Brush)FindResource("AccentCyanBrush"), FontSize = 15, FontWeight = FontWeights.SemiBold,
-                        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
-                    }
-                };
-            content.Children.Add(icon);
-
-            var labels = new StackPanel { Margin = new Thickness(10, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
-            labels.Children.Add(new TextBlock
-            {
-                Text = item.DisplayName, FontSize = 13, FontWeight = FontWeights.SemiBold,
-                Foreground = (Brush)FindResource("TextPrimaryBrush"), TextTrimming = TextTrimming.CharacterEllipsis
-            });
-            labels.Children.Add(new TextBlock
-            {
-                Text = System.IO.Path.GetFileName(item.ExePath) ?? string.Empty, FontSize = 11,
-                Margin = new Thickness(0, 3, 0, 0), Foreground = (Brush)FindResource("TextSecondaryBrush"),
-                TextTrimming = TextTrimming.CharacterEllipsis
-            });
-            Grid.SetColumn(labels, 1);
-            content.Children.Add(labels);
-            var arrow = new TextBlock
-            {
-                Text = "\uE8A7", FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 12,
-                Foreground = (Brush)FindResource("AccentCyanBrush"),
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
-            };
-            Grid.SetColumn(arrow, 2);
-            content.Children.Add(arrow);
-            row.Content = content;
-            row.Click += (_, _) => DismissPopupsAndActivateTrayApp(item);
-            row.MouseRightButtonUp += (_, ev) =>
-            {
-                ev.Handled = true;
-                ShowTrayItemContextMenu(row, item, lang);
-            };
-            row.PreviewKeyDown += (_, ev) =>
-            {
-                if (ev.Key != Key.Apps && !(ev.Key == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift)) return;
-                ev.Handled = true;
-                ShowTrayItemContextMenu(row, item, lang);
-            };
-            TrayOverflowGrid.Children.Add(row);
-            if (focusedKey == item.Key) row.Focus();
-        }
-        TrayAppsScroller.ScrollToVerticalOffset(scrollOffset);
-    }
-
     private async void DismissPopupsAndActivateTrayApp(BackgroundTrayAppItem item)
     {
         if (_isSmokeOrAuditMode || _trayActionBusy) return;
@@ -3167,9 +2670,9 @@ public partial class DockWindow : Window
         };
         clockBtn.PreviewMouseLeftButtonDown += (_, ev) =>
         {
-            if (ClockCalendarPopup.IsOpen)
+            if (IsPanelVisible(ClockCalendarPopup))
             {
-                ClockCalendarPopup.IsOpen = false;
+                ClosePanel(ClockCalendarPopup);
                 _suppressNextClockOpenOnUp = true;
                 ev.Handled = true;
             }
@@ -3193,207 +2696,6 @@ public partial class DockWindow : Window
         _lastClockMinute = string.Empty;
         UpdateClockText();
         DockItemsHost.Children.Add(clockBtn);
-    }
-
-    private void ToggleClockPopup()
-    {
-        if (_clockChip is null) return;
-        StartLaunchPopup.IsOpen = false;
-        TrayOverflowPopup.IsOpen = false;
-        if (ClockCalendarPopup.IsOpen)
-        {
-            ClockCalendarPopup.IsOpen = false;
-            return;
-        }
-
-        double sinceClose = (Stopwatch.GetTimestamp() - _lastPopupClosedTicks) / (double)Stopwatch.Frequency;
-        if (_lastPopupClosedTicks != 0 && sinceClose < 0.22)
-        {
-            return;
-        }
-
-        ClockCalendarPopup.PlacementTarget = _clockChip;
-        ClockCalendarPopup.IsOpen = true;
-    }
-
-    private void OnClockPopupOpened(object? sender, EventArgs e)
-    {
-        if (_isClosed) return;
-        _popupRenderedToday = DateTime.Today;
-        _popupDisplayMonth = new DateTime(_popupRenderedToday.Year, _popupRenderedToday.Month, 1);
-        UpdatePopupLiveClockAndFooter();
-        RebuildPopupCalendarGrid();
-        SyncCoordinatorState(_orch.Coordinator.Current);
-        if (!_isSmokeOrAuditMode)
-        {
-            _popupClockTimer.Start();
-            StartPopupLightDismissWatcher();
-        }
-    }
-
-    private void OnClockPopupClosed(object? sender, EventArgs e)
-    {
-        _popupClockTimer.Stop();
-        _lastPopupClosedTicks = Stopwatch.GetTimestamp();
-        StopPopupLightDismissWatcherIfIdle();
-        ScheduleIntellihideEval();
-    }
-
-    private void OnPopupPrevMonthClick(object sender, RoutedEventArgs e)
-    {
-        _popupDisplayMonth = _popupDisplayMonth.AddMonths(-1);
-        RebuildPopupCalendarGrid();
-    }
-
-    private void OnPopupNextMonthClick(object sender, RoutedEventArgs e)
-    {
-        _popupDisplayMonth = _popupDisplayMonth.AddMonths(1);
-        RebuildPopupCalendarGrid();
-    }
-
-    private void OnPopupTodayClick(object sender, RoutedEventArgs e)
-    {
-        var today = DateTime.Today;
-        _popupRenderedToday = today;
-        _popupDisplayMonth = new DateTime(today.Year, today.Month, 1);
-        RebuildPopupCalendarGrid();
-    }
-
-    private void OnPopupFooterClick(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        ClockCalendarPopup.IsOpen = false;
-        _orch.Coordinator.RequestExpand(ExpandedTabId.Now);
-    }
-
-    private void UpdatePopupLiveClockAndFooter()
-    {
-        var now = DateTime.Now;
-        var culture = GetActiveUiCulture();
-
-        PopupClockHm.Text = now.ToString("HH:mm", culture);
-        PopupClockSec.Text = now.ToString(":ss", culture);
-
-        string weekday = culture.DateTimeFormat.GetDayName(now.DayOfWeek);
-        PopupDateWeekday.Text = string.IsNullOrEmpty(weekday)
-            ? weekday
-            : char.ToUpper(weekday[0], culture) + weekday[1..];
-        PopupDateFull.Text = now.ToString("dd MMMM yyyy", culture);
-
-        if (!_isSmokeOrAuditMode && now.Date != _popupRenderedToday)
-        {
-            _popupRenderedToday = now.Date;
-            RebuildPopupCalendarGrid();
-        }
-
-        bool isEn = string.Equals(_orch.Config.Language, "en", StringComparison.OrdinalIgnoreCase);
-        var meeting = _orch.Calendar.ActiveOrNextMeeting;
-        if (meeting is not null)
-        {
-            var startLocal = meeting.StartUtc.ToLocalTime();
-            bool isLive = meeting.StartUtc <= DateTimeOffset.UtcNow && meeting.EndUtc > DateTimeOffset.UtcNow;
-            PopupMeetingDot.Fill = new SolidColorBrush(isLive
-                ? Color.FromRgb(48, 209, 88)
-                : Color.FromRgb(10, 132, 255));
-            PopupFooterText.Text = isLive
-                ? $"{(isEn ? "Now" : "Şimdi")} · {meeting.Summary}"
-                : $"{startLocal:HH:mm} · {meeting.Summary}";
-        }
-        else
-        {
-            PopupMeetingDot.Fill = new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF));
-            PopupFooterText.Text = isEn ? "No events scheduled today" : "Bugün planlı etkinlik yok";
-        }
-    }
-
-    private void RebuildPopupCalendarGrid()
-    {
-        var culture = GetActiveUiCulture();
-        bool isEn = string.Equals(_orch.Config.Language, "en", StringComparison.OrdinalIgnoreCase);
-
-        string rawMonth = _popupDisplayMonth.ToString("MMMM yyyy", culture);
-        PopupMonthTitle.Text = string.IsNullOrEmpty(rawMonth)
-            ? rawMonth
-            : char.ToUpper(rawMonth[0], culture) + rawMonth[1..];
-
-        var today = _popupRenderedToday;
-        bool isCurrentMonth = _popupDisplayMonth.Year == today.Year && _popupDisplayMonth.Month == today.Month;
-        BtnPopupToday.Content = isEn ? "Today" : "Bugün";
-        BtnPopupToday.Visibility = isCurrentMonth ? Visibility.Collapsed : Visibility.Visible;
-
-        if (PopupWeekdayGrid.Children.Count == 0 || !Equals(PopupWeekdayGrid.Tag, _orch.Config.Language))
-        {
-            PopupWeekdayGrid.Tag = _orch.Config.Language;
-            PopupWeekdayGrid.Children.Clear();
-            string[] weekdays = isEn
-                ? ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
-                : ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
-            var weekdayBrush = new SolidColorBrush(Color.FromArgb(0x88, 0xF5, 0xF5, 0xF7));
-            foreach (string wd in weekdays)
-            {
-                PopupWeekdayGrid.Children.Add(new TextBlock
-                {
-                    Text = wd,
-                    FontFamily = (FontFamily)FindResource("UiFont"),
-                    FontSize = 9.5,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = weekdayBrush,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Thickness(0, 2, 0, 2)
-                });
-            }
-        }
-
-        PopupDaysGrid.Children.Clear();
-        var firstOfMonth = new DateTime(_popupDisplayMonth.Year, _popupDisplayMonth.Month, 1);
-        int mondayOffset = ((int)firstOfMonth.DayOfWeek + 6) % 7; // Mon=0 .. Sun=6
-        DateTime gridStart = firstOfMonth.AddDays(-mondayOffset);
-
-        var todayBg = new SolidColorBrush(Color.FromRgb(10, 132, 255));
-        var hoverBg = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF));
-        var normalFg = new SolidColorBrush(Color.FromRgb(245, 245, 247));
-        var weekendFg = new SolidColorBrush(Color.FromArgb(0xB8, 0xF5, 0xF5, 0xF7));
-        var outsideFg = new SolidColorBrush(Color.FromArgb(0x3E, 0xF5, 0xF5, 0xF7));
-
-        for (int i = 0; i < 42; i++)
-        {
-            DateTime cellDate = gridStart.AddDays(i);
-            bool inMonth = cellDate.Month == _popupDisplayMonth.Month && cellDate.Year == _popupDisplayMonth.Year;
-            bool isToday = cellDate.Date == today.Date;
-            bool isWeekend = cellDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-
-            var cell = new Border
-            {
-                Height = 25,
-                Margin = new Thickness(1.5),
-                CornerRadius = new CornerRadius(8),
-                Background = isToday ? todayBg : Brushes.Transparent,
-                Child = new TextBlock
-                {
-                    Text = cellDate.Day.ToString(CultureInfo.InvariantCulture),
-                    FontFamily = (FontFamily)FindResource("UiFont"),
-                    FontSize = 10.5,
-                    FontWeight = isToday ? FontWeights.Bold : FontWeights.Medium,
-                    Foreground = isToday
-                        ? Brushes.White
-                        : !inMonth
-                            ? outsideFg
-                            : isWeekend
-                                ? weekendFg
-                                : normalFg,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                }
-            };
-
-            if (!isToday && inMonth)
-            {
-                cell.MouseEnter += (_, _) => cell.Background = hoverBg;
-                cell.MouseLeave += (_, _) => cell.Background = Brushes.Transparent;
-            }
-
-            PopupDaysGrid.Children.Add(cell);
-        }
     }
 
     private CultureInfo GetActiveUiCulture() =>
@@ -3955,44 +3257,6 @@ public partial class DockWindow : Window
         }
 
         UpdateHoverTooltip(closestIdx);
-    }
-
-    private void UpdateHoverTooltip(int slotIdx)
-    {
-        if (slotIdx < 0 || slotIdx >= _slots.Count || !_isHovered)
-        {
-            _hoveredSlotIndex = -1;
-            DockTooltipBorder.Opacity = 0;
-            return;
-        }
-
-        var slot = _slots[slotIdx];
-        if (!string.Equals(_lastTooltipTitle, slot.TooltipLabel, StringComparison.Ordinal))
-        {
-            _lastTooltipTitle = slot.TooltipLabel;
-            DockTooltipText.Text = slot.TooltipLabel;
-        }
-
-        if (!DockPillContainer.IsLoaded || !slot.Container.IsDescendantOf(DockRootGrid))
-        {
-            DockTooltipBorder.Opacity = 0;
-            return;
-        }
-
-        DockTooltipBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        double tipW = DockTooltipBorder.DesiredSize.Width;
-
-        Point anchorPt = slot.Container.TranslatePoint(new Point(slot.Container.Width * 0.5, 0), DockRootGrid);
-        double x = Math.Clamp(anchorPt.X - tipW * 0.5, 8.0, Math.Max(8.0, Width - tipW - 8.0));
-        double extraLift = Math.Abs(slot.CurrentLiftY) + (slot.CurrentScale - 1.0) * _orch.Config.DockIconSizeDip * 0.85;
-        double y = IsDockAtTop
-            ? anchorPt.Y + slot.Container.ActualHeight + 6.0 + extraLift
-            : Math.Max(4.0, anchorPt.Y - 30.0 - extraLift);
-
-        DockTooltipTransform.X = x;
-        DockTooltipTransform.Y = y;
-        DockTooltipBorder.Opacity = 1.0;
-        _hoveredSlotIndex = slotIdx;
     }
 
     private void TriggerBounce(DockSlotVisual slot)

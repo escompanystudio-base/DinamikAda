@@ -1477,6 +1477,8 @@ public static class Program
         var emptyTrayAudit = new DockWindow(orch, provider.GetRequiredService<WindowsTaskbarManager>());
         SavePng(emptyTrayAudit.RenderTrayPopupForAudit(324, 220, empty: true), Path.Combine(outputDir, "40_dock_tray_empty_narrow.png"));
         savedCount++;
+        SavePng(dockAudit.RenderAiTooltipForAudit(), Path.Combine(outputDir, "42_dock_ai_tooltip.png"));
+        savedCount++;
         SavePng(dockAudit.RenderStartPopupForAudit(), Path.Combine(outputDir, "36_dock_start_popup.png"));
         savedCount++;
         SavePng(dockAudit.RenderStartPopupForAudit(450, 540, "visual"), Path.Combine(outputDir, "38_dock_start_search_narrow.png"));

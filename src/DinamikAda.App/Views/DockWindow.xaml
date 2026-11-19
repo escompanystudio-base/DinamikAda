@@ -55,26 +55,63 @@
     </Window.Resources>
 
     <Grid x:Name="DockRootGrid" Background="{x:Null}" ClipToBounds="False">
-        <!-- Floating macOS Icon Hover Tooltip -->
+        <!-- Dock hover tooltip: a small dark glass pill that fades and rises in after a short delay -->
         <Border x:Name="DockTooltipBorder"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
                 Opacity="0"
-                IsHitTestVisible="False"
-                CornerRadius="7"
-                Padding="8,3"
-                Background="#F2080A10"
-                BorderBrush="#2AFFFFFF"
-                BorderThickness="0.8">
+                IsHitTestVisible="False">
             <Border.RenderTransform>
                 <TranslateTransform x:Name="DockTooltipTransform" X="0" Y="0" />
             </Border.RenderTransform>
-            <TextBlock x:Name="DockTooltipText"
-                       FontFamily="{StaticResource UiFont}"
-                       FontSize="11"
-                       FontWeight="SemiBold"
-                       Foreground="{StaticResource TextPrimaryBrush}" />
+            <Border x:Name="DockTooltipPill"
+                    Margin="0,0,0,4"
+                    CornerRadius="10"
+                    Padding="10,4,10,5"
+                    Background="#F5141418"
+                    BorderBrush="#16FFFFFF"
+                    BorderThickness="1">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="DockTooltipRise" X="0" Y="0" />
+                </Border.RenderTransform>
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="12" ShadowDepth="2" Direction="270" Opacity="0.4" Color="#000000" />
+                </Border.Effect>
+                <TextBlock x:Name="DockTooltipText"
+                           FontFamily="{StaticResource UiTextFont}"
+                           FontSize="12"
+                           Foreground="#FFF4F4F6"
+                           TextOptions.TextFormattingMode="Ideal" />
+            </Border>
         </Border>
+
+        <!-- Rich AI quota tooltip card; a popup so it can rise above the short dock host window -->
+        <Popup x:Name="DockAiTooltipPopup"
+               AllowsTransparency="True"
+               StaysOpen="True"
+               Focusable="False"
+               IsHitTestVisible="False"
+               Placement="Relative"
+               PlacementTarget="{Binding ElementName=DockRootGrid}"
+               PopupAnimation="None">
+            <Border x:Name="DockAiTooltipShell" Padding="16,10,16,22" IsHitTestVisible="False">
+                <Border x:Name="DockAiTooltipCard"
+                        Width="248"
+                        CornerRadius="14"
+                        Padding="14,12,14,12"
+                        Background="#F7141418"
+                        BorderBrush="#16FFFFFF"
+                        BorderThickness="1">
+                    <Border.RenderTransform>
+                        <TranslateTransform x:Name="DockAiTooltipRise" X="0" Y="0" />
+                    </Border.RenderTransform>
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="22" ShadowDepth="6" Direction="270" Opacity="0.42" Color="#000000" />
+                    </Border.Effect>
+                    <StackPanel x:Name="DockAiTooltipHost" />
+                </Border>
+            </Border>
+        </Popup>
 
         <!-- Centered Floating macOS-Style Obsidian Dock Capsule -->
         <Border x:Name="DockPillContainer"
@@ -163,7 +200,7 @@
             </Grid>
         </Border>
 
-        <!-- Minimalist Obsidian Clock & Calendar Pop-Up -->
+        <!-- Clock & calendar panel: calm surface, soft today highlight, upcoming events -->
         <Popup x:Name="ClockCalendarPopup"
                AllowsTransparency="True"
                StaysOpen="True"
@@ -172,150 +209,123 @@
                PopupAnimation="None"
                Opened="OnClockPopupOpened"
                Closed="OnClockPopupClosed">
-            <Border x:Name="ClockCalendarCard"
-                    Width="264"
-                    CornerRadius="16"
-                    Background="#F507090E"
-                    BorderBrush="#2CFFFFFF"
-                    BorderThickness="0.9">
-                <Grid>
-                    <!-- Subtle Synchronized Ambient Glow -->
-                    <Border CornerRadius="15" IsHitTestVisible="False">
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop x:Name="PopupAuraStop0" Color="#1C0A84FF" Offset="0.0" />
-                                <GradientStop x:Name="PopupAuraStop1" Color="#105E5CE6" Offset="0.55" />
-                                <GradientStop Color="#00000000" Offset="1.0" />
-                            </LinearGradientBrush>
-                        </Border.Background>
-                        <Border Height="1"
-                                Margin="16,0"
-                                VerticalAlignment="Top"
-                                Background="{StaticResource ObsidianTopSpecularBrush}"
-                                Opacity="0.4" />
-                    </Border>
+            <Popup.Resources>
+                <ResourceDictionary Source="/Themes/DockPanels.xaml" />
+            </Popup.Resources>
+            <Border x:Name="ClockCalendarShell" Padding="36,24,36,52">
+                <Border x:Name="ClockCalendarCard"
+                        Width="300"
+                        CornerRadius="24"
+                        Background="{StaticResource PanelSurfaceBrush}"
+                        BorderBrush="{StaticResource PanelHairlineBrush}"
+                        BorderThickness="1"
+                        Effect="{StaticResource PanelShadowEffect}"
+                        PreviewKeyDown="OnClockCardPreviewKeyDown">
+                    <Grid>
+                        <!-- A whisper of the current media colour, top-left only -->
+                        <Border CornerRadius="23" IsHitTestVisible="False" Opacity="0.5">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop x:Name="PopupAuraStop0" Color="#1C0A84FF" Offset="0.0" />
+                                    <GradientStop x:Name="PopupAuraStop1" Color="#105E5CE6" Offset="0.4" />
+                                    <GradientStop Color="#00000000" Offset="0.75" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Border Height="40" VerticalAlignment="Top" CornerRadius="23,23,0,0" IsHitTestVisible="False"
+                                Background="{StaticResource PanelTopHighlightBrush}" />
 
-                    <StackPanel Margin="14,13,14,12">
-                        <!-- Live Digital Clock & Localized Date Header -->
-                        <DockPanel Margin="0,0,0,10">
-                            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Bottom">
-                                <TextBlock x:Name="PopupClockHm"
-                                           Text="19:35"
-                                           FontFamily="{StaticResource UiFont}"
-                                           FontSize="24"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}" />
-                                <TextBlock x:Name="PopupClockSec"
-                                           Text=":00"
-                                           FontFamily="{StaticResource UiFont}"
-                                           FontSize="13"
-                                           FontWeight="Medium"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           Margin="2,0,0,3"
-                                           VerticalAlignment="Bottom" />
-                            </StackPanel>
-                            <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                <TextBlock x:Name="PopupDateWeekday"
-                                           Text="Pazartesi"
-                                           FontFamily="{StaticResource UiFont}"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource AccentCyanBrush}"
-                                           HorizontalAlignment="Right" />
+                        <StackPanel x:Name="ClockCalendarContent" Margin="20,18,20,16">
+                            <!-- Live clock and date -->
+                            <Grid Margin="0,0,0,14">
+                                <StackPanel HorizontalAlignment="Left">
+                                    <TextBlock x:Name="PopupDateWeekday"
+                                               Text="PAZARTESİ"
+                                               Style="{StaticResource PanelSectionLabelStyle}"
+                                               Margin="1,0,0,2" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="PopupClockHm"
+                                                   Text="19:35"
+                                                   FontFamily="{StaticResource PanelDisplayFont}"
+                                                   FontSize="32"
+                                                   FontWeight="SemiBold"
+                                                   Typography.NumeralAlignment="Tabular"
+                                                   Foreground="{StaticResource PanelTitleBrush}" />
+                                        <TextBlock x:Name="PopupClockSec"
+                                                   Text=":00"
+                                                   FontFamily="{StaticResource PanelDisplayFont}"
+                                                   FontSize="15"
+                                                   FontWeight="Medium"
+                                                   Typography.NumeralAlignment="Tabular"
+                                                   Foreground="{StaticResource PanelTertiaryBrush}"
+                                                   Margin="2,0,0,6"
+                                                   VerticalAlignment="Bottom" />
+                                    </StackPanel>
+                                </StackPanel>
                                 <TextBlock x:Name="PopupDateFull"
                                            Text="16 Kasım 2026"
-                                           FontFamily="{StaticResource UiTextFont}"
-                                           FontSize="10.2"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           HorizontalAlignment="Right" />
-                            </StackPanel>
-                        </DockPanel>
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Bottom"
+                                           Margin="0,0,0,7"
+                                           FontFamily="{StaticResource PanelTextFont}"
+                                           FontSize="12"
+                                           Foreground="{StaticResource PanelSecondaryBrush}" />
+                            </Grid>
 
-                        <Border Height="1" Background="#16FFFFFF" Margin="0,0,0,10" />
+                            <Border Height="1" Background="{StaticResource PanelDividerBrush}" Margin="0,0,0,12" />
 
-                        <!-- Month Switcher Header -->
-                        <DockPanel Margin="0,0,0,8">
-                            <TextBlock x:Name="PopupMonthTitle"
-                                       DockPanel.Dock="Left"
-                                       Text="Kasım 2026"
-                                       FontFamily="{StaticResource UiFont}"
-                                       FontSize="12.5"
-                                       FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimaryBrush}"
-                                       VerticalAlignment="Center" />
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                <Button x:Name="BtnPopupToday"
-                                        Content="Bugün"
-                                        Visibility="Collapsed"
-                                        Margin="0,0,6,0"
-                                        Padding="7,2"
-                                        FontSize="10"
-                                        Style="{StaticResource DarkActionButtonStyle}"
-                                        Click="OnPopupTodayClick" />
-                                <Button x:Name="BtnPopupPrevMonth"
-                                        Width="22"
-                                        Height="22"
-                                        Margin="0,0,4,0"
-                                        Padding="0"
-                                        FontFamily="{StaticResource IconFont}"
-                                        FontSize="10"
-                                        Content="&#xE76B;"
-                                        Style="{StaticResource DarkActionButtonStyle}"
-                                        Click="OnPopupPrevMonthClick" />
-                                <Button x:Name="BtnPopupNextMonth"
-                                        Width="22"
-                                        Height="22"
-                                        Padding="0"
-                                        FontFamily="{StaticResource IconFont}"
-                                        FontSize="10"
-                                        Content="&#xE76C;"
-                                        Style="{StaticResource DarkActionButtonStyle}"
-                                        Click="OnPopupNextMonthClick" />
-                            </StackPanel>
-                        </DockPanel>
-
-                        <!-- Weekday Header Row -->
-                        <UniformGrid x:Name="PopupWeekdayGrid" Columns="7" Margin="0,0,0,4" />
-
-                        <!-- 6x7 Calendar Days Grid -->
-                        <UniformGrid x:Name="PopupDaysGrid" Columns="7" Rows="6" />
-
-                        <!-- Minimalist Upcoming / Quick Jump Footer -->
-                        <Border x:Name="PopupFooterBar"
-                                Margin="0,10,0,0"
-                                Padding="9,6"
-                                CornerRadius="9"
-                                Background="#0DFFFFFF"
-                                BorderBrush="#18FFFFFF"
-                                BorderThickness="0.7"
-                                Cursor="Hand"
-                                MouseLeftButtonUp="OnPopupFooterClick">
-                            <DockPanel>
-                                <Ellipse x:Name="PopupMeetingDot"
-                                         DockPanel.Dock="Left"
-                                         Width="6"
-                                         Height="6"
-                                         Fill="{StaticResource AccentBlueBrush}"
-                                         Margin="0,0,7,0"
-                                         VerticalAlignment="Center" />
-                                <TextBlock DockPanel.Dock="Right"
-                                           Text="&#xE76C;"
-                                           FontFamily="{StaticResource IconFont}"
-                                           FontSize="9.5"
-                                           Foreground="{StaticResource TextMutedBrush}"
-                                           VerticalAlignment="Center"
-                                           Margin="6,0,0,0" />
-                                <TextBlock x:Name="PopupFooterText"
-                                           Text="Bugün planlı etkinlik yok"
-                                           FontFamily="{StaticResource UiTextFont}"
-                                           FontSize="10.5"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           TextTrimming="CharacterEllipsis"
+                            <!-- Month switcher -->
+                            <DockPanel Margin="0,0,0,8">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button x:Name="BtnPopupToday"
+                                            Content="Bugün"
+                                            Visibility="Collapsed"
+                                            Margin="0,0,4,0"
+                                            Style="{StaticResource PanelChipButtonStyle}"
+                                            Click="OnPopupTodayClick" />
+                                    <Button x:Name="BtnPopupPrevMonth"
+                                            Width="28"
+                                            Height="28"
+                                            FontSize="11"
+                                            Content="&#xE76B;"
+                                            Style="{StaticResource PanelIconButtonStyle}"
+                                            Click="OnPopupPrevMonthClick" />
+                                    <Button x:Name="BtnPopupNextMonth"
+                                            Width="28"
+                                            Height="28"
+                                            FontSize="11"
+                                            Content="&#xE76C;"
+                                            Style="{StaticResource PanelIconButtonStyle}"
+                                            Click="OnPopupNextMonthClick" />
+                                </StackPanel>
+                                <TextBlock x:Name="PopupMonthTitle"
+                                           Text="Kasım 2026"
+                                           FontFamily="{StaticResource PanelDisplayFont}"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource PanelTitleBrush}"
                                            VerticalAlignment="Center" />
                             </DockPanel>
-                        </Border>
-                    </StackPanel>
-                </Grid>
+
+                            <!-- Weekday labels (small caps) and the 6x7 month grid -->
+                            <UniformGrid x:Name="PopupWeekdayGrid" Columns="7" Margin="0,2,0,2" />
+                            <UniformGrid x:Name="PopupDaysGrid" Columns="7" Rows="6">
+                                <UniformGrid.RenderTransform>
+                                    <TranslateTransform x:Name="PopupDaysShift" X="0" />
+                                </UniformGrid.RenderTransform>
+                            </UniformGrid>
+
+                            <Border Height="1" Background="{StaticResource PanelDividerBrush}" Margin="0,12,0,12" />
+
+                            <!-- Upcoming events -->
+                            <TextBlock x:Name="PopupUpcomingLabel"
+                                       Text="YAKLAŞAN"
+                                       Style="{StaticResource PanelSectionLabelStyle}"
+                                       Margin="1,0,0,6" />
+                            <StackPanel x:Name="PopupUpcomingList" Margin="-8,0,-8,0" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
             </Border>
         </Popup>
 
@@ -343,7 +353,7 @@
             </Border>
         </Popup>
 
-        <!-- Minimalist Obsidian Background / System Tray Apps Flyout ("^" Chevron Menu) -->
+        <!-- Background apps panel ("^" in the dock): borderless list, quiet header, staggered entrance -->
         <Popup x:Name="TrayOverflowPopup"
                AllowsTransparency="True"
                StaysOpen="True"
@@ -352,84 +362,117 @@
                PopupAnimation="None"
                Opened="OnTrayPopupOpened"
                Closed="OnTrayPopupClosed">
-            <Border x:Name="TrayOverflowCard"
-                    Width="388"
-                    CornerRadius="20"
-                    Background="#FF101520"
-                    BorderBrush="#FF354158"
-                    BorderThickness="1"
-                    PreviewKeyDown="OnTrayCardPreviewKeyDown">
-                <Grid>
-                    <!-- Synchronized Ambient Glow -->
-                    <Border CornerRadius="19" IsHitTestVisible="False">
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop x:Name="TrayPopupAuraStop0" Color="#1C0A84FF" Offset="0.0" />
-                                <GradientStop x:Name="TrayPopupAuraStop1" Color="#105E5CE6" Offset="0.55" />
-                                <GradientStop Color="#00000000" Offset="1.0" />
-                            </LinearGradientBrush>
-                        </Border.Background>
-                        <Border Height="1"
-                                Margin="16,0"
-                                VerticalAlignment="Top"
-                                Background="{StaticResource ObsidianTopSpecularBrush}"
-                                Opacity="0.4" />
-                    </Border>
+            <Popup.Resources>
+                <ResourceDictionary Source="/Themes/DockPanels.xaml" />
+            </Popup.Resources>
+            <Border x:Name="TrayOverflowShell" Padding="36,24,36,52">
+                <Border x:Name="TrayOverflowCard"
+                        Width="340"
+                        CornerRadius="24"
+                        Background="{StaticResource PanelSurfaceBrush}"
+                        BorderBrush="{StaticResource PanelHairlineBrush}"
+                        BorderThickness="1"
+                        Effect="{StaticResource PanelShadowEffect}"
+                        PreviewKeyDown="OnTrayCardPreviewKeyDown">
+                    <Grid>
+                        <!-- A whisper of the current media colour, top-left only -->
+                        <Border CornerRadius="23" IsHitTestVisible="False" Opacity="0.5">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop x:Name="TrayPopupAuraStop0" Color="#1C0A84FF" Offset="0.0" />
+                                    <GradientStop x:Name="TrayPopupAuraStop1" Color="#105E5CE6" Offset="0.4" />
+                                    <GradientStop Color="#00000000" Offset="0.75" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Border Height="40" VerticalAlignment="Top" CornerRadius="23,23,0,0" IsHitTestVisible="False"
+                                Background="{StaticResource PanelTopHighlightBrush}" />
 
-                    <StackPanel Margin="16,14">
-                        <DockPanel Margin="2,0,2,8">
-                            <Button x:Name="BtnTrayPopupRefresh"
-                                    DockPanel.Dock="Right"
-                                    Width="32" Height="32" Padding="0"
-                                    FontFamily="{StaticResource IconFont}" FontSize="13"
-                                    Content="&#xE72C;"
-                                    Style="{StaticResource DarkActionButtonStyle}"
-                                    Click="OnTrayPopupRefreshClick" />
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock x:Name="TrayPopupTitleText"
-                                           Text="Arka Plan Uygulamaları"
-                                           FontFamily="{StaticResource UiFont}"
-                                           FontSize="16"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                           VerticalAlignment="Center" />
-                                <Border x:Name="TrayPopupCountBadge"
-                                        Margin="6,0,0,0"
-                                        Padding="6,1"
-                                        CornerRadius="7"
-                                        Background="#1A64D2FF"
-                                        VerticalAlignment="Center">
-                                    <TextBlock x:Name="TrayPopupCountText"
-                                               Text="0"
-                                               FontFamily="{StaticResource UiFont}"
-                                               FontSize="11"
-                                               FontWeight="Bold"
-                                               Foreground="{StaticResource AccentCyanBrush}" />
-                                </Border>
-                            </StackPanel>
-                        </DockPanel>
+                        <StackPanel Margin="20,18,14,12">
+                            <DockPanel Margin="0,0,0,12">
+                                <Button x:Name="BtnTrayPopupRefresh"
+                                        DockPanel.Dock="Right"
+                                        Width="30" Height="30"
+                                        Margin="8,0,2,0"
+                                        Style="{StaticResource PanelIconButtonStyle}"
+                                        Click="OnTrayPopupRefreshClick">
+                                    <TextBlock Text="&#xE72C;" FontSize="14" RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.RenderTransform>
+                                            <RotateTransform x:Name="TrayRefreshRotate" Angle="0" />
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                </Button>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock x:Name="TrayPopupTitleText"
+                                               Text="Arka Plan Uygulamaları"
+                                               FontFamily="{StaticResource PanelDisplayFont}"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource PanelTitleBrush}"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                    <Border x:Name="TrayPopupCountBadge"
+                                            Margin="8,1,0,0"
+                                            Padding="7,1,7,2"
+                                            MinWidth="22"
+                                            CornerRadius="999"
+                                            Background="#14FFFFFF"
+                                            VerticalAlignment="Center">
+                                        <TextBlock x:Name="TrayPopupCountText"
+                                                   Text="0"
+                                                   HorizontalAlignment="Center"
+                                                   FontFamily="{StaticResource PanelTextFont}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Typography.NumeralAlignment="Tabular"
+                                                   Foreground="{StaticResource PanelSecondaryBrush}" />
+                                    </Border>
+                                </StackPanel>
+                            </DockPanel>
 
-                        <Border Height="1" Background="#16FFFFFF" Margin="0,0,0,8" />
+                            <Border Height="1" Background="{StaticResource PanelDividerBrush}" Margin="0,0,6,6" />
 
-                        <TextBlock x:Name="TrayPopupStatusText" Visibility="Collapsed" TextWrapping="Wrap"
-                                   FontSize="12" Foreground="{StaticResource AccentCyanBrush}"
-                                   Margin="2,0,2,10" AutomationProperties.LiveSetting="Polite"/>
-                        <ScrollViewer x:Name="TrayAppsScroller" MaxHeight="320" Style="{StaticResource ObsidianScrollViewerStyle}">
-                            <Grid>
-                                <StackPanel x:Name="TrayOverflowGrid" />
-                                <TextBlock x:Name="TrayPopupEmptyText"
-                                           Text="Arka planda çalışan gizli uygulama yok"
-                                           FontFamily="{StaticResource UiTextFont}"
-                                           FontSize="12"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           HorizontalAlignment="Center"
-                                           TextWrapping="Wrap" TextAlignment="Center"
-                                           Margin="0,14,0,14"
-                                           Visibility="Collapsed" />
-                            </Grid>
-                        </ScrollViewer>
-                    </StackPanel>
-                </Grid>
+                            <TextBlock x:Name="TrayPopupStatusText" Visibility="Collapsed" TextWrapping="Wrap"
+                                       FontFamily="{StaticResource PanelTextFont}"
+                                       FontSize="12" Foreground="{StaticResource PanelSecondaryBrush}"
+                                       Margin="4,4,12,6" AutomationProperties.LiveSetting="Polite"/>
+                            <ScrollViewer x:Name="TrayAppsScroller" MaxHeight="320" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Style="{StaticResource ObsidianScrollViewerStyle}">
+                                <Grid Margin="-10,0,4,0">
+                                    <StackPanel x:Name="TrayOverflowGrid" />
+                                    <StackPanel x:Name="TrayPopupEmptyState"
+                                                HorizontalAlignment="Center"
+                                                Margin="16,16,16,14"
+                                                Visibility="Collapsed">
+                                        <Grid Width="40" Height="40" HorizontalAlignment="Center" Margin="0,0,0,10">
+                                            <Ellipse Fill="#0FFFFFFF" />
+                                            <TextBlock Text="&#xE73E;"
+                                                       FontFamily="{StaticResource PanelIconFont}"
+                                                       FontSize="15"
+                                                       Foreground="{StaticResource PanelGlyphBrush}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                        <TextBlock x:Name="TrayPopupEmptyText"
+                                                   Text="Arka planda çalışan gizli uygulama yok"
+                                                   FontFamily="{StaticResource PanelTextFont}"
+                                                   FontSize="13"
+                                                   Foreground="{StaticResource PanelBodyBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   TextWrapping="Wrap" TextAlignment="Center" />
+                                        <TextBlock x:Name="TrayPopupEmptyHint"
+                                                   Text="Her şey sakin."
+                                                   FontFamily="{StaticResource PanelTextFont}"
+                                                   FontSize="12"
+                                                   Margin="0,3,0,0"
+                                                   Foreground="{StaticResource PanelTertiaryBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   TextWrapping="Wrap" TextAlignment="Center" />
+                                    </StackPanel>
+                                </Grid>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Grid>
+                </Border>
             </Border>
         </Popup>
 
