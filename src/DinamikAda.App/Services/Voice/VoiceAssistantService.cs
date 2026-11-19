@@ -91,9 +91,10 @@ public sealed class VoiceAssistantService : IDisposable
         Register(new DictationHandler());
         Register(new AskHandler());
         Register(new CommandHandler(Scheduler));
-        _keys.ChordPressed += (_, id) => OnPressed(id);
-        _keys.ChordReleased += (_, e) => OnReleased(e.Id, e.Held);
-        _keys.ChordCancelled += (_, id) => OnCancelled(id);
+        // The hook may raise events off the UI thread (no sync context at startup): always marshal to the dispatcher.
+        _keys.ChordPressed += (_, id) => _dispatcher.BeginInvoke(() => OnPressed(id));
+        _keys.ChordReleased += (_, e) => _dispatcher.BeginInvoke(() => OnReleased(e.Id, e.Held));
+        _keys.ChordCancelled += (_, id) => _dispatcher.BeginInvoke(() => OnCancelled(id));
         _mic.LevelChanged += (_, level) => _dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
         {
             _overlay?.SetLevel(level);

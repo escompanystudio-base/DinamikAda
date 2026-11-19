@@ -201,8 +201,9 @@ public abstract class DockWidgetTileBase : IDockWidgetTile
             return;
         }
         back.Background = brush;
-        Panel.SetZIndex(back, 1);
-        Panel.SetZIndex(front, 0);
+        // Both body layers stay below the content (z-index 0): the incoming one just sits above the outgoing one.
+        Panel.SetZIndex(back, -1);
+        Panel.SetZIndex(front, -2);
         Fade(back, 1, ms, from: ms > 0 ? 0 : null);
         // The old body stays under the new one until it is fully covered, then drops out.
         if (ms > 0) Fade(front, 0, 1, delayMs: ms);

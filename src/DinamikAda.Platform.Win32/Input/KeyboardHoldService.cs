@@ -191,7 +191,9 @@ public sealed class KeyboardHoldService : IDisposable
     private void Raise(Action a)
     {
         if (_ui is not null) _ui.Post(_ => a(), null);
-        else ThreadPool.QueueUserWorkItem(_ => a());
+        // No sync context (installed before the dispatcher loop runs): raise inline on the hook thread, in order.
+        // Subscribers must only queue work (the voice service marshals to its dispatcher).
+        else a();
     }
 
     private static unsafe void InjectDummy()
