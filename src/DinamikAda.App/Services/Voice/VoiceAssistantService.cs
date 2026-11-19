@@ -24,6 +24,11 @@ public sealed class VoiceSession
     public string T(string tr, string en) => Lang == "en" ? en : tr;
     /// <summary>Free slot for a handler's per-session state (e.g. the circle overlay).</summary>
     public object? State { get; set; }
+
+    /// <summary>Live microphone level (0..1) while the keys are held, on the UI thread.</summary>
+    public event Action<double>? LevelChanged;
+
+    internal void RaiseLevel(double level) => LevelChanged?.Invoke(level);
 }
 
 /// <summary>One voice mode (dictation, ask, command). Methods run on the UI thread.</summary>
@@ -89,7 +94,11 @@ public sealed class VoiceAssistantService : IDisposable
         _keys.ChordPressed += (_, id) => OnPressed(id);
         _keys.ChordReleased += (_, e) => OnReleased(e.Id, e.Held);
         _keys.ChordCancelled += (_, id) => OnCancelled(id);
-        _mic.LevelChanged += (_, level) => _dispatcher.BeginInvoke(DispatcherPriority.Render, () => _overlay?.SetLevel(level));
+        _mic.LevelChanged += (_, level) => _dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
+        {
+            _overlay?.SetLevel(level);
+            _session?.RaiseLevel(level);
+        });
         _configTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(2) };
         _configTimer.Tick += (_, _) => SyncConfig();
     }

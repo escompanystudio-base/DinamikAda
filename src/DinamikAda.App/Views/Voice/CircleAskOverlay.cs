@@ -368,6 +368,15 @@ public sealed class CircleAskOverlay : Window
 
     // ---------------------------------------------------------------- tracking
 
+    /// <summary>Brightens the lasso glow with the speaker's voice while tracking (0..1).</summary>
+    public void SetVoiceLevel(double level01)
+    {
+        if (!_tracking) return;
+        double target = 0.55 + 0.45 * Math.Clamp(level01 * 1.6, 0, 1);
+        _glowPath.BeginAnimation(OpacityProperty, new DoubleAnimation(target, TimeSpan.FromMilliseconds(90)),
+            HandoffBehavior.SnapshotAndReplace);
+    }
+
     /// <summary>Starts following the mouse (hover path, or the left-button stroke when the button is held).</summary>
     public void BeginTracking()
     {

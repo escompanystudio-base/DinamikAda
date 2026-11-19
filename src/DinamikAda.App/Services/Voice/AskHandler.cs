@@ -47,6 +47,7 @@ public sealed class AskHandler : IVoiceModeHandler
         };
         overlay.Show();
         overlay.BeginTracking();
+        session.LevelChanged += overlay.SetVoiceLevel;
         _last = overlay;
         session.State = new AskState(overlay, previous);
         session.Overlay.ShowListening(Mode, session.T("Daire çiz ve sor…", "Circle and ask…"));
