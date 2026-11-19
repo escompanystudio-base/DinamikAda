@@ -9,7 +9,11 @@ public enum DockWidgetCategory
     Apps = 4,
     Weather = 5,
     Finance = 6,
-    Clocks = 7
+    Clocks = 7,
+    Developer = 8,
+    Analytics = 9,
+    Social = 10,
+    Mail = 11
 }
 
 /// <summary>
@@ -26,7 +30,8 @@ public sealed record DockWidgetDescriptor(
     string DescriptionEn,
     double WidthUnits = 1.0,
     bool NeedsNetwork = false,
-    bool NeedsApiKey = false)
+    bool NeedsApiKey = false,
+    string? Account = null)
 {
     public string Name(string lang) => lang == "en" ? NameEn : NameTr;
     public string Description(string lang) => lang == "en" ? DescriptionEn : DescriptionTr;
@@ -211,6 +216,55 @@ public static class DockWidgetCatalog
         new("clock-weather", DockWidgetCategory.Clocks, "", "Saat ve Hava", "Clock & Weather",
             "Saat, tarih ve sıcaklık tek kare kutuda üç renk bloğu.",
             "Time, date and temperature as three colour blocks in one square tile.", 2.0),
+        // Accounts (read with the user's own read-only keys; sample data until connected)
+        new("stripe-revenue", DockWidgetCategory.Finance, "", "Stripe Geliri", "Stripe Revenue",
+            "Stripe gelirin çizgi grafik olarak: bugün, bu ay ve son 30 gün.",
+            "Your Stripe revenue as a line: today, this month and the last 30 days.", 2.6, true, true, "stripe"),
+        new("lemonsqueezy-revenue", DockWidgetCategory.Finance, "", "Lemon Squeezy Geliri", "Lemon Squeezy Revenue",
+            "Lemon Squeezy mağazanın toplam ve son 30 günlük geliri.",
+            "Your Lemon Squeezy store's total and last-30-days revenue.", 2.2, true, true, "lemonsqueezy"),
+        new("gumroad-sales", DockWidgetCategory.Finance, "", "Gumroad Satışları", "Gumroad Sales",
+            "Gumroad ürünlerinin satış adedi ve geliri.",
+            "Sales count and revenue of your Gumroad products.", 2.2, true, true, "gumroad"),
+        new("polar-revenue", DockWidgetCategory.Finance, "", "Polar Geliri", "Polar Revenue",
+            "Polar siparişlerinden gelir ve son siparişler.",
+            "Revenue from your Polar orders, with the latest orders.", 2.2, true, true, "polar"),
+        new("paddle-revenue", DockWidgetCategory.Finance, "", "Paddle Geliri", "Paddle Revenue",
+            "Paddle'daki tamamlanmış işlemlerden son 30 günlük gelir.",
+            "Last-30-days revenue from completed Paddle transactions.", 2.2, true, true, "paddle"),
+        new("github-activity", DockWidgetCategory.Developer, "", "GitHub Etkinliği", "GitHub Activity",
+            "Katkı tablon ve seri günlerin.",
+            "Your contribution grid and streak.", 3.0, true, false, "github"),
+        new("github-notifications", DockWidgetCategory.Developer, "", "GitHub Bildirimleri", "GitHub Notifications",
+            "Okunmamış GitHub bildirimlerin; karttan açılır.",
+            "Your unread GitHub notifications, opened from the card.", 1.8, true, true, "github"),
+        new("linear-issues", DockWidgetCategory.Developer, "", "Linear Görevleri", "Linear Issues",
+            "Sana atanmış açık Linear görevleri ve öncelikleri.",
+            "Open Linear issues assigned to you, with priorities.", 2.2, true, true, "linear"),
+        new("resend-emails", DockWidgetCategory.Developer, "", "Resend E-postaları", "Resend Emails",
+            "Resend ile gönderilen son e-postalar ve teslim durumları.",
+            "Latest emails sent with Resend and their delivery status.", 2.2, true, true, "resend"),
+        new("plausible-visitors", DockWidgetCategory.Analytics, "", "Plausible Ziyaretçileri", "Plausible Visitors",
+            "Sitenin anlık ve günlük ziyaretçileri, 14 günlük grafik.",
+            "Your site's live and daily visitors, with a 14-day chart.", 2.6, true, true, "plausible"),
+        new("youtube-channel", DockWidgetCategory.Social, "", "YouTube Kanalı", "YouTube Channel",
+            "Kanalının abone, izlenme ve video sayısı.",
+            "Your channel's subscribers, views and video count.", 2.2, true, true, "youtube"),
+        new("leetcode-stats", DockWidgetCategory.Social, "", "LeetCode", "LeetCode",
+            "Çözdüğün kolay, orta ve zor sorular; halka olarak.",
+            "Your solved easy, medium and hard problems, as a ring.", 2.2, true, false, "leetcode"),
+        new("gmail-unread", DockWidgetCategory.Mail, "", "Gmail", "Gmail",
+            "Gelen kutundaki okunmamış e-posta sayısı; tek tıkla Gmail.",
+            "Unread emails in your inbox; one click opens Gmail.", 1.6, true, true, "gmail"),
+        new("gcal-next", DockWidgetCategory.Mail, "", "Sıradaki Etkinlik", "Next Event",
+            "Google Takvim'deki sıradaki etkinliğin ve ona kalan süre.",
+            "Your next Google Calendar event and the time left until it.", 2.6, true, true, "gcal"),
+        new("deepseek-balance", DockWidgetCategory.Ai, "", "DeepSeek Bakiyesi", "DeepSeek Balance",
+            "DeepSeek hesabındaki kalan bakiye.",
+            "The balance left on your DeepSeek account.", 1.8, true, true, "deepseek"),
+        new("unsplash-wallpaper", DockWidgetCategory.Apps, "", "Duvar Kağıdı Galerisi", "Wallpaper Gallery",
+            "Unsplash'tan günün fotoğrafı; karttan duvar kağıdı yap.",
+            "A photo of the day from Unsplash; set it as wallpaper from the card.", 1.6, true, true, "unsplash"),
     ];
 
     private static readonly Dictionary<string, DockWidgetDescriptor> ById =
@@ -260,6 +314,10 @@ public static class DockWidgetCatalog
         DockWidgetCategory.Weather => lang == "en" ? "Weather" : "Hava Durumu",
         DockWidgetCategory.Finance => lang == "en" ? "Finance" : "Finans",
         DockWidgetCategory.Clocks => lang == "en" ? "Clocks" : "Saatler",
+        DockWidgetCategory.Developer => lang == "en" ? "Developer" : "Geliştirici",
+        DockWidgetCategory.Analytics => lang == "en" ? "Analytics" : "Analitik",
+        DockWidgetCategory.Social => lang == "en" ? "Social & Learning" : "Sosyal ve Öğrenme",
+        DockWidgetCategory.Mail => lang == "en" ? "Mail & Calendar" : "Posta ve Takvim",
         _ => category.ToString()
     };
 }

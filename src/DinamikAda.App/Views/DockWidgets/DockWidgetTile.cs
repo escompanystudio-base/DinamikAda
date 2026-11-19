@@ -151,6 +151,9 @@ public static class DockWidgetTileFactory
         WeatherWidgetTiles.Register(map);
         ProductivityWidgetTiles.Register(map);
         MediaAppsFinanceWidgetTiles.Register(map);
+        Accounts.FinanceAccountTiles.Register(map);
+        Accounts.DeveloperAccountTiles.Register(map);
+        Accounts.SocialMailAccountTiles.Register(map);
         return map;
     }
 

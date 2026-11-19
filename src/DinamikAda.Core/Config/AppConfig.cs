@@ -126,6 +126,11 @@ public sealed class AppConfig
     public int PomodoroBreakMinutes { get; set; } = 5;
     public List<DockTodoItem> DockTodos { get; set; } = new();
     public bool ScreenTimeEnabled { get; set; } = true;
+    /// <summary>
+    /// Connected accounts for the account widgets. Secret field values are DPAPI-protected by the app layer
+    /// before they are stored here; the config itself never holds a plain key.
+    /// </summary>
+    public List<DockAccount> DockAccounts { get; set; } = new();
 
     // Local Multi-Account AI Subscription Quota & Reset Tracker (no browser cookies or credential bypass)
     public bool AiQuotaSeeded { get; set; } = false;
@@ -260,6 +265,17 @@ public sealed class AppConfig
                 Id = string.IsNullOrWhiteSpace(t.Id) ? Guid.NewGuid().ToString("N") : t.Id,
                 Text = t.Text.Trim().Length > 200 ? t.Text.Trim()[..200] : t.Text.Trim(),
                 Done = t.Done
+            })
+            .ToList();
+        DockAccounts = (DockAccounts ?? new())
+            .Where(a => a is not null && Accounts.AccountCatalog.Find(a.Service) is not null)
+            .GroupBy(a => a.Service.Trim().ToLowerInvariant())
+            .Select(g => new DockAccount
+            {
+                Service = g.Key,
+                Values = (g.Last().Values ?? new())
+                    .Where(kv => !string.IsNullOrWhiteSpace(kv.Key) && kv.Value is not null)
+                    .ToDictionary(kv => kv.Key.Trim(), kv => kv.Value.Trim(), StringComparer.Ordinal)
             })
             .ToList();
     }
@@ -687,6 +703,13 @@ public enum DockScreenEdge
 {
     Bottom = 0,
     Top = 1
+}
+
+public sealed class DockAccount
+{
+    public string Service { get; set; } = string.Empty;
+    /// <summary>Field key → value; values of secret fields are stored protected.</summary>
+    public Dictionary<string, string> Values { get; set; } = new(StringComparer.Ordinal);
 }
 
 public sealed class DockTodoItem

@@ -107,6 +107,8 @@ public sealed class DockWidgetDataHub : IDisposable
     public string? StocksStatus { get; private set; }
     public ScreenTimeLedger ScreenTime => _screenTime;
     public IReadOnlySet<string> ActiveWidgets => _active;
+    /// <summary>Account widgets (GitHub, Stripe, Gmail…): credentials, polling and results.</summary>
+    public AccountHub Accounts { get; }
 
     public DockWidgetDataHub(AppOrchestrator orch, string? screenTimePath = null)
     {
@@ -114,6 +116,7 @@ public sealed class DockWidgetDataHub : IDisposable
         _screenTimePath = screenTimePath ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DinamikAda", "screentime.json");
         _screenTime = LoadScreenTime(_screenTimePath);
+        Accounts = new AccountHub(orch, RaiseChanged);
         _tick = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
         _tick.Tick += (_, _) => OnTick();
     }
@@ -152,6 +155,7 @@ public sealed class DockWidgetDataHub : IDisposable
             ? new HashSet<string>(widgetIds, StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        Accounts.SetActiveWidgets(_active);
         bool telemetry = _active.Overlaps(TelemetryWidgets);
         bool extended = _active.Overlaps(ExtendedTelemetryWidgets);
         _orch.SetDockWidgetTelemetryDemand(telemetry, extended);
@@ -215,6 +219,7 @@ public sealed class DockWidgetDataHub : IDisposable
             if (key != _stocksKey) { _stocksKey = key; _nextStocks = DateTime.MinValue; _stockLines.Clear(); }
             if (now >= _nextStocks && !_stocksBusy) _ = FetchStocksAsync();
         }
+        Accounts.Tick(now);
 
         RaiseChanged();
     }
@@ -594,6 +599,7 @@ public sealed class DockWidgetDataHub : IDisposable
         if (_disposed) return;
         _tick.Stop();
         SaveScreenTime();
+        Accounts.Dispose();
         _disposed = true;
         _orch.SetDockWidgetTelemetryDemand(false, false);
     }
