@@ -1151,15 +1151,17 @@ public sealed unsafe class DockAppsService
         }
         else if (!string.IsNullOrWhiteSpace(app.LaunchTarget))
         {
-            loaded = ExtractFrozenIcon(app.LaunchTarget);
-            if (loaded is null && string.Equals(Path.GetExtension(app.LaunchTarget), ".lnk", StringComparison.OrdinalIgnoreCase) &&
-                TryResolveShellLink(app.LaunchTarget, out string? resolvedExe, out string? resolvedIcon))
+            // Crisp 64 px shell images without the shortcut-arrow overlay: for a shortcut, prefer its target app.
+            bool isLink = string.Equals(Path.GetExtension(app.LaunchTarget), ".lnk", StringComparison.OrdinalIgnoreCase);
+            if (isLink && TryResolveShellLink(app.LaunchTarget, out string? resolvedExe, out string? resolvedIcon))
             {
-                if (!string.IsNullOrWhiteSpace(resolvedIcon))
+                if (!string.IsNullOrWhiteSpace(resolvedExe) && File.Exists(resolvedExe))
+                    loaded = TryExtractShellImage(resolvedExe, 64);
+                if (loaded is null && !string.IsNullOrWhiteSpace(resolvedIcon))
                     loaded = ExtractFrozenIcon(resolvedIcon);
-                if (loaded is null && !string.IsNullOrWhiteSpace(resolvedExe))
-                    loaded = ExtractFrozenIcon(resolvedExe);
             }
+            loaded ??= File.Exists(app.LaunchTarget) ? TryExtractShellImage(app.LaunchTarget, 64) : null;
+            loaded ??= ExtractFrozenIcon(app.LaunchTarget);
         }
 
         if (loaded is not { IsFrozen: true }) return null;
@@ -1228,6 +1230,116 @@ public sealed unsafe class DockAppsService
                 Marshal.Release(unk);
             }
         }
+    }
+
+    /// <summary>
+    /// The shell's own image for a file (icon only, no overlays) at <paramref name="px"/> pixels, with its alpha
+    /// channel preserved. Null when the shell cannot provide one.
+    /// </summary>
+    private static ImageSource? TryExtractShellImage(string path, int px)
+    {
+        Guid iid = new("bcc18b79-ba16-442f-80c4-8a59c30c463b");
+        nint unk = 0;
+        IShellItemImageFactory? factory = null;
+        nint hBitmap = 0;
+        try
+        {
+            if (NativeMethods.SHCreateItemFromParsingName(path, 0, iid, out unk) != 0 || unk == 0) return null;
+            factory = Marshal.GetObjectForIUnknown(unk) as IShellItemImageFactory;
+            if (factory is null) return null;
+            // SIIGBF_ICONONLY (0x04) | SIIGBF_BIGGERSIZEOK (0x01): the icon itself, never a thumbnail or overlay.
+            if (factory.GetImage(new ShellSize(px, px), 0x04 | 0x01, out hBitmap) != 0 || hBitmap == 0) return null;
+            return HBitmapToAlphaSource(hBitmap);
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            if (hBitmap != 0) NativeMethods.DeleteObject(hBitmap);
+            if (factory is not null && Marshal.IsComObject(factory)) Marshal.FinalReleaseComObject(factory);
+            if (unk != 0) Marshal.Release(unk);
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GdiBitmap
+    {
+        public int bmType;
+        public int bmWidth;
+        public int bmHeight;
+        public int bmWidthBytes;
+        public ushort bmPlanes;
+        public ushort bmBitsPixel;
+        public nint bmBits;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BitmapInfoHeader
+    {
+        public int biSize;
+        public int biWidth;
+        public int biHeight;
+        public short biPlanes;
+        public short biBitCount;
+        public int biCompression;
+        public int biSizeImage;
+        public int biXPelsPerMeter;
+        public int biYPelsPerMeter;
+        public int biClrUsed;
+        public int biClrImportant;
+    }
+
+    [DllImport("gdi32.dll", EntryPoint = "GetObjectW")]
+    private static extern int GetGdiObject(nint h, int cb, out GdiBitmap bm);
+
+    [DllImport("gdi32.dll")]
+    private static extern int GetDIBits(nint hdc, nint hbm, uint start, uint lines, byte[] bits, ref BitmapInfoHeader bmi, uint usage);
+
+    [DllImport("user32.dll")]
+    private static extern nint GetDC(nint hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(nint hwnd, nint hdc);
+
+    /// <summary>Copies a 32-bit HBITMAP into a frozen premultiplied-BGRA image (top-down), keeping transparency.</summary>
+    private static ImageSource? HBitmapToAlphaSource(nint hBitmap)
+    {
+        if (GetGdiObject(hBitmap, Marshal.SizeOf<GdiBitmap>(), out var bm) == 0 || bm.bmWidth <= 0 || bm.bmHeight <= 0) return null;
+        int w = bm.bmWidth, h = Math.Abs(bm.bmHeight), stride = w * 4;
+        var bits = new byte[stride * h];
+        var bmi = new BitmapInfoHeader
+        {
+            biSize = Marshal.SizeOf<BitmapInfoHeader>(),
+            biWidth = w,
+            biHeight = -h, // negative: top-down rows
+            biPlanes = 1,
+            biBitCount = 32,
+            biCompression = 0
+        };
+        nint hdc = GetDC(0);
+        try
+        {
+            if (GetDIBits(hdc, hBitmap, 0, (uint)h, bits, ref bmi, 0) == 0) return null;
+        }
+        finally
+        {
+            ReleaseDC(0, hdc);
+        }
+        // Some providers return 32-bit images with an empty alpha channel: treat those as opaque.
+        bool anyAlpha = false;
+        for (int i = 3; i < bits.Length; i += 4)
+        {
+            if (bits[i] != 0) { anyAlpha = true; break; }
+        }
+        if (!anyAlpha)
+        {
+            for (int i = 3; i < bits.Length; i += 4) bits[i] = 255;
+        }
+        var src = BitmapSource.Create(w, h, 96, 96, PixelFormats.Pbgra32, null, bits, stride);
+        src.Freeze();
+        return src;
     }
 
     private static ImageSource? ExtractWindowHwndIcon(nint hwnd)
