@@ -47,8 +47,8 @@ public static class DockWidgetCatalog
     [
         // AI
         new("ai-limits", DockWidgetCategory.Ai, "", "AI Limitleri", "AI Limits",
-            "İki AI planın tek kutuda; her limitin ne zaman yenileneceğiyle.",
-            "Two of your AI plans on one tile, with when each limit resets.", 2.6),
+            "AI planının oturum ve haftalık kullanımı; her limitin ne zaman yenileneceğiyle.",
+            "Your AI plan's session and weekly usage, with when each limit resets.", 3.4),
         new("ai-ring", DockWidgetCategory.Ai, "", "AI Halkası", "AI Ring",
             "En çok dikkat isteyen AI hesabının kalan kotası halka olarak.",
             "The AI account that needs attention most, as a remaining-quota ring.", 1.0),
@@ -166,7 +166,7 @@ public static class DockWidgetCatalog
 
         // Weather
         new("weather", DockWidgetCategory.Weather, "", "Hava Durumu", "Weather",
-            "Şu anki sıcaklık, bugünün en yüksek ve en düşüğüyle.", "Temperature now, with today's high and low.", 1.8,
+            "Gökyüzü renginde kutu: durum, şehir, büyük sıcaklık ve parlak bir hava simgesi.", "A sky-coloured tile: conditions, city, a big temperature and a glossy weather icon.", 3.2,
             NeedsNetwork: true),
         new("weather-details", DockWidgetCategory.Weather, "", "Hava Ayrıntıları", "Weather Details",
             "Rüzgâr, yağış ve günün aralığı.", "Wind, rain and the day's range.", 2.4, NeedsNetwork: true),
@@ -183,9 +183,9 @@ public static class DockWidgetCatalog
         // Finance
         new("crypto", DockWidgetCategory.Finance, "", "Kripto", "Crypto",
             "Bir coinin fiyatı, 24 saatlik değişimi ve günün çizgisi (Binance).",
-            "A coin's price, its 24-hour change and the day's line, from Binance.", 2.2, NeedsNetwork: true),
+            "A coin's price, its 24-hour change and the day's line, from Binance.", 2.8, NeedsNetwork: true),
         new("stock-chart", DockWidgetCategory.Finance, "", "Hisse Grafiği", "Stock Chart",
-            "Gün içi çizgisiyle tek bir hisse.", "One ticker with its intraday line.", 2.2, NeedsNetwork: true,
+            "Gün içi çizgisiyle tek bir hisse.", "One ticker with its intraday line.", 2.8, NeedsNetwork: true,
             NeedsApiKey: true),
         new("stock-watchlist", DockWidgetCategory.Finance, "", "Hisse Listesi", "Stock Watchlist",
             "Bir bakışta üç hisse.", "Three tickers at a glance.", 2.8, NeedsNetwork: true, NeedsApiKey: true),

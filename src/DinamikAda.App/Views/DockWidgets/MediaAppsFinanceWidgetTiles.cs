@@ -541,12 +541,62 @@ internal static class MediaAppsFinanceWidgetTiles
     {
         public const string AuditSessionId = "__dock_audit__";
 
-        private static readonly MediaPlaybackSnapshot Sample = new(
+        private static MediaPlaybackSnapshot? _sample;
+
+        /// <summary>Audit-only sample track, with generated warm cover art so the album-colour path is exercised.</summary>
+        private static MediaPlaybackSnapshot Sample => _sample ??= new(
             HasSession: true, SessionId: AuditSessionId, AppName: "Spotify", Title: "Midnight City", Artist: "Night Drive",
             IsPlaying: true, CanPlayPause: true, CanNext: true, CanPrev: true, CanSeek: true,
             Position: TimeSpan.FromSeconds(83), Duration: TimeSpan.FromSeconds(225),
-            LastUpdatedUtc: DateTimeOffset.UtcNow, PlaybackRate: 1.0, AccentHex: "#FF6B8B", ThumbnailBytes: null,
+            LastUpdatedUtc: DateTimeOffset.UtcNow, PlaybackRate: 1.0, AccentHex: "#FF6B8B", ThumbnailBytes: SampleArt(),
             AllSessions: ImmutableArray<MediaSessionSummary>.Empty);
+
+        /// <summary>A small abstract cover: an amber sun over burnt-orange dunes on a plum sky.</summary>
+        private static byte[]? SampleArt()
+        {
+            try
+            {
+                var dv = new DrawingVisual();
+                using (var dc = dv.RenderOpen())
+                {
+                    dc.DrawRectangle(new LinearGradientBrush(Color.FromRgb(0x5A, 0x2A, 0x48), Color.FromRgb(0xD9, 0x6A, 0x2B), 90), null, new Rect(0, 0, 96, 96));
+                    dc.DrawEllipse(new RadialGradientBrush(Color.FromRgb(0xFF, 0xD0, 0x6A), Color.FromRgb(0xF2, 0x8A, 0x2E)), null, new Point(48, 50), 22, 22);
+                    var dune = new StreamGeometry();
+                    using (var g = dune.Open())
+                    {
+                        g.BeginFigure(new Point(0, 70), true, true);
+                        g.BezierTo(new Point(30, 52), new Point(60, 84), new Point(96, 62), true, true);
+                        g.LineTo(new Point(96, 96), true, true);
+                        g.LineTo(new Point(0, 96), true, true);
+                    }
+                    dc.DrawGeometry(new SolidColorBrush(Color.FromRgb(0x8C, 0x3B, 0x1E)), null, dune);
+                }
+                var rtb = new RenderTargetBitmap(96, 96, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(dv);
+                var enc = new PngBitmapEncoder();
+                enc.Frames.Add(BitmapFrame.Create(rtb));
+                using var ms = new System.IO.MemoryStream();
+                enc.Save(ms);
+                return ms.ToArray();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Album-colour gradient for the current track (graphite when nothing plays).</summary>
+        public static Brush Body(AlbumColors colors, MediaPlaybackSnapshot? m) =>
+            m is null ? Idle : colors.Get(m.ThumbnailBytes, m.AccentHex, m.SecondaryAccentHex).Brush;
+
+        private static readonly Brush Idle = Vivid.Gradient(TileColors.GradientFrom([]));
+
+        /// <summary>"Title · Artist" for one-line media tiles.</summary>
+        public static string TitleLine(DockWidgetContext ctx, MediaPlaybackSnapshot? m)
+        {
+            string t = Title(ctx, m), a = Artist(m);
+            return string.IsNullOrWhiteSpace(a) || a == t ? t : t + " · " + a;
+        }
 
         public static MediaPlaybackSnapshot? Get(DockWidgetContext ctx)
         {
@@ -716,12 +766,15 @@ internal static class MediaAppsFinanceWidgetTiles
 
     private enum NowPlayingLayout { Full, Compact, Bar }
 
-    /// <summary>now-playing / np-compact / np-bar.</summary>
+    /// <summary>
+    /// now-playing / np-compact / np-bar: a tile coloured from the album art (the gradient crossfades when the track
+    /// changes), with white text and transport glyphs.
+    /// </summary>
     private sealed class NowPlayingTile : DockWidgetTileBase
     {
         private readonly NowPlayingLayout _layout;
         private readonly CoverCache _cache = new();
-        private readonly MediaAccent _accent = new();
+        private readonly AlbumColors _colors = new();
         private readonly NowPlayingCard _card = new();
         private CoverView? _cover;
         private MarqueeText _title = null!;
@@ -730,73 +783,78 @@ internal static class MediaAppsFinanceWidgetTiles
         private CrossGlyph? _play;
         private FrameworkElement _controls = null!;
         private bool? _hadSession;
+        private bool _painted;
 
         public NowPlayingTile(DockWidgetDescriptor d, DockWidgetContext c, NowPlayingLayout layout) : base(d, c)
         {
             _layout = layout;
             // BuildContent ran in the base constructor before _layout was set; rebuild for the real layout.
-            Chip.Child = Build(c);
+            SetContent(Build(c));
             Refresh(c);
         }
 
+        protected override bool VividByDefault => true;
+
+        protected override Thickness ContentPadding(double h) => new(Math.Round(h * 0.24), 1, Math.Round(h * 0.24), 1);
+
         protected override FrameworkElement BuildContent(DockWidgetContext ctx) => new Grid();
+
+        private static Border Transport(DockWidgetPalette p, string glyph, double size, Action onClick) =>
+            W.IconButton(p, glyph, size, onClick, foreground: Vivid.OnColor);
 
         private FrameworkElement Build(DockWidgetContext ctx)
         {
             var p = ctx.Palette;
             double h = ctx.TileHeight;
-            double inner = h - 4;
             var g = new Grid { ClipToBounds = false };
-
-            _title = new MarqueeText(W.Text(p, "", Math.Max(9, h * 0.29), weight: FontWeights.SemiBold));
-            if (_layout != NowPlayingLayout.Bar)
-            {
-                _artist = W.Text(p, "", Math.Max(8, h * 0.235), p.SecondaryForeground, ui: false);
-            }
 
             switch (_layout)
             {
                 case NowPlayingLayout.Full:
                 {
-                    _cover = new CoverView(p, inner - 2, Math.Max(4, h * 0.16));
-                    _play = new CrossGlyph(p, Math.Max(9, h * 0.3), p.Foreground);
-                    var prev = W.IconButton(p, GlyphPrev, Math.Max(16, h * 0.5), () => MediaState.Previous(ctx));
-                    var play = Fx.RoundButton(_play, Math.Max(18, h * 0.62), () => MediaState.Toggle(ctx));
-                    var next = W.IconButton(p, GlyphNext, Math.Max(16, h * 0.5), () => MediaState.Next(ctx));
-                    _controls = W.Row(0, prev, play, next);
-                    _bar = W.Bar(p, 10, Math.Max(2, h * 0.07), p.Accent);
-                    _bar.HorizontalAlignment = HorizontalAlignment.Stretch;
-                    _bar.Width = double.NaN;
-                    _bar.VerticalAlignment = VerticalAlignment.Bottom;
-                    _bar.Margin = new Thickness(0, 0, 4, 1);
-
-                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                    _cover.Margin = new Thickness(0, 0, 6, 0);
-                    g.Children.Add(_cover);
-                    var text = W.Column(_title, _artist!);
-                    text.Margin = new Thickness(0, 0, 4, Math.Max(2, h * 0.08));
-                    Grid.SetColumn(text, 1);
-                    g.Children.Add(text);
-                    Grid.SetColumn(_bar, 1);
+                    // "Title · Artist" centred, transport glyphs centred under it, a hairline progress at the foot.
+                    var titleText = W.Text(p, "", Math.Max(9, Math.Round(h * 0.3)), Vivid.OnColor, FontWeights.Bold);
+                    _title = new MarqueeText(titleText) { HorizontalAlignment = HorizontalAlignment.Stretch };
+                    _play = new CrossGlyph(p, Math.Max(9, Math.Round(h * 0.34)), Vivid.OnColor);
+                    double btn = Math.Max(13, Math.Round(h * 0.44));
+                    var prev = Transport(p, GlyphPrev, btn, () => MediaState.Previous(ctx));
+                    var play = Fx.RoundButton(_play, btn, () => MediaState.Toggle(ctx));
+                    var next = Transport(p, GlyphNext, btn, () => MediaState.Next(ctx));
+                    var row = W.Row(Math.Round(h * 0.34), prev, play, next);
+                    row.HorizontalAlignment = HorizontalAlignment.Center;
+                    _controls = row;
+                    var col = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                    col.Children.Add(_title);
+                    col.Children.Add(row);
+                    row.Margin = new Thickness(0, -1, 0, 0);
+                    g.Children.Add(col);
+                    _bar = new BarGauge
+                    {
+                        Height = Math.Max(1.5, Math.Round(h * 0.05 * 2) / 2),
+                        Track = Vivid.OnColorTrack,
+                        Fill = W.Brush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
+                        VerticalAlignment = VerticalAlignment.Bottom,
+                        Margin = new Thickness(Math.Round(h * 0.06), 0, Math.Round(h * 0.06), 0),
+                        IsHitTestVisible = false,
+                        Opacity = 0.9
+                    };
                     g.Children.Add(_bar);
-                    Grid.SetColumn(_controls, 2);
-                    g.Children.Add(_controls);
                     break;
                 }
                 case NowPlayingLayout.Compact:
                 {
-                    _cover = new CoverView(p, inner - 4, Math.Max(4, h * 0.14));
-                    _play = new CrossGlyph(p, Math.Max(9, h * 0.3), p.Foreground);
-                    var play = Fx.RoundButton(_play, Math.Max(18, h * 0.66), () => MediaState.Toggle(ctx), p.Track);
+                    _title = new MarqueeText(W.Text(p, "", Math.Max(9, Math.Round(h * 0.3)), Vivid.OnColor, FontWeights.Bold));
+                    _artist = W.Text(p, "", Vivid.LabelSize(h), Vivid.OnColorSecondary, FontWeights.Medium, ui: false);
+                    _cover = new CoverView(p, Math.Round(h * 0.7), Math.Max(4, Math.Round(h * 0.18)));
+                    _play = new CrossGlyph(p, Math.Max(9, Math.Round(h * 0.34)), Vivid.OnColor);
+                    var play = Fx.RoundButton(_play, Math.Max(18, Math.Round(h * 0.62)), () => MediaState.Toggle(ctx), W.Brush(Colors.White, 0x2A));
                     _controls = play;
                     g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                     g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                     g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                    _cover.Margin = new Thickness(0, 0, 5, 0);
+                    _cover.Margin = new Thickness(-Math.Round(h * 0.1), 0, Math.Round(h * 0.18), 0);
                     g.Children.Add(_cover);
-                    var text = W.Column(_title, _artist!);
+                    var text = W.Column(_title, _artist);
                     text.Margin = new Thickness(0, 0, 4, 0);
                     Grid.SetColumn(text, 1);
                     g.Children.Add(text);
@@ -806,11 +864,16 @@ internal static class MediaAppsFinanceWidgetTiles
                 }
                 default:
                 {
-                    _bar = W.Bar(p, 10, Math.Max(3, h * 0.1), p.Accent);
-                    _bar.HorizontalAlignment = HorizontalAlignment.Stretch;
-                    _bar.Width = double.NaN;
-                    _bar.Margin = new Thickness(0, Math.Max(2, h * 0.08), 0, 0);
-                    var skip = W.IconButton(p, GlyphNext, Math.Max(18, h * 0.62), () => MediaState.Next(ctx));
+                    _title = new MarqueeText(W.Text(p, "", Math.Max(9, Math.Round(h * 0.3)), Vivid.OnColor, FontWeights.Bold));
+                    _bar = new BarGauge
+                    {
+                        Height = Math.Max(2.5, Math.Round(h * 0.09)),
+                        Track = Vivid.OnColorTrack,
+                        Fill = Vivid.OnColor,
+                        HorizontalAlignment = HorizontalAlignment.Stretch,
+                        Margin = new Thickness(0, Math.Max(2, Math.Round(h * 0.1)), 0, 0)
+                    };
+                    var skip = Transport(p, GlyphNext, Math.Max(18, Math.Round(h * 0.6)), () => MediaState.Next(ctx));
                     _controls = skip;
                     g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                     g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -831,84 +894,96 @@ internal static class MediaAppsFinanceWidgetTiles
         {
             if (_title is null) return; // still inside the base constructor
             var m = MediaState.Get(ctx);
-            _title.SetText(MediaState.Title(ctx, m));
+            SetTileBackground(MediaState.Body(_colors, m), animate: _painted);
+            _painted = true;
+            if (_layout == NowPlayingLayout.Full)
+            {
+                _title.SetText(MediaState.TitleLine(ctx, m));
+                CenterTitle();
+            }
+            else
+            {
+                _title.SetText(MediaState.Title(ctx, m));
+            }
             if (_artist is not null) W.SetTextAnimated(_artist, MediaState.Artist(m));
             _cover?.SetImage(m is null ? null : _cache.Get(m.ThumbnailBytes, 96));
             _play?.Set(m is { IsPlaying: true } ? GlyphPause : GlyphPlay);
-            if (_bar is not null)
-            {
-                Fx.SetFill(_bar, _accent.Get(ctx, m));
-                _bar.AnimateTo(m is null ? 0 : MediaState.Progress(m));
-            }
+            _bar?.AnimateTo(m is null ? 0 : MediaState.Progress(m));
             bool has = m is not null;
             if (_hadSession != has)
             {
                 _hadSession = has;
                 _controls.IsHitTestVisible = has;
-                Fx.FadeTo(_controls, has ? 1 : 0.4, 220);
+                Fx.FadeTo(_controls, has ? 1 : 0.45, 220);
             }
+        }
+
+        /// <summary>Centres a title that fits; long titles keep the marquee (left-aligned while scrolling).</summary>
+        private void CenterTitle()
+        {
+            var tb = _title.Text;
+            tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            double room = _title.ActualWidth > 1 ? _title.ActualWidth : Chip.Width - ContentPadding(Chip.Height).Left * 2;
+            double x = Math.Max(0, (room - tb.DesiredSize.Width) / 2);
+            Canvas.SetLeft(tb, Math.Round(x));
         }
 
         protected override FrameworkElement? CreateCard(DockWidgetContext ctx) => _card.Build(ctx, Descriptor);
         protected override void RefreshCard(DockWidgetContext ctx) => _card.Refresh(ctx);
 
-        public override void OnAttached(DockWidgetContext ctx) => _title.Reevaluate();
+        public override void OnAttached(DockWidgetContext ctx)
+        {
+            _title.Reevaluate();
+            if (_layout == NowPlayingLayout.Full) _title.SizeChanged += (_, _) => CenterTitle();
+        }
+
         public override void OnDetached() => _title.Stop();
     }
 
-    /// <summary>np-mini: a round play button inside a progress ring, with the cover in the circle.</summary>
+    /// <summary>np-mini: an album-coloured squircle with a white progress ring round a white play glyph.</summary>
     private sealed class MiniPlayerTile : DockWidgetTileBase
     {
-        private readonly CoverCache _cache = new();
-        private readonly MediaAccent _accent = new();
+        private readonly AlbumColors _colors = new();
         private RingGauge _ring = null!;
-        private CoverView _cover = null!;
-        private Ellipse _scrim = null!;
         private CrossGlyph _play = null!;
         private Grid _button = null!;
-        private bool? _scrimOn;
+        private bool _painted;
 
         public MiniPlayerTile(DockWidgetDescriptor d, DockWidgetContext c) : base(d, c) { }
 
-        protected override bool ShowChrome => false;
+        protected override bool VividByDefault => true;
 
         protected override FrameworkElement BuildContent(DockWidgetContext ctx)
         {
             var p = ctx.Palette;
             double h = ctx.TileHeight;
-            double ringSize = h - 4;
-            double stroke = Math.Max(2.2, h * 0.08);
-            double inner = ringSize - stroke * 2 - 3;
-            _ring = W.Ring(p, ringSize, stroke, p.Accent);
-            _cover = new CoverView(p, inner, inner / 2);
-            _scrim = new Ellipse { Width = inner, Height = inner, Fill = W.Brush(Colors.Black, 0x70), Opacity = 0, IsHitTestVisible = false };
-            _play = new CrossGlyph(p, Math.Max(9, h * 0.32), p.Foreground);
-            _button = new Grid { Width = inner, Height = inner, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            _button.Children.Add(new Ellipse { Fill = p.TileBackground });
-            _button.Children.Add(_cover);
-            _button.Children.Add(_scrim);
+            double ringSize = Math.Round(h * 0.7);
+            double stroke = Math.Max(1.8, Math.Round(h * 0.07 * 2) / 2);
+            _ring = new RingGauge
+            {
+                Width = ringSize,
+                Height = ringSize,
+                StrokeThickness = stroke,
+                Track = Vivid.OnColorTrack,
+                Fill = Vivid.OnColor,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            _play = new CrossGlyph(p, Math.Max(8, Math.Round(h * 0.28)), Vivid.OnColor);
+            _button = new Grid { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            _button.Children.Add(_ring);
             _button.Children.Add(_play);
-            var g = new Grid();
-            g.Children.Add(_ring);
-            g.Children.Add(_button);
-            return g;
+            return _button;
         }
 
         protected override void Refresh(DockWidgetContext ctx)
         {
             var m = MediaState.Get(ctx);
-            var img = m is null ? null : _cache.Get(m.ThumbnailBytes, 96);
-            _cover.SetImage(img);
-            bool scrim = img is not null;
-            if (_scrimOn != scrim)
-            {
-                _scrimOn = scrim;
-                Fx.FadeTo(_scrim, scrim ? 1 : 0, 300);
-            }
-            _play.Set(m is { IsPlaying: true } ? GlyphPause : GlyphPlay, scrim ? Colors.White : (ctx.Palette.Foreground as SolidColorBrush)?.Color);
-            Fx.SetFill(_ring, _accent.Get(ctx, m));
+            SetTileBackground(MediaState.Body(_colors, m), animate: _painted);
+            _painted = true;
+            _play.Set(m is { IsPlaying: true } ? GlyphPause : GlyphPlay);
             _ring.AnimateTo(m is null ? 0 : MediaState.Progress(m), 900);
-            _button.Opacity = m is null ? 0.55 : 1;
+            _button.Opacity = m is null ? 0.6 : 1;
         }
 
         public override bool OnPrimaryClick(DockWidgetContext ctx)
@@ -951,6 +1026,7 @@ internal static class MediaAppsFinanceWidgetTiles
         private Border _host = null!;
         private BarGauge _bar = null!;
         private TextBlock _pct = null!;
+        private Color _barFill;
         private bool _dragging;
         private StackPanel? _deviceList;
         private TextBlock? _cardVolume;
@@ -962,17 +1038,24 @@ internal static class MediaAppsFinanceWidgetTiles
         {
             var p = ctx.Palette;
             double h = ctx.TileHeight;
-            _glyph = new CrossGlyph(p, Math.Max(10, h * 0.4), p.Foreground);
-            var glyphBtn = Fx.RoundButton(_glyph, Math.Max(18, h * 0.72), () =>
+            // A wide speaker pill: solid accent fill from the left, the speaker glyph riding inside it.
+            double pill = Math.Round(h * 0.74);
+            _glyph = new CrossGlyph(p, Math.Max(9, Math.Round(pill * 0.46)), Vivid.OnColor);
+            var glyphBtn = Fx.RoundButton(_glyph, pill, () =>
             {
                 var (_, muted, _) = AudioState.Read(ctx);
                 Fx.Safe(ctx, () => ctx.Orch.Audio.SetMasterMute(!muted), "Mute toggle failed.");
             });
 
-            _bar = W.Bar(p, 10, Math.Max(3.5, h * 0.14), p.Accent);
-            _bar.Width = double.NaN;
-            _bar.HorizontalAlignment = HorizontalAlignment.Stretch;
-            _host = new Border { Background = Brushes.Transparent, Height = Math.Max(14, h * 0.6), Child = _bar, Cursor = Cursors.SizeWE, Margin = new Thickness(4, 0, 6, 0) };
+            _bar = new BarGauge
+            {
+                Height = pill,
+                Track = p.IsLight ? W.Brush(Colors.Black, 0x14) : W.Brush(Colors.White, 0x1E),
+                Fill = Vivid.Solid(p.Accent),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            _host = new Border { Background = Brushes.Transparent, Height = pill, Child = _bar, Cursor = Cursors.SizeWE, VerticalAlignment = VerticalAlignment.Center };
             _host.MouseLeftButtonDown += (_, e) =>
             {
                 e.Handled = true;
@@ -998,19 +1081,16 @@ internal static class MediaAppsFinanceWidgetTiles
                 SetVolume(ctx, Math.Clamp(v + (e.Delta > 0 ? 0.02 : -0.02), 0, 1));
             };
 
-            _pct = W.Text(p, "", Math.Max(8.5, h * 0.26), p.SecondaryForeground, FontWeights.SemiBold);
-            _pct.MinWidth = h * 0.8;
-            _pct.TextAlignment = TextAlignment.Right;
+            _pct = W.Text(p, "", Math.Max(8, Math.Round(h * 0.25)), p.SecondaryForeground, FontWeights.SemiBold);
+            _pct.HorizontalAlignment = HorizontalAlignment.Right;
+            _pct.Margin = new Thickness(0, 0, Math.Round(pill * 0.4), 0);
+            _pct.IsHitTestVisible = false;
+            glyphBtn.HorizontalAlignment = HorizontalAlignment.Left;
 
-            var g = new Grid();
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            g.Children.Add(glyphBtn);
-            Grid.SetColumn(_host, 1);
+            var g = new Grid { VerticalAlignment = VerticalAlignment.Center };
             g.Children.Add(_host);
-            Grid.SetColumn(_pct, 2);
             g.Children.Add(_pct);
+            g.Children.Add(glyphBtn);
             return g;
         }
 
@@ -1038,7 +1118,13 @@ internal static class MediaAppsFinanceWidgetTiles
             var (v, muted, _) = AudioState.Read(ctx);
             _glyph.Set(AudioState.VolumeGlyph(v, muted));
             var p = ctx.Palette;
-            Fx.SetFill(_bar, muted ? ((p.TertiaryForeground as SolidColorBrush)?.Color ?? p.Accent) : p.Accent);
+            var fill = muted ? Color.FromRgb(0x6E, 0x72, 0x80) : p.Accent;
+            if (_barFill != fill)
+            {
+                _barFill = fill;
+                _bar.Fill = Vivid.Solid(fill);
+                _bar.InvalidateVisual();
+            }
             _bar.AnimateTo(v);
             W.SetTextAnimated(_pct, muted ? ctx.T("Kapalı", "Off") : W.Pct(v * 100));
         }
@@ -2129,24 +2215,34 @@ internal static class MediaAppsFinanceWidgetTiles
         {
             var p = ctx.Palette;
             double h = ctx.TileHeight;
-            _symbol = W.Text(p, "", Math.Max(7.5, h * 0.22), p.SecondaryForeground, FontWeights.SemiBold);
-            _price = W.Text(p, "–", Math.Max(9, h * 0.3), weight: FontWeights.SemiBold);
-            _change = W.Text(p, "", Math.Max(7.5, h * 0.22), p.SecondaryForeground, FontWeights.SemiBold);
-            _change.HorizontalAlignment = HorizontalAlignment.Right;
-            _spark = new Sparkline { Height = Math.Max(8, h * 0.4), StrokeThickness = 1.3, Stroke = p.AccentBrush, ShowHead = false };
-            _flash = new Border { CornerRadius = new CornerRadius(Math.Max(6, h * 0.22)), Opacity = 0, IsHitTestVisible = false, Margin = new Thickness(-Math.Round(h * 0.18), -1, -Math.Round(h * 0.18), -1) };
+            // Counter layout: app square, big price over "BTC  +2.4%", and the day's line on the right.
+            var square = Vivid.AppSquare(p, ServiceColors.For(Descriptor.Id == "crypto" ? "crypto" : "stock"), Descriptor.Glyph, Math.Round(h * 0.78));
+            square.Margin = new Thickness(0, 0, Math.Round(h * 0.2), 0);
+            _symbol = Vivid.Label(p, "", h);
+            _price = Vivid.Value(p, "–", h);
+            _price.TextTrimming = TextTrimming.None;
+            _change = Vivid.Label(p, "", h);
+            _change.FontWeight = FontWeights.Bold;
+            _change.Margin = new Thickness(Math.Round(h * 0.12), 0, 0, 0);
+            _spark = new Sparkline { Height = Math.Max(8, Math.Round(h * 0.5)), StrokeThickness = Math.Max(1.2, h * 0.045), Stroke = p.AccentBrush, ShowHead = true, VerticalAlignment = VerticalAlignment.Center };
+            _spark.Margin = new Thickness(Math.Round(h * 0.16), 0, 0, 0);
+            _flash = new Border { CornerRadius = new CornerRadius(Math.Max(6, h * 0.22)), Opacity = 0, IsHitTestVisible = false, Margin = new Thickness(-Math.Round(h * 0.1), -1, -Math.Round(h * 0.1), -1) };
 
-            var left = W.Column(_symbol, _price);
-            var right = W.Column(_spark, _change);
-            right.Margin = new Thickness(4, 0, 0, 0);
+            var labelRow = new StackPanel { Orientation = Orientation.Horizontal };
+            labelRow.Children.Add(_symbol);
+            labelRow.Children.Add(_change);
+            var left = W.Column(_price, labelRow);
             var g = new Grid();
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.15, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            Grid.SetColumnSpan(_flash, 2);
+            Grid.SetColumnSpan(_flash, 3);
             g.Children.Add(_flash);
+            g.Children.Add(square);
+            Grid.SetColumn(left, 1);
             g.Children.Add(left);
-            Grid.SetColumn(right, 1);
-            g.Children.Add(right);
+            Grid.SetColumn(_spark, 2);
+            g.Children.Add(_spark);
             return g;
         }
 

@@ -145,8 +145,9 @@ public static class FinanceAccountTiles
     private static Grid ValueChartGrid(UIElement left, UIElement right, double h, GridLength rightWidth)
     {
         var g = new Grid();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = rightWidth });
+        // The value keeps its full width (big numbers never truncate); the chart takes what is left.
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.1, rightWidth.Value), GridUnitType.Star) });
         g.Children.Add(left);
         if (right is FrameworkElement fe) fe.Margin = new Thickness(Math.Round(h * 0.14), 0, 0, 0);
         Grid.SetColumn(right, 1);
@@ -156,8 +157,9 @@ public static class FinanceAccountTiles
 
     private static (TextBlock Amount, TextBlock Caption, StackPanel Column) ValueColumn(DockWidgetPalette p, double h)
     {
-        var amount = W.Text(p, "—", Math.Max(9.5, Math.Round(h * 0.36)), p.Foreground, FontWeights.SemiBold);
-        var caption = W.Text(p, string.Empty, Math.Max(7.5, Math.Round(h * 0.23)), p.SecondaryForeground);
+        var amount = Vivid.Value(p, "—", h);
+        var caption = Vivid.Label(p, string.Empty, h);
+        caption.MaxWidth = Math.Round(h * 2.4);
         return (amount, caption, W.Column(amount, caption));
     }
 
@@ -367,7 +369,7 @@ public static class FinanceAccountTiles
 
         protected override void ShowData(DockWidgetContext ctx, LemonSqueezyRevenue data, bool isSample)
         {
-            W.SetTextAnimated(_amount, Money(data.ThirtyDayRevenue, data.Currency));
+            W.SetTextAnimated(_amount, MoneyShort(data.ThirtyDayRevenue, data.Currency));
             W.SetTextAnimated(_caption, ctx.T($"{Compact(data.ThirtyDaySales)} satış · 30 gün", $"{Compact(data.ThirtyDaySales)} sales · 30d"));
         }
 
@@ -442,7 +444,7 @@ public static class FinanceAccountTiles
 
         protected override void ShowData(DockWidgetContext ctx, GumroadSales data, bool isSample)
         {
-            W.SetTextAnimated(_amount, Money(data.TotalUsd, "USD"));
+            W.SetTextAnimated(_amount, MoneyShort(data.TotalUsd, "USD"));
             W.SetTextAnimated(_caption, ctx.T($"{Compact(data.TotalSales)} satış", $"{Compact(data.TotalSales)} sales"));
         }
 
@@ -533,7 +535,7 @@ public static class FinanceAccountTiles
 
         protected override void ShowData(DockWidgetContext ctx, PolarRevenue data, bool isSample)
         {
-            W.SetTextAnimated(_amount, Money(data.Last30, data.Currency));
+            W.SetTextAnimated(_amount, MoneyShort(data.Last30, data.Currency));
             W.SetTextAnimated(_caption, ctx.T($"{Compact(data.Count30)} sipariş", $"{Compact(data.Count30)} orders"));
             if (!ReferenceEquals(_lastCounts, data.DailyCounts))
             {
@@ -619,7 +621,7 @@ public static class FinanceAccountTiles
 
         protected override void ShowData(DockWidgetContext ctx, PaddleRevenue data, bool isSample)
         {
-            W.SetTextAnimated(_amount, Money(data.Total, data.Currency));
+            W.SetTextAnimated(_amount, MoneyShort(data.Total, data.Currency));
             W.SetTextAnimated(_caption, ctx.T($"{Compact(data.Count)} işlem", $"{Compact(data.Count)} sales"));
             if (!ReferenceEquals(_lastSeries, data.Daily))
             {

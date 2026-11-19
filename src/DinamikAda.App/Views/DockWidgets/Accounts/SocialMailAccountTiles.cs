@@ -68,6 +68,8 @@ public static class SocialMailAccountTiles
 
         public DeepSeekBalanceTile(DockWidgetDescriptor d, DockWidgetContext ctx) : base(d, ctx) { }
 
+        protected override bool ShowAppSquare => false;
+
         protected override DeepSeekBalance Sample(DockWidgetContext ctx) =>
             new(true, [new DeepSeekBalanceItem("USD", 18.42, 2.00, 16.42)]);
 
@@ -76,8 +78,8 @@ public static class SocialMailAccountTiles
             var p = ctx.Palette;
             double h = ctx.TileHeight;
             _ring = W.Ring(p, h * 0.78, Math.Max(2.5, h * 0.11), p.Accent);
-            _amount = Tight(W.Text(p, "—", Math.Round(h * 0.40), p.Foreground, FontWeights.SemiBold));
-            _caption = Tight(W.Text(p, "DeepSeek", Math.Round(h * 0.26), p.SecondaryForeground));
+            _amount = Tight(Vivid.Value(p, "—", h));
+            _caption = Tight(Vivid.Label(p, "DeepSeek", h));
             var texts = W.Column(_amount, _caption);
             // W.Row applies the spacing as each later child's left margin.
             return W.Row(Math.Round(h * 0.18), _ring, texts);
@@ -347,6 +349,8 @@ public static class SocialMailAccountTiles
 
         public YouTubeChannelTile(DockWidgetDescriptor d, DockWidgetContext ctx) : base(d, ctx) { }
 
+        protected override bool ShowAppSquare => false;
+
         protected override double CardWidth => 300;
 
         protected override YouTubeChannel Sample(DockWidgetContext ctx) =>
@@ -357,19 +361,10 @@ public static class SocialMailAccountTiles
         {
             var p = ctx.Palette;
             double h = ctx.TileHeight;
-            double badge = Math.Round(h * 0.56);
-            var play = new Border
-            {
-                Width = badge,
-                Height = Math.Round(badge * 0.74),
-                CornerRadius = new CornerRadius(badge * 0.24),
-                Background = W.Brush(p.Negative),
-                Child = W.Glyph(p, GlyphPlay, badge * 0.38, Brushes.White),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, Math.Round(h * 0.16), 0)
-            };
-            _subs = W.Text(p, string.Empty, Fs(ctx, 0.40), p.Foreground, FontWeights.SemiBold);
-            _caption = W.Text(p, ctx.T("abone", "subscribers"), Fs(ctx, 0.24), p.SecondaryForeground);
+            var play = Vivid.AppSquare(p, ServiceColors.For("youtube"), GlyphPlay, Math.Round(h * 0.78));
+            play.Margin = new Thickness(0, 0, Math.Round(h * 0.2), 0);
+            _subs = Vivid.Value(p, string.Empty, ctx.TileHeight);
+            _caption = Vivid.Label(p, ctx.T("abone", "subscribers"), ctx.TileHeight);
             var texts = W.Column(Tight(_subs), Tight(_caption));
 
             // The "+N" chip sits in the row (right side) so it never covers the caption.
@@ -553,6 +548,8 @@ public static class SocialMailAccountTiles
 
         public LeetCodeTile(DockWidgetDescriptor d, DockWidgetContext ctx) : base(d, ctx) { }
 
+        protected override bool ShowAppSquare => false;
+
         protected override double CardWidth => 300;
 
         protected override LeetCodeStats Sample(DockWidgetContext ctx) => SampleStats;
@@ -572,8 +569,8 @@ public static class SocialMailAccountTiles
             rings.Children.Add(_medium);
             rings.Children.Add(_hard);
 
-            _total = W.Text(p, string.Empty, Fs(ctx, 0.40), p.Foreground, FontWeights.SemiBold);
-            _caption = W.Text(p, ctx.T("çözüldü", "solved"), Fs(ctx, 0.24), p.SecondaryForeground);
+            _total = Vivid.Value(p, string.Empty, ctx.TileHeight);
+            _caption = Vivid.Label(p, ctx.T("çözüldü", "solved"), ctx.TileHeight);
             var dock = new DockPanel { LastChildFill = true, VerticalAlignment = VerticalAlignment.Center };
             DockPanel.SetDock(rings, Dock.Left);
             dock.Children.Add(rings);
@@ -807,17 +804,14 @@ public static class SocialMailAccountTiles
             double h = ctx.TileHeight;
             _glyph = W.Glyph(p, GlyphMail, Math.Round(h * 0.46), p.SecondaryForeground);
             _glyph.Margin = new Thickness(0, 0, Math.Round(h * 0.12), 0);
-            _count = W.Text(p, string.Empty, Fs(ctx, 0.42), p.Foreground, FontWeights.SemiBold);
-            var row = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            row.Children.Add(_glyph);
-            row.Children.Add(_count);
-            _group = row;
-            return new Grid { Children = { row } };
+            // The app square on the left carries the mail mark; the tile itself is a big count over a tiny label.
+            _glyph.Visibility = Visibility.Collapsed;
+            _count = Vivid.Value(p, string.Empty, ctx.TileHeight);
+            var label = Vivid.Label(p, ctx.T("yeni", "unread"), h);
+            var col = W.Column(_glyph, _count, label);
+            col.HorizontalAlignment = HorizontalAlignment.Left;
+            _group = col;
+            return new Grid { Children = { col } };
         }
 
         protected override void ShowData(DockWidgetContext ctx, GmailInbox data, bool isSample)
@@ -921,6 +915,8 @@ public static class SocialMailAccountTiles
         private CalendarAgenda? _sample;
         private string? _sampleLang;
         private Border _stripe = null!;
+        private TextBlock _pageWeekday = null!;
+        private TextBlock _pageDay = null!;
         private TextBlock _title = null!;
         private TextBlock _when = null!;
         private BarGauge _bar = null!;
@@ -929,6 +925,8 @@ public static class SocialMailAccountTiles
         private Color _barColor;
 
         public CalendarNextTile(DockWidgetDescriptor d, DockWidgetContext ctx) : base(d, ctx) { }
+
+        protected override bool ShowAppSquare => false;
 
         protected override double CardWidth => 320;
 
@@ -963,8 +961,10 @@ public static class SocialMailAccountTiles
                 Background = p.AccentBrush,
                 Margin = new Thickness(0, Math.Round(h * 0.12), Math.Round(h * 0.16), Math.Round(h * 0.12))
             };
-            _title = W.Text(p, string.Empty, Fs(ctx, 0.30), p.Foreground, FontWeights.SemiBold);
-            _when = W.Text(p, string.Empty, Fs(ctx, 0.24), p.AccentBrush, FontWeights.SemiBold);
+            _title = W.Text(p, string.Empty, Fs(ctx, 0.32), p.Foreground, FontWeights.Bold);
+            _when = W.Text(p, string.Empty, Vivid.LabelSize(h), p.SecondaryForeground, FontWeights.SemiBold);
+            var page = Vivid.CalendarPage(p, Math.Round(h * 0.82), out _pageWeekday, out _pageDay);
+            page.Margin = new Thickness(0, 0, Math.Round(h * 0.2), 0);
             _bar = W.Bar(p, 10, Math.Max(2, Math.Round(h * 0.07)), p.Accent);
             _barColor = p.Accent;
             _bar.Width = double.NaN;
@@ -975,8 +975,8 @@ public static class SocialMailAccountTiles
             col.Children.Add(Tight(_when));
             col.Children.Add(_bar);
             var dock = new DockPanel { LastChildFill = true };
-            DockPanel.SetDock(_stripe, Dock.Left);
-            dock.Children.Add(_stripe);
+            DockPanel.SetDock(page, Dock.Left);
+            dock.Children.Add(page);
             dock.Children.Add(col);
             return dock;
         }
@@ -1006,6 +1006,7 @@ public static class SocialMailAccountTiles
                     W.SetTextAnimated(_title, ctx.T("Etkinlik yok", "No events"));
                 }
                 SetText(_when, ctx.T("Önümüzdeki 2 hafta boş", "Free for 2 weeks"));
+                SetPage(ctx, now);
                 SetBar(p, 0, p.Accent);
                 return;
             }
@@ -1017,7 +1018,9 @@ public static class SocialMailAccountTiles
             }
 
             bool live = next.Start <= now;
-            W.SetTextAnimated(_when, Countdown(ctx, next, now));
+            SetPage(ctx, next.Start <= now ? now : next.Start);
+            string countdown = Countdown(ctx, next, now);
+            W.SetTextAnimated(_when, live || next.AllDay ? countdown : next.Start.ToString("HH:mm", CultureInfo.InvariantCulture) + " · " + countdown);
             if (live)
             {
                 double total = (next.End - next.Start).TotalSeconds;
@@ -1032,6 +1035,13 @@ public static class SocialMailAccountTiles
 
         private static void SetText(TextBlock tb, string text) => W.SetTextAnimated(tb, text);
 
+        private void SetPage(DockWidgetContext ctx, DateTime day)
+        {
+            string wd = day.ToString("ddd", CultureInfo.GetCultureInfo(ctx.En ? "en-US" : "tr-TR")).ToUpperInvariant();
+            if (_pageWeekday.Text != wd) _pageWeekday.Text = wd;
+            W.SetTextAnimated(_pageDay, day.Day.ToString(CultureInfo.InvariantCulture));
+        }
+
         private void SetBar(DockWidgetPalette p, double value, Color color)
         {
             if (_barColor != color)
@@ -1040,7 +1050,6 @@ public static class SocialMailAccountTiles
                 _bar.Fill = W.Brush(color);
                 _bar.InvalidateVisual();
                 _stripe.Background = W.Brush(color);
-                _when.Foreground = W.Brush(color);
             }
             _bar.AnimateTo(value, 600);
         }
@@ -1209,6 +1218,8 @@ public static class SocialMailAccountTiles
         private bool _settingWallpaper;
 
         public UnsplashTile(DockWidgetDescriptor d, DockWidgetContext ctx) : base(d, ctx) { }
+
+        protected override bool ShowAppSquare => false;
 
         protected override bool ShowChrome => false;
         protected override Thickness ContentPadding(double h) => new(0);

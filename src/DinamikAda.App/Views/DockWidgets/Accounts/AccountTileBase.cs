@@ -57,6 +57,8 @@ public abstract class AccountTileBase<T> : DockWidgetTileBase where T : class
     protected virtual void Tick(DockWidgetContext ctx, T data, bool isSample) { }
     /// <summary>Card width.</summary>
     protected virtual double CardWidth => 320;
+    /// <summary>Show the service's colour square on the left of the tile (off for tiles with their own emblem).</summary>
+    protected virtual bool ShowAppSquare => true;
 
     // ---- State ----------------------------------------------------------------------------------
 
@@ -74,6 +76,19 @@ public abstract class AccountTileBase<T> : DockWidgetTileBase where T : class
     {
         var p = ctx.Palette;
         _content = BuildTile(ctx);
+        if (ShowAppSquare)
+        {
+            double h = ctx.TileHeight;
+            var square = Vivid.AppSquare(p, ServiceColors.For(Descriptor.Account ?? Id), Descriptor.Glyph, Math.Round(h * 0.78));
+            square.Margin = new Thickness(0, 0, Math.Round(h * 0.2), 0);
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.Children.Add(square);
+            Grid.SetColumn(_content, 1);
+            row.Children.Add(_content);
+            _content = row;
+        }
         double b = Math.Max(11, ctx.TileHeight * 0.36);
         _badgeGlyph = W.Glyph(p, "", b * 0.58, p.Foreground);
         _badge = new Border
@@ -377,6 +392,19 @@ public abstract class AccountTileBase<T> : DockWidgetTileBase where T : class
         string code = (currency ?? "USD").ToUpperInvariant();
         string sym = code switch { "USD" => "$", "EUR" => "€", "GBP" => "£", "TRY" => "₺", "JPY" => "¥", "INR" => "₹", _ => code + " " };
         string num = Math.Abs(amount) >= 1000 ? amount.ToString("#,0", CultureInfo.InvariantCulture) : amount.ToString("#,0.00", CultureInfo.InvariantCulture);
+        return sym + num;
+    }
+
+    /// <summary>Short money for narrow tiles: "$318.60", "$3.6K", "$47.8K", "$1.2M".</summary>
+    protected static string MoneyShort(double amount, string? currency)
+    {
+        if (Math.Abs(amount) < 1000) return Money(amount, currency);
+        string full = Money(amount, currency);
+        int digit = full.IndexOfAny("-0123456789".ToCharArray());
+        string sym = digit > 0 ? full[..digit] : string.Empty;
+        double a = Math.Abs(amount);
+        string num = a >= 1_000_000 ? (amount / 1_000_000).ToString("0.#", CultureInfo.InvariantCulture) + "M"
+            : (amount / 1_000).ToString(a >= 10_000 ? "0" : "0.#", CultureInfo.InvariantCulture) + "K";
         return sym + num;
     }
 
