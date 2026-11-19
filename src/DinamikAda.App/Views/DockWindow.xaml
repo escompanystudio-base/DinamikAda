@@ -22,29 +22,281 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/Themes/ObsidianGlassTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <Style x:Key="StartTileButtonStyle" TargetType="Button" BasedOn="{StaticResource DarkActionButtonStyle}">
-                <Setter Property="Margin" Value="3"/>
-                <Setter Property="Padding" Value="4,7,4,5"/>
-                <Setter Property="Background" Value="#FF171E2B"/>
-                <Setter Property="BorderBrush" Value="#FF2A3445"/>
+            <!-- ===== Start menu: calm, borderless tiles, quiet chips and icon buttons ===== -->
+            <QuinticEase x:Key="StartSoftEase" EasingMode="EaseOut"/>
+            <SolidColorBrush x:Key="StartTextPrimaryBrush" Color="#FFF4F4F6"/>
+            <SolidColorBrush x:Key="StartTextBodyBrush" Color="#FFD6D6DB"/>
+            <SolidColorBrush x:Key="StartTextSecondaryBrush" Color="#FF9A9AA3"/>
+            <SolidColorBrush x:Key="StartTextTertiaryBrush" Color="#FF6E6E77"/>
+            <SolidColorBrush x:Key="StartSectionLabelBrush" Color="#FF8B8B94"/>
+            <SolidColorBrush x:Key="StartGlyphBrush" Color="#FFB4B4BC"/>
+
+            <!-- App tile: no border; hover fill white 6% fades in 120 ms / out 200 ms; content lifts 1.5px -->
+            <Style x:Key="StartTileButtonStyle" TargetType="Button">
+                <Setter Property="Margin" Value="2"/>
+                <Setter Property="Padding" Value="6,10,6,8"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{StaticResource StartTextBodyBrush}"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="Tile" Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="12"
-                                    Padding="{TemplateBinding Padding}">
-                                <ContentPresenter VerticalAlignment="Center"/>
-                            </Border>
+                            <Grid Background="Transparent">
+                                <Border x:Name="Best" CornerRadius="14" Background="#14FFFFFF" Opacity="0"/>
+                                <Border x:Name="Hover" CornerRadius="14" Background="#0FFFFFFF" Opacity="0"/>
+                                <Border x:Name="Focus" CornerRadius="14" Background="#12FFFFFF" BorderBrush="#2EFFFFFF" BorderThickness="1" Opacity="0"/>
+                                <Border x:Name="Press" CornerRadius="14" Background="#08FFFFFF" Opacity="0"/>
+                                <ContentPresenter x:Name="ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                    <ContentPresenter.RenderTransform>
+                                        <TranslateTransform/>
+                                    </ContentPresenter.RenderTransform>
+                                </ContentPresenter>
+                            </Grid>
                             <ControlTemplate.Triggers>
+                                <Trigger Property="Tag" Value="best">
+                                    <Setter TargetName="Best" Property="Opacity" Value="1"/>
+                                </Trigger>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Tile" Property="Background" Value="#FF233651"/>
-                                    <Setter TargetName="Tile" Property="BorderBrush" Value="#FF456384"/>
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12" EasingFunction="{StaticResource StartSoftEase}"/>
+                                                <DoubleAnimation Storyboard.TargetName="ContentHost" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="-1.5" Duration="0:0:0.26" EasingFunction="{StaticResource StartSoftEase}"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2" EasingFunction="{StaticResource StartSoftEase}"/>
+                                                <DoubleAnimation Storyboard.TargetName="ContentHost" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0.3" EasingFunction="{StaticResource StartSoftEase}"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
                                 </Trigger>
                                 <Trigger Property="IsKeyboardFocused" Value="True">
-                                    <Setter TargetName="Tile" Property="BorderBrush" Value="#FFA4D9FF"/>
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="Focus" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.14" EasingFunction="{StaticResource StartSoftEase}"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="Focus" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2" EasingFunction="{StaticResource StartSoftEase}"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="Tile" Property="Background" Value="#FF2A476B"/>
+                                    <Setter TargetName="Press" Property="Opacity" Value="1"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Quick action pill: soft fill, no border -->
+            <Style x:Key="StartChipButtonStyle" TargetType="Button" BasedOn="{StaticResource StartTileButtonStyle}">
+                <Setter Property="Margin" Value="3"/>
+                <Setter Property="Padding" Value="11,0,12,0"/>
+                <Setter Property="Height" Value="34"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid>
+                                <Border CornerRadius="17" Background="#0BFFFFFF"/>
+                                <Border x:Name="Hover" CornerRadius="17" Background="#0DFFFFFF" Opacity="0"/>
+                                <Border x:Name="Focus" CornerRadius="17" BorderBrush="#40FFFFFF" BorderThickness="1" Opacity="0"/>
+                                <Border x:Name="Press" CornerRadius="17" Background="#08FFFFFF" Opacity="0"/>
+                                <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12" EasingFunction="{StaticResource StartSoftEase}"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2" EasingFunction="{StaticResource StartSoftEase}"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Focus" Property="Opacity" Value="1"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Press" Property="Opacity" Value="1"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Quiet icon button: transparent until hover -->
+            <Style x:Key="StartIconButtonStyle" TargetType="Button" BasedOn="{StaticResource StartTileButtonStyle}">
+                <Setter Property="Margin" Value="2,0,0,0"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Width" Value="32"/>
+                <Setter Property="Height" Value="32"/>
+                <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+                <Setter Property="FontSize" Value="15"/>
+                <Setter Property="Foreground" Value="{StaticResource StartGlyphBrush}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid Background="Transparent">
+                                <Border x:Name="Hover" CornerRadius="10" Background="#12FFFFFF" Opacity="0"/>
+                                <Border x:Name="Focus" CornerRadius="10" BorderBrush="#40FFFFFF" BorderThickness="1" Opacity="0"/>
+                                <Border x:Name="Press" CornerRadius="10" Background="#08FFFFFF" Opacity="0"/>
+                                <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource StartTextPrimaryBrush}"/>
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12" EasingFunction="{StaticResource StartSoftEase}"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2" EasingFunction="{StaticResource StartSoftEase}"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Focus" Property="Opacity" Value="1"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Press" Property="Opacity" Value="1"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Small dark glass tooltip used by Start menu controls (never the stock tooltip) -->
+            <Style x:Key="StartGlassToolTipStyle" TargetType="ToolTip">
+                <Setter Property="HasDropShadow" Value="False"/>
+                <Setter Property="Placement" Value="Top"/>
+                <Setter Property="VerticalOffset" Value="-4"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToolTip">
+                            <Border x:Name="Pill" Margin="10,6,10,14" Padding="10,6" CornerRadius="10"
+                                    Background="#F5141418" BorderBrush="#14FFFFFF" BorderThickness="1" Opacity="0">
+                                <Border.RenderTransform>
+                                    <TranslateTransform Y="3"/>
+                                </Border.RenderTransform>
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="14" ShadowDepth="4" Direction="270" Opacity="0.35" Color="Black" RenderingBias="Performance"/>
+                                </Border.Effect>
+                                <ContentPresenter TextElement.FontFamily="{StaticResource UiTextFont}" TextElement.FontSize="12"
+                                                  TextElement.Foreground="{StaticResource StartTextBodyBrush}"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsOpen" Value="True">
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="Pill" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.16" EasingFunction="{StaticResource StartSoftEase}"/>
+                                                <DoubleAnimation Storyboard.TargetName="Pill" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" From="3" To="0" Duration="0:0:0.16" EasingFunction="{StaticResource StartSoftEase}"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Thin overlay scrollbar that only appears while the list is hovered -->
+            <Style x:Key="StartScrollThumbStyle" TargetType="Thumb">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Thumb">
+                            <Border x:Name="ThumbFill" CornerRadius="2" Background="#38FFFFFF" Width="4" HorizontalAlignment="Center"/>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ThumbFill" Property="Background" Value="#5CFFFFFF"/>
+                                </Trigger>
+                                <Trigger Property="IsDragging" Value="True">
+                                    <Setter TargetName="ThumbFill" Property="Background" Value="#70FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="StartScrollBarStyle" TargetType="ScrollBar">
+                <Setter Property="Width" Value="8"/>
+                <Setter Property="MinWidth" Value="8"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Track x:Name="PART_Track" IsDirectionReversed="True" Margin="0,4">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource StartScrollThumbStyle}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="StartScrollViewerStyle" TargetType="ScrollViewer">
+                <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+                <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollViewer">
+                            <Grid Background="Transparent">
+                                <ScrollContentPresenter Margin="{TemplateBinding Padding}" CanContentScroll="{TemplateBinding CanContentScroll}"/>
+                                <ScrollBar x:Name="PART_VerticalScrollBar"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,0,-10,0"
+                                           Opacity="0"
+                                           Orientation="Vertical"
+                                           Style="{StaticResource StartScrollBarStyle}"
+                                           Value="{TemplateBinding VerticalOffset}"
+                                           Maximum="{TemplateBinding ScrollableHeight}"
+                                           ViewportSize="{TemplateBinding ViewportHeight}"
+                                           Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="PART_VerticalScrollBar" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.18" EasingFunction="{StaticResource StartSoftEase}"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="PART_VerticalScrollBar" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.4" BeginTime="0:0:0.5" EasingFunction="{StaticResource StartSoftEase}"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -433,7 +685,7 @@
             </Border>
         </Popup>
 
-        <!-- DinamikAda Obsidian Liquid Glass Start & Launchpad Hub -->
+        <!-- DinamikAda Start menu: calm dark panel, borderless app grid, quiet chips and icon buttons -->
         <Popup x:Name="StartLaunchPopup"
                AllowsTransparency="True"
                StaysOpen="True"
@@ -442,319 +694,307 @@
                PopupAnimation="None"
                Opened="OnStartPopupOpened"
                Closed="OnStartPopupClosed">
-            <Border x:Name="StartLaunchCard"
-                    Width="560"
-                    CornerRadius="22"
-                    Background="#FF101520"
-                    BorderBrush="#FF354158"
-                    BorderThickness="1"
-                    PreviewKeyDown="OnStartCardPreviewKeyDown">
-                <Grid>
-                    <!-- Synchronized Ambient Glow -->
-                    <Border CornerRadius="21" IsHitTestVisible="False">
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop x:Name="StartPopupAuraStop0" Color="#1E0A84FF" Offset="0.0" />
-                                <GradientStop x:Name="StartPopupAuraStop1" Color="#125E5CE6" Offset="0.55" />
-                                <GradientStop Color="#00000000" Offset="1.0" />
-                            </LinearGradientBrush>
-                        </Border.Background>
-                        <Border Height="1"
-                                Margin="18,0"
-                                VerticalAlignment="Top"
-                                Background="{StaticResource ObsidianTopSpecularBrush}"
-                                Opacity="0.45" />
-                    </Border>
+            <!-- The shell leaves room around the card so its soft shadow is never clipped by the popup window -->
+            <Grid x:Name="StartLaunchShell" Background="{x:Null}" RenderTransformOrigin="0.5,1">
+                <Border x:Name="StartLaunchShadow"
+                        Margin="36"
+                        CornerRadius="24"
+                        Background="#FF0F0F12"
+                        IsHitTestVisible="False">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="48" ShadowDepth="18" Direction="270" Opacity="0.45" Color="#000000" RenderingBias="Performance" />
+                    </Border.Effect>
+                </Border>
+                <Border x:Name="StartLaunchCard"
+                        Margin="36"
+                        Width="560"
+                        CornerRadius="24"
+                        Background="#F00F0F12"
+                        BorderBrush="#12FFFFFF"
+                        BorderThickness="1"
+                        PreviewKeyDown="OnStartCardPreviewKeyDown">
+                    <Grid>
+                        <!-- Faint wash of the current accent, then the top inner highlight -->
+                        <Border CornerRadius="23" IsHitTestVisible="False" Opacity="0.45">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop x:Name="StartPopupAuraStop0" Color="#1E0A84FF" Offset="0.0" />
+                                    <GradientStop x:Name="StartPopupAuraStop1" Color="#125E5CE6" Offset="0.45" />
+                                    <GradientStop Color="#00000000" Offset="0.9" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Border Height="40" VerticalAlignment="Top" CornerRadius="23,23,0,0" IsHitTestVisible="False">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#0DFFFFFF" Offset="0" />
+                                    <GradientStop Color="#00FFFFFF" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
 
-                    <StackPanel Margin="18,16,18,14">
-                        <!-- Top Brand + AI Status + Classic Windows Start Fallback + Settings -->
-                        <DockPanel Margin="0,0,0,14">
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button x:Name="BtnStartAiStatus"
-                                        Margin="0,0,6,0"
-                                        Padding="10,6"
-                                        FontSize="11"
-                                        FontWeight="SemiBold"
-                                        Style="{StaticResource DarkActionButtonStyle}"
-                                        Click="OnStartAiStatusClick">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Ellipse x:Name="StartAiStatusDot"
-                                                 Width="6" Height="6"
-                                                 Fill="{StaticResource AccentGreenBrush}"
-                                                 Margin="0,0,5,0"
-                                                 VerticalAlignment="Center" />
-                                        <TextBlock x:Name="StartAiStatusText"
-                                                   Text="AI Hazır"
-                                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                                   VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button x:Name="BtnStartClassicWin"
-                                        Width="32" Height="32"
-                                        Margin="0,0,5,0"
-                                        Padding="0"
-                                        FontFamily="{StaticResource IconFont}"
-                                        FontSize="13"
-                                        Content="&#xE753;"
-                                        Style="{StaticResource DarkActionButtonStyle}"
-                                        Click="OnStartClassicWindowsClick" />
-                                <Button x:Name="BtnStartSettings"
-                                        Width="32" Height="32"
-                                        Padding="0"
-                                        FontFamily="{StaticResource IconFont}"
-                                        FontSize="13"
-                                        Content="&#xE713;"
-                                        Style="{StaticResource DarkActionButtonStyle}"
-                                        Click="OnStartSettingsClick" />
-                            </StackPanel>
+                        <StackPanel x:Name="StartContentStack" Margin="22,20,22,12">
+                            <!-- Header: title + quiet status cluster -->
+                            <DockPanel x:Name="StartHeaderRow" Margin="0,0,0,16">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button x:Name="BtnStartAiStatus"
+                                            Style="{StaticResource StartChipButtonStyle}"
+                                            Height="30"
+                                            Margin="0,0,4,0"
+                                            Padding="11,0"
+                                            Click="OnStartAiStatusClick">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse x:Name="StartAiStatusDot"
+                                                     Width="6" Height="6"
+                                                     Fill="{StaticResource AccentGreenBrush}"
+                                                     Margin="0,0,7,0"
+                                                     VerticalAlignment="Center" />
+                                            <TextBlock x:Name="StartAiStatusText"
+                                                       Text="AI Hazır"
+                                                       FontFamily="{StaticResource UiTextFont}"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource StartTextBodyBrush}"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="BtnStartClassicWin"
+                                            Style="{StaticResource StartIconButtonStyle}"
+                                            Click="OnStartClassicWindowsClick">
+                                        <UniformGrid Columns="2" Rows="2" Width="12" Height="12">
+                                            <Border Margin="0.75" CornerRadius="1" Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                            <Border Margin="0.75" CornerRadius="1" Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                            <Border Margin="0.75" CornerRadius="1" Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                            <Border Margin="0.75" CornerRadius="1" Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                        </UniformGrid>
+                                    </Button>
+                                    <Button x:Name="BtnStartSettings"
+                                            Style="{StaticResource StartIconButtonStyle}"
+                                            Content="&#xE713;"
+                                            Click="OnStartSettingsClick" />
+                                </StackPanel>
 
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Border Width="34" Height="34"
-                                        CornerRadius="10"
-                                        Margin="0,0,10,0"
-                                        Background="#FF183659"
-                                        BorderBrush="#FF365E87"
-                                        BorderThickness="1">
-                                    <UniformGrid Columns="2" Rows="2" Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <Border Margin="1" CornerRadius="2" Background="#F5F5F7" />
-                                        <Border Margin="1" CornerRadius="2" Background="#93C5FD" />
-                                        <Border Margin="1" CornerRadius="2" Background="#93C5FD" />
-                                        <Border Margin="1" CornerRadius="2" Background="#64D2FF" />
-                                    </UniformGrid>
-                                </Border>
-                                <TextBlock x:Name="StartBadgeText" Text="Başlat"
+                                <TextBlock x:Name="StartBadgeText"
+                                           Text="Başlat"
                                            FontFamily="{StaticResource UiFont}"
                                            FontSize="22"
                                            FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Foreground="{StaticResource StartTextPrimaryBrush}"
+                                           TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
-                            </StackPanel>
-                        </DockPanel>
+                            </DockPanel>
 
-                        <!-- Installed app search -->
-                        <Grid Margin="0,0,0,12">
-                            <Border CornerRadius="10" BorderThickness="1" Padding="36,0"
-                                    MinHeight="42">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource ComboBackgroundBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource ComboBorderBrush}"/>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                                                <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <TextBox x:Name="StartSearchBox"
-                                         Style="{StaticResource ObsidianTextBoxStyle}"
-                                         Background="Transparent" BorderThickness="0" Padding="0"
-                                         FontSize="13"
-                                         AutomationProperties.LabeledBy="{Binding ElementName=StartSearchPlaceholder}"
-                                         TextChanged="OnStartSearchTextChanged"
-                                         PreviewKeyDown="OnStartSearchPreviewKeyDown">
-                                    <TextBox.Template>
-                                        <ControlTemplate TargetType="TextBox">
-                                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
-                                        </ControlTemplate>
-                                    </TextBox.Template>
-                                </TextBox>
-                            </Border>
-                            <TextBlock FontFamily="{StaticResource IconFont}"
-                                       Text="&#xE721;"
-                                       FontSize="14"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       HorizontalAlignment="Left"
-                                       VerticalAlignment="Center"
-                                       Margin="13,0,0,0"
-                                       IsHitTestVisible="False" />
-                            <TextBlock x:Name="StartSearchPlaceholder"
-                                       Text="Uygulama ara…"
-                                       FontFamily="{StaticResource UiTextFont}"
-                                       FontSize="13"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       HorizontalAlignment="Left"
-                                       VerticalAlignment="Center"
-                                       Margin="37,0,36,0"
-                                       IsHitTestVisible="False" />
-                            <Button x:Name="BtnStartSearchClear"
-                                    Width="28" Height="28"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,6,0"
-                                    Padding="0"
-                                    FontFamily="{StaticResource IconFont}"
-                                    FontSize="9"
-                                    Content="&#xE711;"
-                                    Visibility="Collapsed"
-                                    Style="{StaticResource DarkActionButtonStyle}"
-                                    Click="OnStartSearchClearClick" />
-                        </Grid>
-
-                        <!-- DinamikAda shortcuts -->
-                        <UniformGrid x:Name="StartShortcutGrid" Columns="4" Margin="-3,0,-3,14">
-                            <Button x:Name="BtnStartModIsland"
-                                    MinHeight="42"
-                                    Style="{StaticResource StartTileButtonStyle}"
-                                    Click="OnStartModuleIslandClick">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE8D6;" FontSize="15" Foreground="{StaticResource AccentCyanBrush}" Margin="0,0,5,0" VerticalAlignment="Center" />
-                                    <TextBlock x:Name="StartModIslandText" Text="Ada Akışı" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="BtnStartModAi"
-                                    MinHeight="42"
-                                    Style="{StaticResource StartTileButtonStyle}"
-                                    Click="OnStartModuleAiClick">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE945;" FontSize="15" Foreground="{StaticResource AccentGreenBrush}" Margin="0,0,5,0" VerticalAlignment="Center" />
-                                    <TextBlock x:Name="StartModAiText" Text="AI Kota" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="BtnStartModSystem"
-                                    MinHeight="42"
-                                    Style="{StaticResource StartTileButtonStyle}"
-                                    Click="OnStartModuleSystemClick">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE9D9;" FontSize="15" Foreground="{StaticResource AccentAmberBrush}" Margin="0,0,5,0" VerticalAlignment="Center" />
-                                    <TextBlock x:Name="StartModSystemText" Text="Sistem" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="BtnStartModCommand"
-                                    MinHeight="42"
-                                    Style="{StaticResource StartTileButtonStyle}"
-                                    Click="OnStartModuleCommandClick">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE721;" FontSize="15" Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,5,0" VerticalAlignment="Center" />
-                                    <TextBlock x:Name="StartModCommandText" Text="Komut" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                        </UniformGrid>
-
-                        <TextBlock x:Name="StartLaunchError" Visibility="Collapsed" TextWrapping="Wrap"
-                                   Margin="2,0,2,10" FontSize="12" Foreground="#FFFFB4AB"
-                                   AutomationProperties.LiveSetting="Assertive"/>
-
-                        <!-- Installed Apps Section Header -->
-                        <DockPanel Margin="2,0,2,6">
-                            <TextBlock x:Name="StartAppsCountText"
-                                       DockPanel.Dock="Right"
-                                       Text="0 uygulama"
-                                       FontFamily="{StaticResource UiTextFont}"
-                                       FontSize="11.5"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       VerticalAlignment="Center" />
-                            <TextBlock x:Name="StartAppsSectionTitle"
-                                       Text="Uygulamalar"
-                                       FontFamily="{StaticResource UiFont}"
-                                       FontSize="14"
-                                       FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimaryBrush}"
-                                       VerticalAlignment="Center" />
-                        </DockPanel>
-
-                        <!-- Scrollable 5-Column Obsidian App Grid -->
-                        <ScrollViewer x:Name="StartAppsScrollViewer"
-                                      Height="252"
-                                      Margin="0,0,0,10"
-                                      Style="{StaticResource ObsidianScrollViewerStyle}">
-                            <Grid>
-                                <UniformGrid x:Name="StartAppsGrid" Columns="5" VerticalAlignment="Top" />
-                                <TextBlock x:Name="StartAppsEmptyText"
-                                           Text="Eşleşen uygulama bulunamadı"
-                                           FontFamily="{StaticResource UiTextFont}"
-                                           FontSize="13"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           TextWrapping="Wrap"
-                                           Margin="12"
-                                           Visibility="Collapsed" />
-                            </Grid>
-                        </ScrollViewer>
-
-                        <Border Height="1" Background="#16FFFFFF" Margin="0,0,0,9" />
-
-                        <!-- User Profile + System Utilities + Power Controls Footer -->
-                        <DockPanel>
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button x:Name="BtnStartLock"
-                                        Width="26" Height="26"
-                                        Margin="0,0,5,0"
-                                        Padding="0"
-                                        FontFamily="{StaticResource IconFont}"
-                                        FontSize="11"
-                                        Content="&#xE72E;"
-                                        Style="{StaticResource DarkActionButtonStyle}"
-                                        Click="OnStartLockClick" />
-                                <Button x:Name="BtnStartPower"
-                                        Width="26" Height="26"
-                                        Padding="0"
-                                        FontFamily="{StaticResource IconFont}"
-                                        FontSize="11"
-                                        Foreground="{StaticResource AccentAmberBrush}"
-                                        Content="&#xE7E8;"
-                                        Style="{StaticResource DarkActionButtonStyle}"
-                                        Click="OnStartPowerClick" />
-                            </StackPanel>
-
-                            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Border Padding="7,4"
-                                        CornerRadius="9"
-                                        Background="#0EFFFFFF"
-                                        BorderBrush="#16FFFFFF"
-                                        BorderThickness="0.6"
-                                        Margin="0,0,6,0">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE77B;" FontSize="10.5" Foreground="{StaticResource AccentCyanBrush}" Margin="0,0,5,0" VerticalAlignment="Center" />
-                                        <TextBlock x:Name="StartUserNameText"
-                                                   Text="Kullanıcı"
-                                                   FontFamily="{StaticResource UiFont}"
-                                                   FontSize="10.2"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                                   MaxWidth="86"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   VerticalAlignment="Center" />
-                                    </StackPanel>
+                            <!-- Search: soft filled field, leading glyph, accent focus ring -->
+                            <Grid x:Name="StartSearchHost" Margin="0,0,0,14">
+                                <Border x:Name="StartSearchGlow" CornerRadius="16" Margin="-2" BorderThickness="2"
+                                        BorderBrush="#3364D2FF" Opacity="0" IsHitTestVisible="False" />
+                                <Border x:Name="StartSearchField" CornerRadius="14" BorderThickness="1" Padding="38,0,38,0" Height="42">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#0FFFFFFF"/>
+                                            <Setter Property="BorderBrush" Value="#0AFFFFFF"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#14FFFFFF"/>
+                                                </Trigger>
+                                                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                                    <Setter Property="Background" Value="#12FFFFFF"/>
+                                                    <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBox x:Name="StartSearchBox"
+                                             Style="{StaticResource ObsidianTextBoxStyle}"
+                                             Background="Transparent" BorderThickness="0" Padding="0"
+                                             FontFamily="{StaticResource UiTextFont}"
+                                             FontSize="13.5"
+                                             Foreground="{StaticResource StartTextPrimaryBrush}"
+                                             CaretBrush="{StaticResource AccentCyanBrush}"
+                                             AutomationProperties.LabeledBy="{Binding ElementName=StartSearchPlaceholder}"
+                                             GotKeyboardFocus="OnStartSearchFocusChanged"
+                                             LostKeyboardFocus="OnStartSearchFocusChanged"
+                                             TextChanged="OnStartSearchTextChanged"
+                                             PreviewKeyDown="OnStartSearchPreviewKeyDown">
+                                        <TextBox.Template>
+                                            <ControlTemplate TargetType="TextBox">
+                                                <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+                                            </ControlTemplate>
+                                        </TextBox.Template>
+                                    </TextBox>
                                 </Border>
-                                <Button x:Name="BtnStartExplorer"
-                                        Margin="0,0,5,0"
-                                        Padding="7,4"
+                                <TextBlock FontFamily="{StaticResource IconFont}"
+                                           Text="&#xE721;"
+                                           FontSize="14"
+                                           Foreground="{StaticResource StartSectionLabelBrush}"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Margin="15,0,0,0"
+                                           IsHitTestVisible="False" />
+                                <TextBlock x:Name="StartSearchPlaceholder"
+                                           Text="Uygulama ara…"
+                                           FontFamily="{StaticResource UiTextFont}"
+                                           FontSize="13.5"
+                                           Foreground="{StaticResource StartTextTertiaryBrush}"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Margin="39,0,40,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           IsHitTestVisible="False" />
+                                <Button x:Name="BtnStartSearchClear"
+                                        Style="{StaticResource StartIconButtonStyle}"
+                                        Width="26" Height="26"
                                         FontSize="10"
-                                        Style="{StaticResource DarkActionButtonStyle}"
-                                        Click="OnStartExplorerClick">
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,8,0"
+                                        Content="&#xE711;"
+                                        Visibility="Collapsed"
+                                        Click="OnStartSearchClearClick" />
+                            </Grid>
+
+                            <!-- DinamikAda quick actions: soft pills -->
+                            <WrapPanel x:Name="StartShortcutGrid" Margin="-3,0,-3,14">
+                                <Button x:Name="BtnStartModIsland" Style="{StaticResource StartChipButtonStyle}" Click="OnStartModuleIslandClick">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE8B7;" FontSize="10.5" Foreground="{StaticResource AccentAmberBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
-                                        <TextBlock x:Name="StartExplorerText" Text="Gezgin" VerticalAlignment="Center" />
+                                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE8D6;" FontSize="13" Foreground="{StaticResource StartGlyphBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="StartModIslandText" Text="Ada Akışı" FontFamily="{StaticResource UiTextFont}" FontSize="12.5" Foreground="{StaticResource StartTextBodyBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="BtnStartTerminal"
-                                        Margin="0,0,5,0"
-                                        Padding="7,4"
-                                        FontSize="10"
-                                        Style="{StaticResource DarkActionButtonStyle}"
-                                        Click="OnStartTerminalClick">
+                                <Button x:Name="BtnStartModAi" Style="{StaticResource StartChipButtonStyle}" Click="OnStartModuleAiClick">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE756;" FontSize="10.5" Foreground="{StaticResource AccentCyanBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
-                                        <TextBlock Text="Terminal" VerticalAlignment="Center" />
+                                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE945;" FontSize="13" Foreground="{StaticResource StartGlyphBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="StartModAiText" Text="AI Kota" FontFamily="{StaticResource UiTextFont}" FontSize="12.5" Foreground="{StaticResource StartTextBodyBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="BtnStartTaskMgr"
-                                        Padding="7,4"
-                                        FontSize="10"
-                                        Style="{StaticResource DarkActionButtonStyle}"
-                                        Click="OnStartTaskMgrClick">
+                                <Button x:Name="BtnStartModSystem" Style="{StaticResource StartChipButtonStyle}" Click="OnStartModuleSystemClick">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE9D9;" FontSize="10.5" Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
-                                        <TextBlock x:Name="StartTaskMgrText" Text="Görev Yön." VerticalAlignment="Center" />
+                                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE9D9;" FontSize="13" Foreground="{StaticResource StartGlyphBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="StartModSystemText" Text="Sistem" FontFamily="{StaticResource UiTextFont}" FontSize="12.5" Foreground="{StaticResource StartTextBodyBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="BtnStartModCommand" Style="{StaticResource StartChipButtonStyle}" Click="OnStartModuleCommandClick">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE765;" FontSize="13" Foreground="{StaticResource StartGlyphBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="StartModCommandText" Text="Komut" FontFamily="{StaticResource UiTextFont}" FontSize="12.5" Foreground="{StaticResource StartTextBodyBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                             </WrapPanel>
-                        </DockPanel>
-                    </StackPanel>
-                </Grid>
-            </Border>
+
+                            <TextBlock x:Name="StartLaunchError" Visibility="Collapsed" TextWrapping="Wrap"
+                                       Margin="4,0,4,10" FontSize="12" FontFamily="{StaticResource UiTextFont}" Foreground="#FFFFB4AB"
+                                       AutomationProperties.LiveSetting="Assertive"/>
+
+                            <!-- Pinned apps -->
+                            <StackPanel x:Name="StartPinnedSection" Margin="0,0,0,10">
+                                <TextBlock x:Name="StartPinnedTitle"
+                                           Text="SABİTLENENLER"
+                                           Margin="4,0,0,6"
+                                           FontFamily="{StaticResource UiTextFont}"
+                                           FontSize="10.5"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource StartSectionLabelBrush}" />
+                                <UniformGrid x:Name="StartPinnedGrid" Columns="5" Margin="-2,0" VerticalAlignment="Top" />
+                            </StackPanel>
+
+                            <!-- All apps -->
+                            <DockPanel x:Name="StartAppsHeader" Margin="4,0,4,6">
+                                <TextBlock x:Name="StartEnterHint"
+                                           DockPanel.Dock="Right"
+                                           Visibility="Collapsed"
+                                           FontFamily="{StaticResource UiTextFont}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource StartTextTertiaryBrush}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock x:Name="StartAppsSectionTitle"
+                                           Text="TÜM UYGULAMALAR"
+                                           FontFamily="{StaticResource UiTextFont}"
+                                           FontSize="10.5"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource StartSectionLabelBrush}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock x:Name="StartAppsCountText"
+                                           Text="0"
+                                           Margin="8,0,0,0"
+                                           FontFamily="{StaticResource UiTextFont}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource StartTextTertiaryBrush}"
+                                           Typography.NumeralAlignment="Tabular"
+                                           VerticalAlignment="Center" />
+                            </DockPanel>
+
+                            <ScrollViewer x:Name="StartAppsScrollViewer"
+                                          Height="252"
+                                          Margin="-2,0,-2,10"
+                                          Style="{StaticResource StartScrollViewerStyle}"
+                                          ScrollChanged="OnStartAppsScrollChanged">
+                                <ScrollViewer.OpacityMask>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#00000000" Offset="0" />
+                                        <GradientStop Color="#FF000000" Offset="0.035" />
+                                        <GradientStop Color="#FF000000" Offset="0.86" />
+                                        <GradientStop Color="#00000000" Offset="1" />
+                                    </LinearGradientBrush>
+                                </ScrollViewer.OpacityMask>
+                                <Grid>
+                                    <UniformGrid x:Name="StartAppsGrid" Columns="5" VerticalAlignment="Top" />
+                                    <TextBlock x:Name="StartAppsEmptyText"
+                                               Text="Eşleşen uygulama bulunamadı"
+                                               FontFamily="{StaticResource UiTextFont}"
+                                               FontSize="13"
+                                               Foreground="{StaticResource StartTextSecondaryBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Top"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center"
+                                               Margin="12,36,12,12"
+                                               Visibility="Collapsed" />
+                                </Grid>
+                            </ScrollViewer>
+
+                            <!-- Footer: user on the left, quiet system buttons on the right -->
+                            <Border x:Name="StartFooterDivider" Height="1" Background="#0FFFFFFF" Margin="-22,0,-22,10" />
+                            <DockPanel x:Name="StartFooterRow">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button x:Name="BtnStartExplorer" Style="{StaticResource StartIconButtonStyle}" Content="&#xE8B7;" Click="OnStartExplorerClick" />
+                                    <Button x:Name="BtnStartTerminal" Style="{StaticResource StartIconButtonStyle}" Content="&#xE756;" Click="OnStartTerminalClick" />
+                                    <Button x:Name="BtnStartTaskMgr" Style="{StaticResource StartIconButtonStyle}" Content="&#xE9D9;" Click="OnStartTaskMgrClick" />
+                                    <Border Width="1" Height="16" Margin="8,0,6,0" Background="#14FFFFFF" VerticalAlignment="Center" />
+                                    <Button x:Name="BtnStartLock" Style="{StaticResource StartIconButtonStyle}" Content="&#xE72E;" Click="OnStartLockClick" />
+                                    <Button x:Name="BtnStartPower" Style="{StaticResource StartIconButtonStyle}" Content="&#xE7E8;" Click="OnStartPowerClick" />
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Border Width="28" Height="28" CornerRadius="14" Margin="0,0,10,0">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="#FF3A3A44" Offset="0" />
+                                                <GradientStop Color="#FF24242B" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <TextBlock x:Name="StartUserInitialText"
+                                                   Text="W"
+                                                   FontFamily="{StaticResource UiFont}"
+                                                   FontSize="12.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource StartTextPrimaryBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock x:Name="StartUserNameText"
+                                               Text="Kullanıcı"
+                                               FontFamily="{StaticResource UiTextFont}"
+                                               FontSize="13"
+                                               Foreground="{StaticResource StartTextBodyBrush}"
+                                               MaxWidth="180"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DockPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
         </Popup>
     </Grid>
 </Window>
