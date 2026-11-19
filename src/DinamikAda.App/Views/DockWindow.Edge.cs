@@ -31,8 +31,8 @@ public partial class DockWindow
     {
         bool top = IsDockAtTop;
         DockPillContainer.VerticalAlignment = top ? VerticalAlignment.Top : VerticalAlignment.Bottom;
-        DockPillContainer.Margin = top ? new Thickness(0, 6, 0, 0) : new Thickness(0, 0, 0, 6);
-        DockItemsHost.Margin = top ? new Thickness(9, 4, 9, 6) : new Thickness(9, 6, 9, 4);
+        _appliedHostMargin = new Thickness(double.NaN);
+        ApplyCapsuleSpread(); // capsule + row margins for this edge, including any live magnification spread
 
         var placement = top ? PlacementMode.Bottom : PlacementMode.Top;
         ClockCalendarPopup.Placement = placement;
@@ -122,6 +122,7 @@ public partial class DockWindow
         int newTop = Math.Clamp(_edgeDragStartTopPx + dy, minTop, maxTop);
         NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, bounds.LeftPx, newTop, bounds.WidthPx, bounds.HeightPx,
             NativeMethods.SWP_NOACTIVATE);
+        SyncDockGlass();
         e.Handled = true;
     }
 

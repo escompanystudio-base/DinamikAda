@@ -15,6 +15,7 @@ using DinamikAda.App.Services.Voice;
 using DinamikAda.Core.Localization;
 using DinamikAda.Core.Voice;
 using DinamikAda.Platform.Win32.Interop;
+using DinamikAda.Platform.Win32.Windowing;
 using DinamikAda.App.Views.DockWidgets;
 
 namespace DinamikAda.App.Views.Voice;
@@ -34,6 +35,8 @@ public sealed class VoiceOverlayWindow : IVoiceOverlay, IDisposable
     private readonly DispatcherTimer _autoHide = new(DispatcherPriority.Normal);
     private Window? _window;
     private VoiceOverlayView? _view;
+    private GlassSurface? _pillGlass;
+    private GlassSurface? _bubbleGlass;
     private nint _hwnd;
     private bool _clickThrough = true;
     private int _showGeneration;
@@ -105,6 +108,8 @@ public sealed class VoiceOverlayWindow : IVoiceOverlay, IDisposable
         if (_disposed) return;
         _disposed = true;
         _autoHide.Stop();
+        _pillGlass?.Dispose();
+        _bubbleGlass?.Dispose();
         try { _window?.Close(); } catch (InvalidOperationException) { }
         _window = null;
         _view = null;
@@ -171,8 +176,37 @@ public sealed class VoiceOverlayWindow : IVoiceOverlay, IDisposable
             ApplyExStyle();
             HwndSource.FromHwnd(_hwnd)?.AddHook(WndProc);
         };
+        AttachGlass(_window, _view);
         _window.DpiChanged += (_, _) => _window.Dispatcher.BeginInvoke(PositionOnCursorMonitorKeepMonitor, DispatcherPriority.Render);
         new WindowInteropHelper(_window).EnsureHandle();
+    }
+
+    /// <summary>Real blurred glass behind the pill and the answer bubble (when Windows transparency effects are on).</summary>
+    private void AttachGlass(Window window, VoiceOverlayView view)
+    {
+        if (!GlassPolicy.IsEnabled) return;
+        bool Allowed() => !Disabled && GlassPolicy.IsEnabled && window.IsVisible;
+        _pillGlass = new GlassSurface(view.PillSurface, GlassBackdropMode.Acrylic, () => 32, Allowed);
+        _bubbleGlass = new GlassSurface(view.BubbleSurface, GlassBackdropMode.Acrylic, () => 20, Allowed);
+        foreach (var (surface, el) in new[] { (_pillGlass, view.PillSurface), (_bubbleGlass, view.BubbleSurface) })
+        {
+            surface.WatchAnimations(view);
+            surface.WatchAnimations(el);
+            el.IsVisibleChanged += (_, _) => surface.TrackFor(300);
+        }
+        view.SetGlass(true);
+        window.IsVisibleChanged += (_, _) =>
+        {
+            if (!window.IsVisible)
+            {
+                _pillGlass?.Hide();
+                _bubbleGlass?.Hide();
+                return;
+            }
+            _pillGlass?.TrackFor(600);
+            _bubbleGlass?.TrackFor(600);
+            if (_pillGlass is { HasFailed: true }) view.SetGlass(false);
+        };
     }
 
     private nint WndProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
@@ -667,6 +701,16 @@ internal sealed class VoiceOverlayView : Grid
         _typing.Visibility = Visibility.Collapsed;
         _errorIcon.Visibility = Visibility.Visible;
         _mascot.State = MascotState.Error;
+    }
+
+    internal FrameworkElement PillSurface => _pill;
+    internal FrameworkElement BubbleSurface => _bubble;
+
+    /// <summary>Over real blur the pill and bubble use a lighter frosted tint; otherwise the near-solid one.</summary>
+    internal void SetGlass(bool active)
+    {
+        _pill.Background = GlassBrush(active ? (byte)0xB8 : (byte)0xF0);
+        _bubble.Background = GlassBrush(active ? (byte)0xC4 : (byte)0xF4, lighter: true);
     }
 
     public void AnimateIn(bool onlyIfHidden = false)

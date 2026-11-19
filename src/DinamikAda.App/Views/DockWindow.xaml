@@ -433,13 +433,29 @@
                                 </RadialGradientBrush>
                             </Border.Background>
                         </Border>
-                        <Border Height="1"
-                                Margin="14,0"
-                                VerticalAlignment="Top"
-                                Background="{StaticResource ObsidianTopSpecularBrush}"
-                                Opacity="0.35"
-                                IsHitTestVisible="False" />
                     </Grid>
+                </Border>
+
+                <!-- Liquid-glass edges: a faint inner rim (brighter at the top, a whisper at the bottom) and a crisp
+                     1px top highlight that fades toward the sides. Colours are set per dock style in code. -->
+                <Border x:Name="DockInnerEdge" CornerRadius="17" BorderThickness="1" IsHitTestVisible="False">
+                    <Border.BorderBrush>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop x:Name="DockInnerEdgeTop" Color="#1EFFFFFF" Offset="0.0" />
+                            <GradientStop x:Name="DockInnerEdgeMid" Color="#06FFFFFF" Offset="0.5" />
+                            <GradientStop x:Name="DockInnerEdgeBottom" Color="#10FFFFFF" Offset="1.0" />
+                        </LinearGradientBrush>
+                    </Border.BorderBrush>
+                </Border>
+                <Border x:Name="DockTopHighlight" Height="1" Margin="16,0.5,16,0" VerticalAlignment="Top" IsHitTestVisible="False">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#00FFFFFF" Offset="0.0" />
+                            <GradientStop x:Name="DockTopHighlightMid0" Color="#4CFFFFFF" Offset="0.22" />
+                            <GradientStop x:Name="DockTopHighlightMid1" Color="#4CFFFFFF" Offset="0.78" />
+                            <GradientStop Color="#00FFFFFF" Offset="1.0" />
+                        </LinearGradientBrush>
+                    </Border.Background>
                 </Border>
 
                 <!-- Dynamic App Slots + Separator + Island Sync + Trash + Clock -->

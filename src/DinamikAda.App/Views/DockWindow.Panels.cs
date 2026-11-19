@@ -1022,7 +1022,7 @@ public partial class DockWindow
         }
 
         Point anchorPt = slot.Container.TranslatePoint(new Point(slot.Container.Width * 0.5, 0), DockRootGrid);
-        double extraLift = Math.Abs(slot.CurrentLiftY) + (slot.CurrentScale - 1.0) * _orch.Config.DockIconSizeDip * 0.85;
+        double extraLift = Math.Abs(slot.CurrentLiftY) + (slot.CurrentScale - 1.0) * _orch.Config.DockIconSizeDip;
         if (wantAiCard) PositionAiTooltip(anchorPt, slot.Container.ActualHeight, extraLift);
         else PositionTooltipPill(anchorPt, slot.Container.ActualHeight, extraLift);
         _hoveredSlotIndex = slotIdx;

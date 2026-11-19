@@ -152,6 +152,64 @@ public static class DockLayoutCalculator
         return result;
     }
 
+    /// <summary>
+    /// macOS-strength magnification scales: a gaussian over the distance (in slot pitches) from the cursor,
+    /// truncated smoothly to exactly 1.0 at <paramref name="cutoffPitch"/> so far icons never twitch.
+    /// With the defaults the hovered icon reaches <paramref name="maxScale"/>, its neighbours ~1.49× and ~1.09×.
+    /// </summary>
+    public static double[] ComputeGaussianMagnificationScales(
+        double? cursorLocalX,
+        IReadOnlyList<double> slotCentersX,
+        double baseSlotPitchDip,
+        double maxScale = 1.85,
+        double sigmaPitch = 0.95,
+        double cutoffPitch = 3.2)
+    {
+        int n = slotCentersX?.Count ?? 0;
+        var scales = new double[n];
+        double pitch = Math.Max(24.0, baseSlotPitchDip);
+        double sigma = Math.Max(0.1, sigmaPitch) * pitch;
+        double cutoff = Math.Max(sigma, cutoffPitch * pitch);
+        double floor = Math.Exp(-(cutoff * cutoff) / (2.0 * sigma * sigma));
+        for (int i = 0; i < n; i++)
+        {
+            scales[i] = 1.0;
+            if (cursorLocalX is null || maxScale <= 1.001) continue;
+            double d = Math.Abs(cursorLocalX.Value - slotCentersX![i]);
+            if (d >= cutoff) continue;
+            double g = (Math.Exp(-(d * d) / (2.0 * sigma * sigma)) - floor) / (1.0 - floor);
+            scales[i] = 1.0 + (maxScale - 1.0) * Math.Clamp(g, 0.0, 1.0);
+        }
+        return scales;
+    }
+
+    /// <summary>
+    /// Extra width (DIP) that magnified slots add to the left of <paramref name="x"/>. Each slot occupies
+    /// [center − pitch/2, center + pitch/2] and widens by (scale − 1) × spread. Shifting any element with
+    /// nominal centre c by G(c) − G(cursor) keeps the point under the cursor fixed and the slots touching
+    /// without overlap; G(cursor) and G(∞) − G(cursor) are how far the dock grows on each side.
+    /// </summary>
+    public static double ComputeMagnificationSpreadBefore(
+        double x,
+        IReadOnlyList<double> slotCentersX,
+        IReadOnlyList<double> scales,
+        double baseSlotPitchDip,
+        double spreadFactor = 1.0)
+    {
+        int n = Math.Min(slotCentersX?.Count ?? 0, scales?.Count ?? 0);
+        double pitch = Math.Max(24.0, baseSlotPitchDip);
+        double spread = Math.Clamp(spreadFactor, 0.0, 1.0);
+        double sum = 0.0;
+        for (int i = 0; i < n; i++)
+        {
+            double extra = (Math.Max(1.0, scales![i]) - 1.0) * spread;
+            if (extra <= 0.0) continue;
+            double start = slotCentersX![i] - pitch * 0.5;
+            sum += extra * Math.Clamp(x - start, 0.0, pitch);
+        }
+        return sum;
+    }
+
     public static double ComputeExtraRowSpreadDip(IReadOnlyList<double> scales, double baseSlotPitchDip)
     {
         if (scales is null || scales.Count == 0) return 0.0;

@@ -25,10 +25,11 @@ namespace DinamikAda.App.Views;
 
 public partial class DockWindow : Window
 {
-    private const double HostHeightDip = DockLayoutCalculator.DefaultHostHeightDip;
-    private const double MagnifyMaxScale = 1.34;
-    private const double MagnifyRadiusDip = 104.0;
-    private const double MotionSmoothSpeed = 24.0;
+    /// <summary>Tall enough for a 48 DIP icon magnified 1.85× plus its tooltip; transparent pixels stay click-through.</summary>
+    private const double HostHeightDip = 150.0;
+    private const double MagnifyMaxScale = 1.85;
+    private const double MagnifySigmaPitch = 0.95;
+    private const double MotionSmoothSpeed = 18.0;
     private const double BounceDurationSec = 0.55;
 
     private readonly AppOrchestrator _orch;
@@ -122,6 +123,23 @@ public partial class DockWindow : Window
     private IReadOnlyList<AppLaunchItem> _cachedStartApps = [];
     private bool _startAppsLoading;
     private CancellationTokenSource? _startIconLoad;
+
+    // Magnification spread: how far the capsule grows on each side, plus the non-slot row children
+    // (dividers, the clock chip) that slide aside with their neighbours.
+    private readonly List<FreeRowChild> _freeRowChildren = new(8);
+    private double _targetSpreadLeft;
+    private double _targetSpreadRight;
+    private double _currentSpreadLeft;
+    private double _currentSpreadRight;
+    private Thickness _appliedHostMargin = new(double.NaN);
+
+    private sealed class FreeRowChild
+    {
+        public required TranslateTransform Translate { get; init; }
+        public double CenterX { get; init; }
+        public double CurrentShiftX { get; set; }
+        public double TargetShiftX { get; set; }
+    }
 
     private sealed class DockSlotVisual
     {
@@ -280,6 +298,7 @@ public partial class DockWindow : Window
             {
                 NativeMethods.ShowWindow(_hwnd, NativeMethods.SW_HIDE);
             }
+            SyncDockGlass();
             if (!enableDock)
             {
                 Visibility = Visibility.Collapsed;
@@ -332,6 +351,7 @@ public partial class DockWindow : Window
                 {
                     NativeMethods.ShowWindow(_hwnd, wantFsHide ? NativeMethods.SW_HIDE : NativeMethods.SW_SHOWNOACTIVATE);
                 }
+                TrackDockGlass();
                 if (wantFsHide)
                 {
                     _intellihideDebounceTimer.Stop();
@@ -543,6 +563,7 @@ public partial class DockWindow : Window
         ApplyToolWindowNoActivateStyles();
         UpdateHostPlacement();
         InstallWindowEventHooks();
+        InitializeGlass();
     }
 
     private void OnDockLoaded(object sender, RoutedEventArgs e)
@@ -579,6 +600,7 @@ public partial class DockWindow : Window
         UninstallWindowEventHooks();
         _hwndSource?.RemoveHook(OnDockWndProc);
         _hwndSource = null;
+        DisposeGlass();
 
         if (!_isSmokeOrAuditMode)
         {
@@ -700,6 +722,7 @@ public partial class DockWindow : Window
                 bounds.WidthPx,
                 bounds.HeightPx,
                 NativeMethods.SWP_NOACTIVATE);
+            TrackDockGlass();
         }
     }
 
@@ -1253,6 +1276,7 @@ public partial class DockWindow : Window
         {
             _cachedDockHitRectPx = ComputeCurrentDockHitRectPx();
         }
+        TrackDockGlass();
     }
 
     private void UpdateDockSlotStatesInPlace()
@@ -1314,7 +1338,8 @@ public partial class DockWindow : Window
         bool isForeground,
         int windowCount)
     {
-        var scale = new ScaleTransform(1.0, 1.0, tileW * 0.5, tileH);
+        // Icons grow from the edge they sit on: upward from an anchored bottom, downward on a top dock.
+        var scale = new ScaleTransform(1.0, 1.0, tileW * 0.5, IsDockAtTop ? 0.0 : tileH);
         var translate = new TranslateTransform(0.0, 0.0);
         var tg = new TransformGroup();
         tg.Children.Add(scale);
@@ -1381,11 +1406,13 @@ public partial class DockWindow : Window
         }
         else if (iconImage is not null)
         {
+            // App icons sit inset on their own glass tile.
+            double imageSize = kind == SlotKind.App ? Math.Round(iconSize * 0.74) : iconSize;
             plateGrid.Children.Add(new Image
             {
                 Source = iconImage,
-                Width = iconSize,
-                Height = iconSize,
+                Width = imageSize,
+                Height = imageSize,
                 Stretch = Stretch.Uniform,
                 SnapsToDevicePixels = true,
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -1429,6 +1456,10 @@ public partial class DockWindow : Window
 
         plate.Child = plateGrid;
         container.Children.Add(plate);
+        if (kind == SlotKind.App)
+        {
+            DecorateAppTile(plate, plateGrid, container, iconSize);
+        }
 
         Ellipse? dot = null;
         Border? pill = null;
@@ -2362,6 +2393,7 @@ public partial class DockWindow : Window
         }
 
         DockItemsHost.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        _freeRowChildren.Clear();
         double accumX = 0.0;
         var centers = new double[_slots.Count];
         var appCenters = new List<double>(_slots.Count);
@@ -2385,6 +2417,17 @@ public partial class DockWindow : Window
                     if (accumX + w > maxX) maxX = accumX + w;
                 }
                 slotIdx++;
+            }
+            else if (child is FrameworkElement fe)
+            {
+                // Dividers and the clock chip: give them a translate so they glide aside with the spread.
+                if (fe.RenderTransform is not TranslateTransform { IsFrozen: false } tt)
+                {
+                    tt = new TranslateTransform();
+                    fe.RenderTransform = tt;
+                }
+                tt.X = 0.0;
+                _freeRowChildren.Add(new FreeRowChild { Translate = tt, CenterX = accumX + w * 0.5 });
             }
             accumX += w;
         }
@@ -2659,7 +2702,6 @@ public partial class DockWindow : Window
         double pitch = iconSize + 6.0;
         bool enableMag = _orch.Config.DockMagnificationEnabled;
 
-        // Lock outer dock elements (Start Menu, Island Sync, Trash) strictly stationary
         foreach (var slot in _slots)
         {
             slot.TargetScale = 1.0;
@@ -2675,24 +2717,35 @@ public partial class DockWindow : Window
                 ? cursorLocalX
                 : null;
 
-        if (_appSlotCentersX.Length > 0)
-        {
-            var appTransforms = DockLayoutCalculator.ComputeMagnification(
-                appCursorX,
-                _appSlotCentersX,
-                pitch,
-                maxScale: enableMag ? MagnifyMaxScale : 1.0,
-                influenceRadiusDip: MagnifyRadiusDip,
-                liftFactor: 0.34,
-                spreadFactor: 0.30);
+        // Only app icons grow (gaussian, ~1.85× under the cursor). Everything else in the row — Start, dividers,
+        // widgets, tray, trash, clock — slides aside so the magnified icons never overlap, and the capsule widens
+        // by exactly the same amount on each side. The point under the cursor stays put.
+        double[] scales = DockLayoutCalculator.ComputeGaussianMagnificationScales(
+            appCursorX, _appSlotCentersX, pitch, maxScale: enableMag ? MagnifyMaxScale : 1.0, sigmaPitch: MagnifySigmaPitch);
+        double anchor = appCursorX.HasValue
+            ? DockLayoutCalculator.ComputeMagnificationSpreadBefore(appCursorX.Value, _appSlotCentersX, scales, pitch)
+            : 0.0;
+        double total = appCursorX.HasValue
+            ? DockLayoutCalculator.ComputeMagnificationSpreadBefore(double.MaxValue, _appSlotCentersX, scales, pitch)
+            : 0.0;
+        _targetSpreadLeft = anchor;
+        _targetSpreadRight = total - anchor;
 
-            for (int k = 0; k < _appSlotIndices.Length && k < appTransforms.Length; k++)
-            {
-                int slotIndex = _appSlotIndices[k];
-                _slots[slotIndex].TargetScale = appTransforms[k].Scale;
-                _slots[slotIndex].TargetShiftX = appTransforms[k].ShiftXDip;
-                _slots[slotIndex].TargetLiftY = appTransforms[k].LiftYDip;
-            }
+        double ShiftAt(double x) => appCursorX.HasValue
+            ? DockLayoutCalculator.ComputeMagnificationSpreadBefore(x, _appSlotCentersX, scales, pitch) - anchor
+            : 0.0;
+
+        for (int k = 0; k < _appSlotIndices.Length && k < scales.Length; k++)
+        {
+            _slots[_appSlotIndices[k]].TargetScale = scales[k];
+        }
+        for (int i = 0; i < _slots.Count && i < _slotCentersX.Length; i++)
+        {
+            _slots[i].TargetShiftX = ShiftAt(_slotCentersX[i]);
+        }
+        foreach (var free in _freeRowChildren)
+        {
+            free.TargetShiftX = ShiftAt(free.CenterX);
         }
 
         int closestIdx = -1;
@@ -2895,28 +2948,22 @@ public partial class DockWindow : Window
         {
             var s = _slots[i];
 
-            if (s.Kind == SlotKind.Widget)
+            if (s.Kind != SlotKind.App)
             {
+                // Non-app slots never scale; they only glide aside while app icons magnify.
+                s.CurrentShiftX += (s.TargetShiftX - s.CurrentShiftX) * alpha;
+                if (Math.Abs(s.TargetShiftX - s.CurrentShiftX) > 0.05) anyMoving = true;
+                else s.CurrentShiftX = s.TargetShiftX;
                 s.CurrentReorderShiftX += (s.ReorderShiftX - s.CurrentReorderShiftX) * alpha;
                 if (Math.Abs(s.ReorderShiftX - s.CurrentReorderShiftX) > 0.05) anyMoving = true;
                 else s.CurrentReorderShiftX = s.ReorderShiftX;
-                s.Scale.ScaleX = 1.0;
-                s.Scale.ScaleY = 1.0;
-                s.Translate.X = s.CurrentReorderShiftX;
-                s.Translate.Y = 0.0;
-                continue;
-            }
-
-            if (s.Kind != SlotKind.App)
-            {
                 s.CurrentScale = 1.0;
-                s.CurrentShiftX = 0.0;
                 s.CurrentLiftY = 0.0;
                 s.BounceStartTicks = 0;
                 s.CurrentBounceY = 0.0;
                 s.Scale.ScaleX = 1.0;
                 s.Scale.ScaleY = 1.0;
-                s.Translate.X = 0.0;
+                s.Translate.X = s.CurrentShiftX + (s.Kind == SlotKind.Widget ? s.CurrentReorderShiftX : 0.0);
                 s.Translate.Y = 0.0;
                 continue;
             }
@@ -2957,8 +3004,10 @@ public partial class DockWindow : Window
                 }
                 else
                 {
-                    double decay = 1.0 - (elapsedSec / BounceDurationSec);
-                    s.CurrentBounceY = -Math.Abs(Math.Sin(elapsedSec * Math.PI * 3.0)) * 14.0 * decay;
+                    // Launch: one soft rise and settle (no repeated bouncing).
+                    double p = elapsedSec / BounceDurationSec;
+                    double hop = Math.Sin(Math.PI * Math.Pow(p, 0.8));
+                    s.CurrentBounceY = -hop * hop * 10.0;
                     anyMoving = true;
                 }
             }
@@ -2968,6 +3017,27 @@ public partial class DockWindow : Window
             s.Translate.X = s.CurrentShiftX + s.CurrentReorderShiftX;
             s.Translate.Y = (s.CurrentLiftY + s.CurrentBounceY) * (IsDockAtTop ? -1.0 : 1.0);
         }
+
+        foreach (var free in _freeRowChildren)
+        {
+            free.CurrentShiftX += (free.TargetShiftX - free.CurrentShiftX) * alpha;
+            if (Math.Abs(free.TargetShiftX - free.CurrentShiftX) > 0.05) anyMoving = true;
+            else free.CurrentShiftX = free.TargetShiftX;
+            free.Translate.X = free.CurrentShiftX;
+        }
+
+        _currentSpreadLeft += (_targetSpreadLeft - _currentSpreadLeft) * alpha;
+        _currentSpreadRight += (_targetSpreadRight - _currentSpreadRight) * alpha;
+        if (Math.Abs(_targetSpreadLeft - _currentSpreadLeft) > 0.05 || Math.Abs(_targetSpreadRight - _currentSpreadRight) > 0.05)
+        {
+            anyMoving = true;
+        }
+        else
+        {
+            _currentSpreadLeft = _targetSpreadLeft;
+            _currentSpreadRight = _targetSpreadRight;
+        }
+        ApplyCapsuleSpread();
 
         double hideDiff = _targetHideProgress - _currentHideProgress;
         if (Math.Abs(hideDiff) > 0.002)
@@ -2994,6 +3064,8 @@ public partial class DockWindow : Window
             UpdateHoverTooltip(_hoveredSlotIndex);
             _lastTooltipSlotIndex = _hoveredSlotIndex;
         }
+
+        SyncDockGlass();
 
         _slotsAtRest = !anyMoving && Math.Abs(_targetHideProgress - _currentHideProgress) <= 0.002;
 
