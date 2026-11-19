@@ -295,7 +295,7 @@ public partial class DockWindow
         ClockCalendarPopup.IsOpen = false;
 
         var p = WidgetContext.Palette;
-        WidgetCardBorder.Background = p.CardBackground;
+        WidgetCardBorder.Background = WidgetCardFill(p.CardBackground);
         WidgetCardBorder.BorderBrush = p.CardBorder;
         WidgetCardHost.Content = content;
         bool reopen = WidgetCardPopup.IsOpen;
@@ -592,9 +592,12 @@ public partial class DockWindow
     private void ApplyDockStyleVisuals()
     {
         var p = DockWidgetPalette.Create(_orch.Config.DockStyle, Color.FromRgb(10, 132, 255));
-        DockPillContainer.Background = p.PillBackground;
+        DockPillContainer.Background = DockPillFill(p);
+        ApplyCapsuleEdges(p.IsLight);
+        ApplyPopupGlassTints();
         // The album-glow overlay only suits the dark styles.
         DockAmbientOverlay.Visibility = p.IsLight ? Visibility.Collapsed : Visibility.Visible;
+        TrackDockGlass();
     }
 }
 
