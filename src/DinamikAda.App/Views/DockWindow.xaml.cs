@@ -1784,7 +1784,7 @@ public partial class DockWindow : Window
                 foregroundChanged: false,
                 contextMenuOpen: false))
         {
-            StartLaunchPopup.IsOpen = false;
+            CloseStartPopupSoft();
         }
 
         if (TrayOverflowPopup.IsOpen && WindowRestoreGeometry.ShouldLightDismissPopup(
@@ -1812,7 +1812,7 @@ public partial class DockWindow : Window
                 foregroundChanged: false,
                 contextMenuOpen: false))
         {
-            WidgetCardPopup.IsOpen = false;
+            CloseWidgetCard();
         }
 
         if (ClockCalendarPopup.IsOpen && WindowRestoreGeometry.ShouldLightDismissPopup(
@@ -1862,7 +1862,7 @@ public partial class DockWindow : Window
 
         if (StartLaunchPopup.IsOpen)
         {
-            StartLaunchPopup.IsOpen = false;
+            CloseStartPopupSoft();
         }
 
         if (TrayOverflowPopup.IsOpen)
@@ -1877,7 +1877,7 @@ public partial class DockWindow : Window
 
         if (WidgetCardPopup.IsOpen)
         {
-            WidgetCardPopup.IsOpen = false;
+            CloseWidgetCard();
         }
     }
 

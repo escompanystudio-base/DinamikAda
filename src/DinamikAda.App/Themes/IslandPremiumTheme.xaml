@@ -514,6 +514,9 @@
         </Setter>
     </Style>
 
+    <!-- Implicit slider style: points at the island version above (the base theme's implicit style would keep the old blue one). -->
+    <Style TargetType="Slider" BasedOn="{StaticResource ObsidianSliderStyle}" />
+
     <!-- Media progress: a thin hairline that only shows its handle while the pointer is over it. -->
     <Style x:Key="IslandSeekSliderStyle" TargetType="Slider">
         <Setter Property="IsMoveToPointEnabled" Value="True" />
