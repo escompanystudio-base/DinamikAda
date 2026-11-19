@@ -108,6 +108,16 @@ public sealed class DockToastWindow
             Reposition();
         }
 
+        // Real blurred glass behind each card (clipped to its rounded shape) when Windows allows it.
+        if (GlassPolicy.IsEnabled)
+        {
+            var glass = new GlassSurface(card, DinamikAda.Platform.Win32.Windowing.GlassBackdropMode.Blur,
+                () => 16, () => !card.IsLeaving && card.IsVisible);
+            card.Glass = glass;
+            card.UseGlassTint();
+            glass.TrackFor(Motion.EnterMs + 240);
+        }
+
         double rest = TargetY(card);
         double from = _atTop ? rest - RiseDip : rest + RiseDip;
         card.Slide.Y = from;
@@ -152,13 +162,19 @@ public sealed class DockToastWindow
         nint after = anchor.DockHwnd != 0 ? anchor.DockHwnd : NativeMethods.HWND_TOPMOST;
         NativeMethods.SetWindowPos(_hwnd, after, x, y, w, h, NativeMethods.SWP_NOACTIVATE);
         if (edgeChanged) Restack(except: null, animate: false);
+        foreach (var c in _cards) c.Glass?.TrackFor(120);
     }
 
     public void Close()
     {
         if (_closed) return;
         _closed = true;
-        foreach (var c in _cards) c.StopLifetime();
+        foreach (var c in _cards)
+        {
+            c.StopLifetime();
+            c.Glass?.Dispose();
+            c.Glass = null;
+        }
         _cards.Clear();
         try { _window?.Close(); } catch { }
         _window = null;
@@ -184,6 +200,7 @@ public sealed class DockToastWindow
         {
             if (c.IsLeaving || ReferenceEquals(c, except)) continue;
             double y = TargetY(c);
+            c.Glass?.TrackFor(Motion.EnterMs + 120);
             if (animate && MotionOn) c.Slide.BeginAnimation(TranslateTransform.YProperty, Motion.To(y, Motion.EnterMs));
             else
             {
@@ -198,6 +215,7 @@ public sealed class DockToastWindow
         if (card.IsLeaving) return;
         card.IsLeaving = true;
         card.StopLifetime();
+        card.Glass?.Hide();
         card.IsHitTestVisible = false;
         Restack(except: null);
 
@@ -217,6 +235,8 @@ public sealed class DockToastWindow
 
     private void Remove(DockToastCard card)
     {
+        card.Glass?.Dispose();
+        card.Glass = null;
         _cards.Remove(card);
         _canvas?.Children.Remove(card);
         if (_cards.Count == 0 && _window is not null && _window.Visibility == Visibility.Visible) _window.Hide();
@@ -288,6 +308,21 @@ internal sealed class DockToastCard : Border
 
     private readonly DispatcherTimer _timer;
     private ToastLifetime? _lifetime;
+
+    /// <summary>Real blurred glass behind this card, when enabled.</summary>
+    internal GlassSurface? Glass { get; set; }
+
+    /// <summary>Over real glass: a lighter frosted tint and a softer shadow so the blur shows through.</summary>
+    public void UseGlassTint()
+    {
+        Background = Frozen(new SolidColorBrush(Color.FromArgb(0xB8, 0x16, 0x16, 0x1A)));
+        if (Effect is DropShadowEffect shadow)
+        {
+            shadow.Opacity = 0.22;
+            shadow.ShadowDepth = 8;
+            shadow.BlurRadius = 30;
+        }
+    }
 
     public DockToastCard(DockToastRequest request, string lang)
     {
