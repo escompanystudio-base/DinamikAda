@@ -134,6 +134,19 @@ public static class Program
             window.Show();
             orch.StartMessageLoopHooks();
 
+            // Push-to-talk voice assistant (dictation, circle-to-ask, commands, routines). Hook lives on the UI thread.
+            Services.Voice.VoiceAssistantService? voice = null;
+            try
+            {
+                voice = new Services.Voice.VoiceAssistantService(orch);
+                voice.Start();
+            }
+            catch (Exception ex)
+            {
+                CrashLogger.Log("startup", ex, "Voice assistant could not start.");
+            }
+            app.Exit += (_, _) => voice?.Dispose();
+
             EventHandler onProcessExit = (_, _) => taskbarManager.Restore();
             AppDomain.CurrentDomain.ProcessExit += onProcessExit;
             app.SessionEnding += (_, _) => taskbarManager.Restore();

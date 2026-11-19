@@ -11,7 +11,7 @@ public enum NotchScalePreset
     Wide = 2
 }
 
-public sealed class AppConfig
+public sealed partial class AppConfig
 {
     public string Language { get; set; } = "tr";
     public DockPlacementMode DockPlacement { get; set; } = DockPlacementMode.NotchFlush;
@@ -131,6 +131,25 @@ public sealed class AppConfig
     /// before they are stored here; the config itself never holds a plain key.
     /// </summary>
     public List<DockAccount> DockAccounts { get; set; } = new();
+
+    // ---- Voice assistant ----------------------------------------------------------------------
+    public bool VoiceAssistantEnabled { get; set; } = true;
+    public Voice.VoiceEngine VoiceEngine { get; set; } = Voice.VoiceEngine.Auto;
+    /// <summary>DPAPI-protected Gemini API key (the user's own free key from Google AI Studio).</summary>
+    public string GeminiApiKeyProtected { get; set; } = string.Empty;
+    public string GeminiModel { get; set; } = "gemini-2.5-flash";
+    /// <summary>Modifier-only hold chords.</summary>
+    public string DictationChord { get; set; } = "Ctrl+Win";
+    public string AskChord { get; set; } = "Ctrl+Shift";
+    public string CommandChord { get; set; } = "Alt+Win";
+    /// <summary>Let Gemini clean up dictation (fillers, self-corrections, punctuation).</summary>
+    public bool DictationCleanup { get; set; } = true;
+    /// <summary>Speech language as a BCP-47 tag; empty = follow the app language.</summary>
+    public string VoiceLanguage { get; set; } = string.Empty;
+    public List<Voice.ScheduledVoiceTask> ScheduledVoiceTasks { get; set; } = new();
+    public List<Voice.VoiceRoutine> VoiceRoutines { get; set; } = new();
+    public Voice.MascotSettings Mascot { get; set; } = new();
+    public Voice.VoiceStats VoiceStats { get; set; } = new();
 
     // Local Multi-Account AI Subscription Quota & Reset Tracker (no browser cookies or credential bypass)
     public bool AiQuotaSeeded { get; set; } = false;
@@ -267,6 +286,7 @@ public sealed class AppConfig
                 Done = t.Done
             })
             .ToList();
+        SanitizeVoiceSettings();
         DockAccounts = (DockAccounts ?? new())
             .Where(a => a is not null && Accounts.AccountCatalog.Find(a.Service) is not null)
             .GroupBy(a => a.Service.Trim().ToLowerInvariant())
@@ -703,6 +723,58 @@ public enum DockScreenEdge
 {
     Bottom = 0,
     Top = 1
+}
+
+public sealed partial class AppConfig
+{
+    private void SanitizeVoiceSettings()
+    {
+        if (!Enum.IsDefined(VoiceEngine)) VoiceEngine = Voice.VoiceEngine.Auto;
+        GeminiApiKeyProtected = GeminiApiKeyProtected?.Trim() ?? string.Empty;
+        GeminiModel = string.IsNullOrWhiteSpace(GeminiModel) ? "gemini-2.5-flash" : GeminiModel.Trim();
+        DictationChord = Voice.HoldChordText.Normalize(DictationChord, "Ctrl+Win");
+        AskChord = Voice.HoldChordText.Normalize(AskChord, "Ctrl+Shift");
+        CommandChord = Voice.HoldChordText.Normalize(CommandChord, "Alt+Win");
+        VoiceLanguage = VoiceLanguage?.Trim() ?? string.Empty;
+        ScheduledVoiceTasks = (ScheduledVoiceTasks ?? new())
+            .Where(t => t is not null && (t.Actions?.Count ?? 0) > 0)
+            .Where(t => !t.Done || t.RunAtLocal > DateTime.Now.AddDays(-7))
+            .Take(100)
+            .Select(t => new Voice.ScheduledVoiceTask
+            {
+                Id = string.IsNullOrWhiteSpace(t.Id) ? Guid.NewGuid().ToString("N") : t.Id,
+                Title = (t.Title ?? string.Empty).Trim(),
+                RunAtLocal = t.RunAtLocal,
+                Actions = t.Actions!.Where(a => a is not null).Select(a => a.Clone()).Take(10).ToList(),
+                Done = t.Done
+            })
+            .ToList();
+        VoiceRoutines = (VoiceRoutines ?? new())
+            .Where(r => r is not null)
+            .Take(50)
+            .Select(r => new Voice.VoiceRoutine
+            {
+                Id = string.IsNullOrWhiteSpace(r.Id) ? Guid.NewGuid().ToString("N") : r.Id,
+                Name = (r.Name ?? string.Empty).Trim(),
+                TimeOfDay = TimeSpan.TryParse(r.TimeOfDay, System.Globalization.CultureInfo.InvariantCulture, out var tod) && tod >= TimeSpan.Zero && tod < TimeSpan.FromDays(1)
+                    ? tod.ToString(@"hh\:mm", System.Globalization.CultureInfo.InvariantCulture)
+                    : "09:00",
+                DaysMask = r.DaysMask is <= 0 or > 127 ? 127 : r.DaysMask,
+                Actions = (r.Actions ?? new()).Where(a => a is not null).Select(a => a.Clone()).Take(10).ToList(),
+                Enabled = r.Enabled,
+                LastRunDate = r.LastRunDate ?? string.Empty
+            })
+            .ToList();
+        Mascot = Mascot?.Clone() ?? new Voice.MascotSettings();
+        Mascot.Name = string.IsNullOrWhiteSpace(Mascot.Name) ? "Ada" : Mascot.Name.Trim()[..Math.Min(Mascot.Name.Trim().Length, 24)];
+        if (!System.Text.RegularExpressions.Regex.IsMatch(Mascot.ColorHex ?? string.Empty, "^#[0-9A-Fa-f]{6}$")) Mascot.ColorHex = "#7C5CFF";
+        Mascot.EyeStyle = Math.Clamp(Mascot.EyeStyle, 0, 3);
+        Mascot.Accessory = Math.Clamp(Mascot.Accessory, 0, 4);
+        Mascot.Personality = Math.Clamp(Mascot.Personality, 0, 2);
+        VoiceStats ??= new Voice.VoiceStats();
+        if (VoiceStats.WordsDictated < 0 || !double.IsFinite(VoiceStats.SecondsSpoken) || VoiceStats.SecondsSpoken < 0)
+            VoiceStats = new Voice.VoiceStats();
+    }
 }
 
 public sealed class DockAccount
