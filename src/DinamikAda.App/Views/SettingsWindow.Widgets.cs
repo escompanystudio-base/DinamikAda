@@ -84,8 +84,60 @@ public partial class SettingsWindow
 
         var open = new Button { Content = T("Widget Seçiciyi Aç…", "Open Widget Picker…"), Height = 30, Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Left };
         if (TryFindResource("DarkActionButtonStyle") is Style btn) open.Style = btn;
-        open.Click += (_, _) => _orch.RequestOpenWidgetPicker();
         host.Children.Add(open);
+
+        // Widgets live on DinamikAda's own dock. In Explorer-taskbar mode (or with the dock off) that dock is not
+        // shown, so the picker would have nothing to add to: explain why and offer the switch instead.
+        var dockNotice = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(12, 10, 12, 10),
+            Margin = new Thickness(0, 0, 0, 10),
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x26, 0xFF, 0x9F, 0x0A)),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x66, 0xFF, 0x9F, 0x0A)),
+            BorderThickness = new Thickness(1),
+            Visibility = Visibility.Collapsed
+        };
+        var noticeStack = new StackPanel();
+        var noticeText = new TextBlock
+        {
+            Text = T("Widget'lar DinamikAda'nın kendi alt dock'unda görünür. Şu an Windows görev çubuğu modu açık (ya da alt dock kapalı), bu yüzden widget'lar gösterilemiyor.",
+                "Widgets appear on DinamikAda's own bottom dock. The Windows taskbar mode is on (or the dock is off), so widgets can't be shown."),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        if (TryFindResource("NotchSubtitleTextStyle") is Style noticeStyle) noticeText.Style = noticeStyle;
+        var switchBtn = new Button
+        {
+            Content = T("DinamikAda Dock'una Geç ve Seçiciyi Aç", "Switch to DinamikAda Dock and Open Picker"),
+            Height = 30,
+            Padding = new Thickness(12, 4, 12, 4),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        if (TryFindResource("DarkActionButtonStyle") is Style btn2) switchBtn.Style = btn2;
+        switchBtn.Click += (_, _) =>
+        {
+            if (!SwitchToCustomDockForWidgets()) return;
+            dockNotice.Visibility = Visibility.Collapsed;
+            _orch.RequestOpenWidgetPicker();
+        };
+        noticeStack.Children.Add(noticeText);
+        noticeStack.Children.Add(switchBtn);
+        dockNotice.Child = noticeStack;
+        host.Children.Add(dockNotice);
+
+        open.Click += (_, _) =>
+        {
+            if (IsCustomDockSelected())
+            {
+                dockNotice.Visibility = Visibility.Collapsed;
+                _orch.RequestOpenWidgetPicker();
+            }
+            else
+            {
+                dockNotice.Visibility = Visibility.Visible;
+            }
+        };
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star), MaxWidth = 210, MinWidth = 120 });
@@ -234,4 +286,39 @@ public partial class SettingsWindow
 
     private static List<string> SplitList(string text) =>
         text.Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    /// <summary>True when DinamikAda's own dock is the active (saved) taskbar, so the picker can open.</summary>
+    private bool IsCustomDockSelected() => _orch.Config.UseCustomBottomDock;
+
+    /// <summary>
+    /// Turns Explorer-taskbar mode off and the DinamikAda dock on right away (saved and applied), keeping the
+    /// form's toggles in sync so a later Save does not switch it back.
+    /// </summary>
+    private bool SwitchToCustomDockForWidgets()
+    {
+        try
+        {
+            _orch.ConfigStore.Update(_orch.Config, c =>
+            {
+                c.UseExplorerTaskbar = false;
+                c.EnableBottomDock = true;
+            });
+            _orch.ApplySavedConfig();
+        }
+        catch (Exception ex)
+        {
+            ShowInlineError(Strings.Pick(_currentLang,
+                $"Dock'a geçilemedi: {ex.Message}", $"Could not switch to the dock: {ex.Message}"));
+            return false;
+        }
+
+        bool prev = _suppressUiEvents;
+        _suppressUiEvents = true;
+        ChkExplorerTaskbar.IsChecked = false;
+        ChkEnableBottomDock.IsChecked = true;
+        _suppressUiEvents = prev;
+        UpdateConditionalEnablement();
+        _onAppliedCallback();
+        return true;
+    }
 }
