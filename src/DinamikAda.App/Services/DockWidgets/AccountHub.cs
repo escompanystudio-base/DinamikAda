@@ -256,7 +256,8 @@ public sealed class AccountHub
             // 2, 4, 8 … minutes, capped by the normal interval (at least 2 minutes).
             double backoff = Math.Min(Math.Max(minutes, 2), Math.Pow(2, Math.Min(e.Failures, 6)));
             e.NextFetch = DateTime.Now.AddMinutes(backoff);
-            if (ex is not AccountFetchException and not HttpRequestException and not TaskCanceledException)
+            if (ex is not AccountFetchException and not HttpRequestException and not TaskCanceledException
+                and not System.Text.Json.JsonException and not FormatException)
                 CrashLogger.Log("AccountWidget", ex, $"Account widget '{widgetId}' fetch failed.");
         }
         finally
@@ -282,6 +283,8 @@ public sealed class AccountHub
                 (en ? "Service error " : "Servis hatası ") + (int)h.StatusCode!.Value,
             HttpRequestException or TaskCanceledException =>
                 en ? "No connection to the service." : "Servise bağlanılamadı.",
+            System.Text.Json.JsonException or FormatException or InvalidOperationException or KeyNotFoundException =>
+                en ? "The service sent an unexpected response." : "Servis beklenmeyen bir yanıt gönderdi.",
             _ => en ? "Could not read the data." : "Veri okunamadı."
         };
     }

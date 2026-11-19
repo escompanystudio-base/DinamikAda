@@ -87,7 +87,7 @@ public partial class DockWindow
     }
 
     /// <summary>Renders one widget's detail card on a dark backdrop.</summary>
-    public RenderTargetBitmap RenderWidgetCardForAudit(string widgetId, int width = 380, int height = 420)
+    public RenderTargetBitmap RenderWidgetCardForAudit(string widgetId, int width = 440, int height = 600)
     {
         SetSmokeOrAuditMode(true);
         var ctx = WidgetContext;
