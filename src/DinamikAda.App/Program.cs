@@ -1531,6 +1531,41 @@ public static class Program
             DinamikAda.App.Views.DockWidgets.Accounts.AccountAudit.ShowConnectForm = false;
         }
 
+        // Voice assistant: overlay states (content only, no window) and the mascot variants.
+        foreach (var voiceFrame in new[] { "listening", "working", "result", "error" })
+        {
+            SavePng(DinamikAda.App.Views.Voice.VoiceOverlayWindow.RenderForAudit(voiceFrame, orch.Config.Language, new DinamikAda.Core.Voice.MascotSettings { Accessory = voiceFrame == "result" ? 3 : 1, EyeStyle = voiceFrame == "result" ? 3 : 0 }),
+                Path.Combine(outputDir, $"70_voice_overlay_{voiceFrame}.png"));
+            savedCount++;
+        }
+        SavePng(DinamikAda.App.Views.Voice.VoiceOverlayWindow.RenderForAudit("listening", orch.Config.Language, new DinamikAda.Core.Voice.MascotSettings { Enabled = false }, 620, 200),
+            Path.Combine(outputDir, "70_voice_overlay_no_mascot.png"));
+        savedCount++;
+        SavePng(DinamikAda.App.Views.Voice.MascotGallery.RenderVariantsForAudit(), Path.Combine(outputDir, "71_mascot_variants.png"));
+        savedCount++;
+        orch.ConfigStore.Update(orch.Config, c =>
+        {
+            var today = DateTime.Today;
+            c.ScheduledVoiceTasks =
+            [
+                new DinamikAda.Core.Voice.ScheduledVoiceTask { Id = "audit-t1", Title = c.Language == "en" ? "Open Amazon" : "Amazon'u aç", RunAtLocal = today.AddDays(1).AddHours(11), Actions = [new DinamikAda.Core.Voice.VoiceAction { Kind = DinamikAda.Core.Voice.VoiceActionKind.OpenUrl, Target = "https://amazon.com" }] },
+                new DinamikAda.Core.Voice.ScheduledVoiceTask { Id = "audit-t2", Title = "", RunAtLocal = today.AddDays(3).AddHours(18.5), Actions = [new DinamikAda.Core.Voice.VoiceAction { Kind = DinamikAda.Core.Voice.VoiceActionKind.Notify, Query = c.Language == "en" ? "Call mom" : "Annemi ara" }] }
+            ];
+            c.VoiceRoutines =
+            [
+                new DinamikAda.Core.Voice.VoiceRoutine { Id = "audit-r1", Name = c.Language == "en" ? "Morning setup" : "Sabah kurulumu", TimeOfDay = "09:00", DaysMask = 0x1F, Actions = [new DinamikAda.Core.Voice.VoiceAction { Kind = DinamikAda.Core.Voice.VoiceActionKind.OpenApp, Target = "Unity" }] },
+                new DinamikAda.Core.Voice.VoiceRoutine { Id = "audit-r2", Name = c.Language == "en" ? "Weekend playlist" : "Hafta sonu listesi", TimeOfDay = "11:30", DaysMask = 0x60, Enabled = false, Actions = [new DinamikAda.Core.Voice.VoiceAction { Kind = DinamikAda.Core.Voice.VoiceActionKind.OpenApp, Target = "Spotify" }] }
+            ];
+            c.VoiceStats = new DinamikAda.Core.Voice.VoiceStats { WordsDictated = 1840, SecondsSpoken = 812, Sessions = 64 };
+        });
+        settingsWin.ShowVoiceSectionForAudit();
+        SavePng(settingsWin.RenderToBitmap(), Path.Combine(outputDir, "72_settings_voice.png"));
+        settingsWin.ScrollVoiceSectionForAudit(4);
+        SavePng(settingsWin.RenderToBitmap(), Path.Combine(outputDir, "72b_settings_voice_mascot.png"));
+        settingsWin.ScrollVoiceSectionForAudit(5);
+        SavePng(settingsWin.RenderToBitmap(), Path.Combine(outputDir, "72c_settings_voice_lists.png"));
+        savedCount += 3;
+
         Console.WriteLine($"RENDER_AUDIT_PASS: {savedCount} files -> {outputDir}");
         return 0;
     }
