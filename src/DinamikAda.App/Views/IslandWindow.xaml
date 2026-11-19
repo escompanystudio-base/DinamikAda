@@ -24,7 +24,7 @@
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/Themes/ObsidianGlassTheme.xaml" />
+                <ResourceDictionary Source="/Themes/IslandPremiumTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Window.Resources>
@@ -261,12 +261,12 @@
                                            Grid.Column="2"
                                            Text=""
                                            FontFamily="{StaticResource UiTextFont}"
-                                           FontSize="9.5"
-                                           FontWeight="SemiBold"
+                                           FontSize="11"
+                                           FontWeight="Medium"
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            HorizontalAlignment="Right"
                                            VerticalAlignment="Center"
-                                           Margin="0,0,4,0"
+                                           Margin="0,0,6,0"
                                            TextTrimming="CharacterEllipsis"
                                            Visibility="Collapsed" />
                             </Grid>
@@ -285,26 +285,25 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Concentric 22x22 R=5 outer / 20x20 R=4 inner album or icon box -->
+                                <!-- Left ear: artwork (or activity glyph) inset concentrically inside the pill -->
                                 <Border x:Name="CompactThumbBorder"
                                         Grid.Column="0"
                                         Width="22"
                                         Height="22"
-                                        CornerRadius="5"
-                                        Background="#1AFFFFFF"
-                                        BorderBrush="#24FFFFFF"
-                                        BorderThickness="0.6"
+                                        CornerRadius="7"
+                                        Background="#1CFFFFFF"
+                                        BorderThickness="0"
                                         VerticalAlignment="Center"
-                                        Margin="0,0,8,0">
+                                        Margin="0,0,9,0">
                                     <Grid>
                                         <Image x:Name="CompactAlbumImage"
-                                               Width="20"
-                                               Height="20"
+                                               Width="22"
+                                               Height="22"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
                                                Stretch="UniformToFill">
                                             <Image.Clip>
-                                                <RectangleGeometry Rect="0,0,20,20" RadiusX="4" RadiusY="4" />
+                                                <RectangleGeometry Rect="0,0,22,22" RadiusX="7" RadiusY="7" />
                                             </Image.Clip>
                                         </Image>
                                         <TextBlock x:Name="CompactLeadingGlyph"
@@ -315,25 +314,28 @@
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center" />
                                         <Ellipse x:Name="CompactSensorDot"
-                                                 Width="5"
-                                                 Height="5"
+                                                 Width="6"
+                                                 Height="6"
                                                  Fill="{StaticResource AccentAmberBrush}"
+                                                 Stroke="#FF000000"
+                                                 StrokeThickness="1"
                                                  HorizontalAlignment="Right"
                                                  VerticalAlignment="Top"
-                                                 Margin="0,1,1,0"
+                                                 Margin="0,-2,-2,0"
                                                  Visibility="Collapsed" />
                                     </Grid>
                                 </Border>
 
-                                <!-- Compact Title + Artist / Subtitle -->
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,6,0">
+                                <!-- Title + subtitle, crisp 12 / 10.5 -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
                                     <TextBlock x:Name="CompactPrimaryText"
                                                Style="{StaticResource NotchTitleTextStyle}"
-                                               FontSize="11.5"
+                                               FontFamily="{StaticResource UiTextFont}"
+                                               FontSize="12"
                                                TextTrimming="CharacterEllipsis" />
                                     <TextBlock x:Name="CompactSecondaryText"
                                                Style="{StaticResource NotchSubtitleTextStyle}"
-                                               FontSize="9.8"
+                                               FontSize="10.5"
                                                TextTrimming="CharacterEllipsis"
                                                Margin="0,-1,0,0" />
                                 </StackPanel>
@@ -371,13 +373,30 @@
                                         </Border>
                                     </Canvas>
 
-                                    <TextBlock x:Name="CompactBadgeText"
-                                               FontFamily="{StaticResource UiTextFont}"
-                                               FontSize="10.5"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource AccentCyanBrush}"
-                                               VerticalAlignment="Center"
-                                               Visibility="Collapsed" />
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <TextBlock x:Name="CompactBadgeText"
+                                                   FontFamily="{StaticResource UiTextFont}"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Typography.NumeralAlignment="Tabular"
+                                                   Foreground="{StaticResource AccentCyanBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Visibility="Collapsed" />
+                                        <!-- Right ear progress ring (timers, transfers, anything with a 0..1 value) -->
+                                        <Grid x:Name="CompactRingHost"
+                                              Width="16"
+                                              Height="16"
+                                              Margin="7,0,0,0"
+                                              VerticalAlignment="Center"
+                                              Visibility="Collapsed">
+                                            <Ellipse Stroke="#2EFFFFFF" StrokeThickness="2" />
+                                            <Path x:Name="CompactRingArc"
+                                                  Stroke="{StaticResource AccentAmberBrush}"
+                                                  StrokeThickness="2"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round" />
+                                        </Grid>
+                                    </StackPanel>
                                 </Grid>
                             </Grid>
 
@@ -469,8 +488,8 @@
 
                                 <Border x:Name="DragDropWell"
                                         CornerRadius="16"
-                                        Background="#0E64D2FF"
-                                        BorderBrush="#4864D2FF"
+                                        Background="#0DFFFFFF"
+                                        BorderBrush="#1AFFFFFF"
                                         BorderThickness="1"
                                         Padding="14,12">
                                     <Grid>
@@ -483,9 +502,8 @@
                                             <Border Width="34"
                                                     Height="34"
                                                     CornerRadius="17"
-                                                    Background="#2464D2FF"
-                                                    BorderBrush="#4064D2FF"
-                                                    BorderThickness="1"
+                                                    Background="#14FFFFFF"
+                                                    BorderThickness="0"
                                                     HorizontalAlignment="Center"
                                                     Margin="0,0,0,6">
                                                 <TextBlock Text="&#xE896;"
@@ -749,45 +767,54 @@
                                     </TransformGroup>
                                 </Grid.RenderTransform>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="32" />
+                                    <RowDefinition Height="38" />
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
 
-                                <!-- Top Tab Strip & Utility Chrome -->
-                                <Grid Grid.Row="0" Margin="0,0,0,4">
+                                <!-- Header: segmented tab control + quiet utility glyphs -->
+                                <Grid x:Name="ExpandedHeaderRow" Grid.Row="0" Margin="0,0,0,10">
+                                    <Grid.RenderTransform>
+                                        <TranslateTransform x:Name="ExpandedHeaderTransform" X="0" Y="0" />
+                                    </Grid.RenderTransform>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <Grid x:Name="TabStripHost" Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <!-- Sliding active pill inside isolated Canvas so indicator motion triggers ZERO layout -->
-                                        <Canvas x:Name="TabIndicatorCanvas" Height="26" VerticalAlignment="Center" IsHitTestVisible="False">
-                                            <Border x:Name="TabIndicatorPill"
-                                                    Canvas.Left="0"
-                                                    Canvas.Top="0"
-                                                    Width="56"
-                                                    Height="26"
-                                                    CornerRadius="13"
-                                                    Background="#24FFFFFF"
-                                                    BorderBrush="#36FFFFFF"
-                                                    BorderThickness="0.8">
-                                                <Border.RenderTransform>
-                                                    <TranslateTransform x:Name="TabIndicatorTransform" X="0" Y="0" />
-                                                </Border.RenderTransform>
-                                            </Border>
-                                        </Canvas>
+                                    <Border x:Name="TabSegmentTrack"
+                                            Grid.Column="0"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center"
+                                            CornerRadius="14"
+                                            Background="{StaticResource IslandSegmentTrackBrush}"
+                                            Padding="2">
+                                        <Grid x:Name="TabStripHost" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <!-- The active pill glides between segments inside an isolated Canvas (no layout per frame) -->
+                                            <Canvas x:Name="TabIndicatorCanvas" Height="24" VerticalAlignment="Center" IsHitTestVisible="False">
+                                                <Border x:Name="TabIndicatorPill"
+                                                        Canvas.Left="0"
+                                                        Canvas.Top="0"
+                                                        Width="56"
+                                                        Height="24"
+                                                        CornerRadius="12"
+                                                        Background="{StaticResource IslandSegmentPillBrush}">
+                                                    <Border.RenderTransform>
+                                                        <TranslateTransform x:Name="TabIndicatorTransform" X="0" Y="0" />
+                                                    </Border.RenderTransform>
+                                                </Border>
+                                            </Canvas>
 
-                                        <StackPanel x:Name="TabButtonsPanel" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button x:Name="TabBtnNow" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="Feed" Tag="Now" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
-                                            <Button x:Name="TabBtnAudio" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="Audio" Tag="Audio" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
-                                            <Button x:Name="TabBtnControl" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="Control" Tag="Control" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
-                                            <Button x:Name="TabBtnShelf" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="Shelf" Tag="Shelf" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
-                                            <Button x:Name="TabBtnSystem" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="System" Tag="System" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
-                                            <Button x:Name="TabBtnWidgets" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="Widgets" Tag="Widgets" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
-                                            <Button x:Name="TabBtnAiQuota" Style="{StaticResource PillTabButtonStyle}" Padding="8,4" Content="AI Kota" Tag="AiQuota" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
-                                        </StackPanel>
-                                    </Grid>
+                                            <StackPanel x:Name="TabButtonsPanel" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button x:Name="TabBtnNow" Style="{StaticResource IslandSegmentButtonStyle}" Content="Feed" Tag="Now" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                                <Button x:Name="TabBtnAudio" Style="{StaticResource IslandSegmentButtonStyle}" Content="Audio" Tag="Audio" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                                <Button x:Name="TabBtnControl" Style="{StaticResource IslandSegmentButtonStyle}" Content="Control" Tag="Control" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                                <Button x:Name="TabBtnShelf" Style="{StaticResource IslandSegmentButtonStyle}" Content="Shelf" Tag="Shelf" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                                <Button x:Name="TabBtnSystem" Style="{StaticResource IslandSegmentButtonStyle}" Content="System" Tag="System" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                                <Button x:Name="TabBtnWidgets" Style="{StaticResource IslandSegmentButtonStyle}" Content="Widgets" Tag="Widgets" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                                <Button x:Name="TabBtnAiQuota" Style="{StaticResource IslandSegmentButtonStyle}" Content="AI Kota" Tag="AiQuota" Click="OnTabButtonClick" SizeChanged="OnTabButtonSizeChanged" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
 
                                     <!-- Right Utility Buttons -->
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -795,35 +822,35 @@
                                                 Style="{StaticResource IconCircleButtonStyle}"
                                                 Content="&#xE708;"
                                                 FontFamily="{StaticResource IconFont}"
-                                                FontSize="11.5"
-                                                Margin="0,0,4,0"
+                                                FontSize="12.5"
+                                                Margin="0,0,2,0"
                                                 Click="OnQuietIslandClick" />
                                         <Button x:Name="OpenCommandBtn"
                                                 Style="{StaticResource IconCircleButtonStyle}"
                                                 Content="&#xE721;"
                                                 FontFamily="{StaticResource IconFont}"
-                                                FontSize="11.5"
-                                                Margin="0,0,4,0"
+                                                FontSize="12.5"
+                                                Margin="0,0,2,0"
                                                 Click="OnOpenCommandClick" />
                                         <Button x:Name="PinToggleBtn"
                                                 Style="{StaticResource IconCircleButtonStyle}"
                                                 Content="&#xE718;"
                                                 FontFamily="{StaticResource IconFont}"
-                                                FontSize="11.5"
-                                                Margin="0,0,4,0"
+                                                FontSize="12.5"
+                                                Margin="0,0,2,0"
                                                 Click="OnPinToggleClick" />
                                         <Button x:Name="SettingsHeaderBtn"
                                                 Style="{StaticResource IconCircleButtonStyle}"
                                                 Content="&#xE713;"
                                                 FontFamily="{StaticResource IconFont}"
-                                                FontSize="11.5"
-                                                Margin="0,0,4,0"
+                                                FontSize="12.5"
+                                                Margin="0,0,2,0"
                                                 Click="OnOpenSettingsClick" />
                                         <Button x:Name="CollapseHeaderBtn"
                                                 Style="{StaticResource IconCircleButtonStyle}"
                                                 Content="&#xE70E;"
                                                 FontFamily="{StaticResource IconFont}"
-                                                FontSize="11.5"
+                                                FontSize="12.5"
                                                 Click="OnCollapseHeaderClick" />
                                     </StackPanel>
                                 </Grid>
@@ -841,13 +868,29 @@
                                     <Grid x:Name="TabNowPanel" Visibility="Visible">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="1.38*" />
-                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="12" />
                                             <ColumnDefinition Width="1*" />
                                         </Grid.ColumnDefinitions>
 
-                                        <!-- Hero Media Player Bento Card -->
-                                        <Border Grid.Column="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12">
-                                            <Grid>
+                                        <!-- Hero Media Player Card: big artwork with a soft glow drawn from it -->
+                                        <Grid x:Name="NowMediaCardHost" Grid.Column="0" SizeChanged="OnNowMediaCardSizeChanged">
+                                            <Border Style="{StaticResource GlassCardBorderStyle}" />
+                                            <Rectangle x:Name="NowArtGlow"
+                                                       Width="300"
+                                                       Height="260"
+                                                       HorizontalAlignment="Left"
+                                                       VerticalAlignment="Top"
+                                                       Margin="-94,-88,0,0"
+                                                       IsHitTestVisible="False">
+                                                <Rectangle.Fill>
+                                                    <RadialGradientBrush Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.5" RadiusY="0.5">
+                                                        <GradientStop x:Name="NowArtGlowStop0" Color="#580A84FF" Offset="0.0" />
+                                                        <GradientStop x:Name="NowArtGlowStop1" Color="#220A84FF" Offset="0.45" />
+                                                        <GradientStop Color="#000A84FF" Offset="1.0" />
+                                                    </RadialGradientBrush>
+                                                </Rectangle.Fill>
+                                            </Rectangle>
+                                            <Grid Margin="14,14,14,10">
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="*" />
@@ -861,25 +904,23 @@
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
 
-                                                    <!-- Concentric 76x76 R=14 outer / 74x74 R=13 inner album art -->
                                                     <Border x:Name="ExpandedArtBorder"
                                                             Grid.Column="0"
-                                                            Width="74"
-                                                            Height="74"
+                                                            Width="88"
+                                                            Height="88"
                                                             CornerRadius="14"
-                                                            Background="#18FFFFFF"
-                                                            BorderBrush="#24FFFFFF"
-                                                            BorderThickness="0.8"
-                                                            Margin="0,0,12,0">
+                                                            Background="#1AFFFFFF"
+                                                            BorderThickness="0"
+                                                            Margin="0,0,14,0">
                                                         <Grid>
                                                             <Image x:Name="ExpandedAlbumArt"
-                                                                   Width="72"
-                                                                   Height="72"
+                                                                   Width="88"
+                                                                   Height="88"
                                                                    HorizontalAlignment="Center"
                                                                    VerticalAlignment="Center"
                                                                    Stretch="UniformToFill">
                                                                 <Image.Clip>
-                                                                    <RectangleGeometry Rect="0,0,72,72" RadiusX="13" RadiusY="13" />
+                                                                    <RectangleGeometry Rect="0,0,88,88" RadiusX="14" RadiusY="14" />
                                                                 </Image.Clip>
                                                             </Image>
                                                             <TextBlock x:Name="ExpandedArtFallback"
@@ -893,37 +934,25 @@
                                                     </Border>
 
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                        <Grid Margin="0,0,0,4">
+                                                        <Grid Margin="0,0,0,5">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="Auto" />
                                                             </Grid.ColumnDefinitions>
-                                                            <Grid Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="*" />
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                </Grid.ColumnDefinitions>
-                                                                <Border Grid.Column="0"
-                                                                        CornerRadius="6"
-                                                                        Background="#16FFFFFF"
-                                                                        Padding="6,2"
-                                                                        VerticalAlignment="Center">
-                                                                    <TextBlock x:Name="NowMediaAppText"
-                                                                               Text="Media"
-                                                                               FontFamily="{StaticResource UiTextFont}"
-                                                                               FontSize="9.8"
-                                                                               FontWeight="SemiBold"
-                                                                               Foreground="{StaticResource AccentCyanBrush}"
-                                                                               TextTrimming="CharacterEllipsis" />
-                                                                </Border>
+                                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                                <TextBlock x:Name="NowMediaAppText"
+                                                                           Text="Media"
+                                                                           FontFamily="{StaticResource UiTextFont}"
+                                                                           FontSize="10.5"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource IslandSectionLabelBrush}"
+                                                                           VerticalAlignment="Center"
+                                                                           TextTrimming="CharacterEllipsis" />
                                                                 <Border x:Name="NowMediaQualityBadge"
-                                                                        Grid.Column="1"
-                                                                        CornerRadius="6"
-                                                                        Background="#180A84FF"
-                                                                        BorderBrush="#360A84FF"
-                                                                        BorderThickness="0.6"
-                                                                        Padding="6,2"
-                                                                        Margin="5,0,0,0"
+                                                                        CornerRadius="999"
+                                                                        Background="#12FFFFFF"
+                                                                        Padding="7,1"
+                                                                        Margin="7,0,0,0"
                                                                         Cursor="Hand"
                                                                         MouseLeftButtonUp="OnMediaQualityBadgeClick"
                                                                         Visibility="Collapsed"
@@ -931,11 +960,11 @@
                                                                     <TextBlock x:Name="NowMediaQualityText"
                                                                                Text="48 kHz"
                                                                                FontFamily="{StaticResource UiTextFont}"
-                                                                               FontSize="9.2"
-                                                                               FontWeight="SemiBold"
-                                                                               Foreground="{StaticResource AccentBlueBrush}" />
+                                                                               FontSize="10"
+                                                                               FontWeight="Medium"
+                                                                               Foreground="{StaticResource TextSecondaryBrush}" />
                                                                 </Border>
-                                                            </Grid>
+                                                            </StackPanel>
 
                                                             <StackPanel x:Name="SessionSwitcherPanel"
                                                                         Grid.Column="1"
@@ -946,19 +975,20 @@
                                                                         Visibility="Collapsed">
                                                                 <Button x:Name="BtnPrevSession"
                                                                         Style="{StaticResource IconCircleButtonStyle}"
-                                                                        Width="20" Height="20" FontSize="9"
+                                                                        Width="22" Height="22" FontSize="9"
                                                                         Content="&#xE76B;" FontFamily="{StaticResource IconFont}"
                                                                         Click="OnPrevMediaSessionClick" />
                                                                 <TextBlock x:Name="NowSessionIndexText"
                                                                            Text="1/2"
                                                                            FontFamily="{StaticResource UiTextFont}"
-                                                                           FontSize="9.5"
-                                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                                           FontSize="10.5"
+                                                                           Typography.NumeralAlignment="Tabular"
+                                                                           Foreground="{StaticResource TextMutedBrush}"
                                                                            VerticalAlignment="Center"
-                                                                           Margin="4,0" />
+                                                                           Margin="2,0" />
                                                                 <Button x:Name="BtnNextSession"
                                                                         Style="{StaticResource IconCircleButtonStyle}"
-                                                                        Width="20" Height="20" FontSize="9"
+                                                                        Width="22" Height="22" FontSize="9"
                                                                         Content="&#xE76C;" FontFamily="{StaticResource IconFont}"
                                                                         Click="OnNextMediaSessionClick" />
                                                             </StackPanel>
@@ -966,32 +996,33 @@
 
                                                         <TextBlock x:Name="NowMediaTitle"
                                                                    Text="No active media"
-                                                                   FontFamily="{StaticResource UiTextFont}"
-                                                                   FontSize="13.5"
+                                                                   FontFamily="{StaticResource UiFont}"
+                                                                   FontSize="14.5"
                                                                    FontWeight="SemiBold"
                                                                    Foreground="{StaticResource TextPrimaryBrush}"
                                                                    TextTrimming="CharacterEllipsis" />
                                                         <TextBlock x:Name="NowMediaArtist"
                                                                    Text=""
                                                                    FontFamily="{StaticResource UiTextFont}"
-                                                                   FontSize="11.2"
+                                                                   FontSize="12.5"
                                                                    Foreground="{StaticResource TextSecondaryBrush}"
                                                                    TextTrimming="CharacterEllipsis"
-                                                                   Margin="0,1,0,0" />
+                                                                   Margin="0,2,0,0" />
                                                         <TextBlock x:Name="NowMediaLyricLine"
                                                                    Text=""
                                                                    FontFamily="{StaticResource UiTextFont}"
-                                                                   FontSize="10.2"
-                                                                   FontWeight="Medium"
-                                                                   Foreground="{StaticResource AccentCyanBrush}"
+                                                                   FontSize="11"
+                                                                   FontStyle="Italic"
+                                                                   Foreground="{StaticResource IslandBodyTextBrush}"
+                                                                   Opacity="0.8"
                                                                    TextTrimming="CharacterEllipsis"
-                                                                   Margin="0,2,0,0"
+                                                                   Margin="0,4,0,0"
                                                                    Visibility="Collapsed" />
                                                     </StackPanel>
                                                 </Grid>
 
-                                                <!-- Scrubber Timeline -->
-                                                <Grid Grid.Row="2" Margin="0,8,0,6">
+                                                <!-- Thin progress line -->
+                                                <Grid Grid.Row="2" Margin="0,10,0,2">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="*" />
@@ -1001,13 +1032,14 @@
                                                                Grid.Column="0"
                                                                Text="0:00"
                                                                FontFamily="{StaticResource UiTextFont}"
-                                                               FontSize="10"
+                                                               FontSize="10.5"
+                                                               Typography.NumeralAlignment="Tabular"
                                                                Foreground="{StaticResource TextMutedBrush}"
                                                                VerticalAlignment="Center"
-                                                               Margin="0,0,8,0" />
+                                                               Margin="0,0,10,0" />
                                                     <Slider x:Name="MediaSeekSlider"
                                                             Grid.Column="1"
-                                                            Style="{StaticResource ObsidianSliderStyle}"
+                                                            Style="{StaticResource IslandSeekSliderStyle}"
                                                             Minimum="0"
                                                             Maximum="100"
                                                             Value="0"
@@ -1020,56 +1052,45 @@
                                                                Grid.Column="2"
                                                                Text="0:00"
                                                                FontFamily="{StaticResource UiTextFont}"
-                                                               FontSize="10"
+                                                               FontSize="10.5"
+                                                               Typography.NumeralAlignment="Tabular"
                                                                Foreground="{StaticResource TextMutedBrush}"
                                                                VerticalAlignment="Center"
-                                                               Margin="8,0,0,0" />
+                                                               Margin="10,0,0,0" />
                                                 </Grid>
 
-                                                <!-- Hero Playback Controls -->
+                                                <!-- Transport -->
                                                 <StackPanel Grid.Row="3"
                                                             Orientation="Horizontal"
                                                             HorizontalAlignment="Center"
                                                             VerticalAlignment="Center">
                                                     <Button x:Name="BtnPrevTrack"
-                                                            Style="{StaticResource IconCircleButtonStyle}"
-                                                            Width="30"
-                                                            Height="30"
-                                                            FontFamily="{StaticResource IconFont}"
-                                                            FontSize="12"
+                                                            Style="{StaticResource MediaTransportButtonStyle}"
                                                             Content="&#xE892;"
                                                             Click="OnPrevTrackClick" />
                                                     <Button x:Name="BtnPlayPause"
                                                             Style="{StaticResource MediaHeroPlayButtonStyle}"
-                                                            Width="38"
-                                                            Height="38"
-                                                            Margin="14,0"
-                                                            FontFamily="{StaticResource IconFont}"
-                                                            FontSize="14"
+                                                            Margin="20,0"
                                                             Content="&#xE768;"
                                                             Click="OnPlayPauseClick" />
                                                     <Button x:Name="BtnNextTrack"
-                                                            Style="{StaticResource IconCircleButtonStyle}"
-                                                            Width="30"
-                                                            Height="30"
-                                                            FontFamily="{StaticResource IconFont}"
-                                                            FontSize="12"
+                                                            Style="{StaticResource MediaTransportButtonStyle}"
                                                             Content="&#xE893;"
                                                             Click="OnNextTrackClick" />
                                                 </StackPanel>
                                             </Grid>
-                                        </Border>
+                                        </Grid>
 
                                         <!-- Right Column: Focus Timers & Notifications -->
                                         <Grid Grid.Column="2">
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="1*" />
-                                                <RowDefinition Height="6" />
+                                                <RowDefinition Height="10" />
                                                 <RowDefinition Height="1*" />
                                             </Grid.RowDefinitions>
 
                                             <!-- Focus Timers Bento Card -->
-                                            <Border Grid.Row="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="9,6">
+                                            <Border Grid.Row="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12,8,10,8">
                                                 <Grid>
                                                     <Grid.RowDefinitions>
                                                         <RowDefinition Height="Auto" />
@@ -1096,11 +1117,10 @@
                                                         </Grid.RowDefinitions>
                                                         <Border x:Name="NowMeetingBanner"
                                                                 Grid.Row="0"
-                                                                CornerRadius="9"
-                                                                Background="#1C30D158"
-                                                                BorderBrush="#4230D158"
-                                                                BorderThickness="0.7"
-                                                                Padding="7,4"
+                                                                CornerRadius="12"
+                                                                Background="#1F30D158"
+                                                                BorderThickness="0"
+                                                                Padding="9,5"
                                                                 Margin="0,0,0,4"
                                                                 Visibility="Collapsed">
                                                             <Grid>
@@ -1147,7 +1167,7 @@
                                             </Border>
 
                                             <!-- Notifications Bento Card -->
-                                            <Border Grid.Row="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="9,6">
+                                            <Border Grid.Row="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12,8,10,8">
                                                 <Grid>
                                                     <Grid.RowDefinitions>
                                                         <RowDefinition Height="Auto" />
@@ -1192,11 +1212,11 @@
                                     <Grid x:Name="TabAudioPanel" Visibility="Collapsed">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="1*" />
-                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="12" />
                                             <ColumnDefinition Width="1*" />
                                         </Grid.ColumnDefinitions>
 
-                                        <Border Grid.Column="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12">
+                                        <Border Grid.Column="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="14,12">
                                             <StackPanel>
                                                 <Grid Margin="0,0,0,6">
                                                     <TextBlock x:Name="AudioDevicesHeaderText"
@@ -1319,9 +1339,8 @@
 
                                                 <!-- Instant Voice Note Recorder with Live 8-Bar Waveform -->
                                                 <Border CornerRadius="10"
-                                                        Background="#12FFFFFF"
-                                                        BorderBrush="#1EFFFFFF"
-                                                        BorderThickness="0.6"
+                                                        Background="#0DFFFFFF"
+                                                        BorderThickness="0"
                                                         Padding="8,5"
                                                         Margin="0,8,0,0">
                                                     <StackPanel>
@@ -1409,7 +1428,7 @@
                                             </StackPanel>
                                         </Border>
 
-                                        <Border Grid.Column="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12">
+                                        <Border Grid.Column="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="14,12">
                                             <Grid>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
@@ -1479,11 +1498,11 @@
                                         <Grid Grid.Row="1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="10" />
+                                                <ColumnDefinition Width="12" />
                                                 <ColumnDefinition Width="236" />
                                             </Grid.ColumnDefinitions>
 
-                                            <Border Grid.Column="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="8,5">
+                                            <Border Grid.Column="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12,10">
                                                 <Grid>
                                                     <Grid.RowDefinitions>
                                                         <RowDefinition Height="Auto" />
@@ -1509,7 +1528,7 @@
                                                 </Grid>
                                             </Border>
 
-                                            <Border Grid.Column="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="8,4">
+                                            <Border Grid.Column="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12,10">
                                                 <StackPanel>
                                                     <Grid Margin="0,0,0,2">
                                                         <TextBlock x:Name="ControlPowerHeader"
@@ -1540,7 +1559,7 @@
                                                         <Button x:Name="BtnDisplayOffPc" Style="{StaticResource DarkActionButtonStyle}" Padding="2,2" FontSize="8.8" Margin="1,0" Content="Screen" Click="OnDisplayOffPcClick" />
                                                         <Button x:Name="BtnPowerSettings" Style="{StaticResource DarkActionButtonStyle}" Padding="2,2" FontSize="8.8" Margin="2,0,0,0" Content="Plans" Click="OnPowerSettingsClick" />
                                                     </UniformGrid>
-                                                    <Border CornerRadius="8" Background="#12FFFFFF" BorderBrush="#1CFFFFFF" BorderThickness="0.5" Padding="5,3">
+                                                    <Border CornerRadius="12" Background="#0DFFFFFF" BorderThickness="0" Padding="8,6">
                                                         <StackPanel>
                                                             <TextBlock x:Name="SchedPowerHeaderText"
                                                                        Text="Scheduled Action"
@@ -1618,11 +1637,11 @@
                                     <Grid x:Name="TabShelfPanel" Visibility="Collapsed">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="1*" />
-                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="12" />
                                             <ColumnDefinition Width="1*" />
                                         </Grid.ColumnDefinitions>
 
-                                        <Border Grid.Column="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="10,9">
+                                        <Border Grid.Column="0" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="14,12">
                                             <Grid>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
@@ -1668,9 +1687,8 @@
                                                     </ScrollViewer>
                                                     <Border x:Name="ShelfQrOverlayBorder"
                                                             CornerRadius="12"
-                                                            Background="#FF0E1117"
-                                                            BorderBrush="#480A84FF"
-                                                            BorderThickness="1"
+                                                            Background="#FF17171B"
+                                                            BorderThickness="0"
                                                             Padding="8,7"
                                                             Visibility="Collapsed">
                                                         <Grid>
@@ -1728,7 +1746,7 @@
                                             </Grid>
                                         </Border>
 
-                                        <Border Grid.Column="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="10,9">
+                                        <Border Grid.Column="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="14,12">
                                             <Grid>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
@@ -1777,7 +1795,7 @@
                                         </Grid.RowDefinitions>
 
                                         <UniformGrid Grid.Row="0" Columns="4" Margin="0,0,0,6">
-                                            <Border Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="10,7" Margin="0,0,8,0">
+                                            <Border Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12,10" Margin="0,0,8,0">
                                                 <StackPanel>
                                                     <TextBlock x:Name="SysCpuLabel" Text="CPU" FontFamily="{StaticResource UiTextFont}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
                                                     <TextBlock x:Name="SysCpuVal" Text="0%" FontFamily="{StaticResource UiTextFont}" FontSize="15.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2,0,4" />
@@ -1786,7 +1804,7 @@
                                                 </StackPanel>
                                             </Border>
 
-                                            <Border Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="10,7" Margin="0,0,8,0">
+                                            <Border Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12,10" Margin="0,0,8,0">
                                                 <StackPanel>
                                                     <TextBlock x:Name="SysMemLabel" Text="Memory" FontFamily="{StaticResource UiTextFont}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
                                                     <TextBlock x:Name="SysMemVal" Text="0%" FontFamily="{StaticResource UiTextFont}" FontSize="15.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2,0,4" />
@@ -1795,7 +1813,7 @@
                                                 </StackPanel>
                                             </Border>
 
-                                            <Border Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="10,7" Margin="0,0,8,0">
+                                            <Border Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12,10" Margin="0,0,8,0">
                                                 <StackPanel>
                                                     <TextBlock x:Name="SysNetLabel" Text="Network" FontFamily="{StaticResource UiTextFont}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
                                                     <TextBlock x:Name="SysNetDownVal" Text="0.0 Mb/s" FontFamily="{StaticResource UiTextFont}" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource AccentCyanBrush}" Margin="0,2,0,5" TextTrimming="CharacterEllipsis" />
@@ -1803,7 +1821,7 @@
                                                 </StackPanel>
                                             </Border>
 
-                                            <Border Style="{StaticResource GlassCardBorderStyle}" CornerRadius="14" Padding="10,7">
+                                            <Border Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12,10">
                                                 <StackPanel>
                                                     <TextBlock x:Name="SysBatLabel" Text="Battery" FontFamily="{StaticResource UiTextFont}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" />
                                                     <TextBlock x:Name="SysBatVal" Text="AC" FontFamily="{StaticResource UiTextFont}" FontSize="15.5" FontWeight="SemiBold" Foreground="{StaticResource AccentGreenBrush}" Margin="0,2,0,4" />
@@ -1813,7 +1831,7 @@
                                             </Border>
                                         </UniformGrid>
 
-                                        <Border Grid.Row="1" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="12" Padding="10,5" Margin="0,0,0,6">
+                                        <Border Grid.Row="1" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12,8" Margin="0,0,0,6">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="1.2*" />
@@ -1835,7 +1853,7 @@
                                             </Grid>
                                         </Border>
 
-                                        <Border Grid.Row="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="11" Padding="7,4" Margin="0,0,0,6">
+                                        <Border Grid.Row="2" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12,8" Margin="0,0,0,6">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
@@ -1860,7 +1878,7 @@
                                             </Grid>
                                         </Border>
 
-                                        <Border Grid.Row="3" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="10,7">
+                                        <Border Grid.Row="3" Style="{StaticResource GlassCardBorderStyle}" CornerRadius="16" Padding="12,10">
                                             <Grid>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
@@ -2012,9 +2030,8 @@
                                                 Margin="0,0,0,7"
                                                 Padding="6,4"
                                                 CornerRadius="10"
-                                                Background="#14FFFFFF"
-                                                BorderBrush="#22FFFFFF"
-                                                BorderThickness="0.8">
+                                                Background="#0DFFFFFF"
+                                                BorderThickness="0">
                                             <DockPanel>
                                                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="Hesap Ekle:"
@@ -2107,9 +2124,8 @@
                                                 <StackPanel x:Name="AiQuotaWrapPanel" Orientation="Vertical" />
                                                 <Border x:Name="AiQuotaEmptyCard"
                                                         CornerRadius="12"
-                                                        Background="#10FFFFFF"
-                                                        BorderBrush="#22FFFFFF"
-                                                        BorderThickness="0.8"
+                                                        Background="#0DFFFFFF"
+                                                        BorderThickness="0"
                                                         Padding="18,16"
                                                         Margin="0,12,0,8"
                                                         HorizontalAlignment="Center"
@@ -2143,7 +2159,7 @@
                                 <Border x:Name="NotifDetailOverlay"
                                         Grid.Row="0"
                                         Grid.RowSpan="2"
-                                        Background="#EC050609"
+                                        Background="#E6000000"
                                         CornerRadius="16"
                                         Visibility="Collapsed"
                                         MouseLeftButtonDown="OnOverlayBackdropMouseDown">
@@ -2152,10 +2168,10 @@
                                             HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
                                             CornerRadius="16"
-                                            Background="#FF141822"
-                                            BorderBrush="#42FFFFFF"
+                                            Background="#FF17171B"
+                                            BorderBrush="#14FFFFFF"
                                             BorderThickness="1"
-                                            Padding="14,12"
+                                            Padding="18,16"
                                             MouseLeftButtonDown="OnOverlayCardSwallowMouseDown">
                                         <Grid>
                                             <Grid.RowDefinitions>
@@ -2169,9 +2185,8 @@
                                                     <Border x:Name="NotifDetailIconWell"
                                                             Width="28" Height="28"
                                                             CornerRadius="8"
-                                                            Background="#FF162842"
-                                                            BorderBrush="#3DFFFFFF"
-                                                            BorderThickness="0.6"
+                                                            Background="#14FFFFFF"
+                                                            BorderThickness="0"
                                                             Margin="0,0,8,0">
                                                         <Grid>
                                                             <Image x:Name="NotifDetailIconImg" Width="20" Height="20" Stretch="UniformToFill" />
@@ -2200,7 +2215,7 @@
                                                 </StackPanel>
                                                 <Button x:Name="BtnNotifDetailClose"
                                                         Style="{StaticResource IconCircleButtonStyle}"
-                                                        Background="#FF232836"
+                                                        Background="#10FFFFFF"
                                                         Width="24" Height="24"
                                                         FontFamily="{StaticResource IconFont}"
                                                         FontSize="10"
@@ -2227,8 +2242,8 @@
                                                            TextWrapping="Wrap" />
                                             </ScrollViewer>
                                             <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-                                                <Button x:Name="BtnNotifDetailCopy" Style="{StaticResource DarkActionButtonStyle}" Background="#FF232836" BorderBrush="#38FFFFFF" Padding="11,4" FontSize="10.2" Margin="0,0,6,0" Content="Kopyala" Click="OnNotifDetailCopyClick" />
-                                                <Button x:Name="BtnNotifDetailDismiss" Style="{StaticResource DarkActionButtonStyle}" Background="#FF232836" BorderBrush="#38FFFFFF" Foreground="{StaticResource AccentAmberBrush}" Padding="11,4" FontSize="10.2" Content="Kapat" Click="OnNotifDetailDismissClick" />
+                                                <Button x:Name="BtnNotifDetailCopy" Style="{StaticResource DarkActionButtonStyle}" Background="#14FFFFFF" Padding="11,4" FontSize="10.2" Margin="0,0,6,0" Content="Kopyala" Click="OnNotifDetailCopyClick" />
+                                                <Button x:Name="BtnNotifDetailDismiss" Style="{StaticResource DarkActionButtonStyle}" Background="#14FFFFFF" Foreground="{StaticResource AccentAmberBrush}" Padding="11,4" FontSize="10.2" Content="Kapat" Click="OnNotifDetailDismissClick" />
                                             </StackPanel>
                                         </Grid>
                                     </Border>
@@ -2238,7 +2253,7 @@
                                 <Border x:Name="AudioQualityOverlay"
                                         Grid.Row="0"
                                         Grid.RowSpan="2"
-                                        Background="#EC050609"
+                                        Background="#E6000000"
                                         CornerRadius="16"
                                         Visibility="Collapsed"
                                         MouseLeftButtonDown="OnOverlayBackdropMouseDown">
@@ -2247,10 +2262,10 @@
                                             HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
                                             CornerRadius="16"
-                                            Background="#FF141822"
-                                            BorderBrush="#42FFFFFF"
+                                            Background="#FF17171B"
+                                            BorderBrush="#14FFFFFF"
                                             BorderThickness="1"
-                                            Padding="14,12"
+                                            Padding="18,16"
                                             MouseLeftButtonDown="OnOverlayCardSwallowMouseDown">
                                         <Grid>
                                             <Grid.RowDefinitions>
@@ -2276,7 +2291,7 @@
                                                 </StackPanel>
                                                 <Button x:Name="BtnAudioQualityClose"
                                                         Style="{StaticResource IconCircleButtonStyle}"
-                                                        Background="#FF232836"
+                                                        Background="#10FFFFFF"
                                                         Width="24" Height="24"
                                                         FontFamily="{StaticResource IconFont}"
                                                         FontSize="10"
@@ -2288,9 +2303,7 @@
                                             <Button x:Name="BtnAudioQualityUseMax"
                                                     Grid.Row="1"
                                                     Style="{StaticResource PillTabButtonStyle}"
-                                                    Background="#FF122A48"
-                                                    BorderBrush="#660A84FF"
-                                                    BorderThickness="0.8"
+                                                    Background="#1F0A84FF"
                                                     Foreground="{StaticResource AccentCyanBrush}"
                                                     Padding="10,4"
                                                     FontSize="10.2"
@@ -2311,8 +2324,7 @@
                                                            TextTrimming="CharacterEllipsis" />
                                                 <Button x:Name="BtnAudioQualitySettings"
                                                         Style="{StaticResource DarkActionButtonStyle}"
-                                                        Background="#FF232836"
-                                                        BorderBrush="#38FFFFFF"
+                                                        Background="#14FFFFFF"
                                                         Padding="10,3.5"
                                                         FontSize="9.8"
                                                         HorizontalAlignment="Right"
@@ -2327,16 +2339,16 @@
                                 <Border x:Name="AiQuotaEditOverlay"
                                         Grid.Row="0"
                                         Grid.RowSpan="2"
-                                        Background="#EE050609"
+                                        Background="#E8000000"
                                         CornerRadius="16"
                                         Visibility="Collapsed"
                                         MouseLeftButtonDown="OnOverlayBackdropMouseDown">
                                     <Border Width="512"
                                             HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
-                                            CornerRadius="15"
-                                            Background="#FF141822"
-                                            BorderBrush="#42FFFFFF"
+                                            CornerRadius="16"
+                                            Background="#FF17171B"
+                                            BorderBrush="#14FFFFFF"
                                             BorderThickness="1"
                                             Padding="12,9"
                                             MouseLeftButtonDown="OnOverlayCardSwallowMouseDown">
@@ -2351,7 +2363,7 @@
                                                            VerticalAlignment="Center" />
                                                 <Button x:Name="BtnAiEditClose"
                                                         Style="{StaticResource IconCircleButtonStyle}"
-                                                        Background="#FF232836"
+                                                        Background="#10FFFFFF"
                                                         Width="22" Height="22"
                                                         FontFamily="{StaticResource IconFont}"
                                                         FontSize="9.5"
@@ -2430,15 +2442,15 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" Margin="0,0,6,0">
                                                     <TextBlock x:Name="AiQuotaEditNameLabel" Text="Hesap Etiketi" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
-                                                    <TextBox x:Name="AiQuotaEditNameBox" MaxLength="36" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" />
+                                                    <TextBox x:Name="AiQuotaEditNameBox" MaxLength="36" Background="#0FFFFFFF" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Margin="0,0,6,0">
                                                     <TextBlock x:Name="AiQuotaEditPlanLabel" Text="Plan / Paket" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
-                                                    <TextBox x:Name="AiQuotaEditPlanBox" MaxLength="20" Text="Plus" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" />
+                                                    <TextBox x:Name="AiQuotaEditPlanBox" MaxLength="20" Text="Plus" Background="#0FFFFFFF" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="2">
                                                     <TextBlock x:Name="AiQuotaEditEmailLabel" Text="E-posta / Kullanıcı Notu" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
-                                                    <TextBox x:Name="AiQuotaEditEmailBox" MaxLength="64" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" />
+                                                    <TextBox x:Name="AiQuotaEditEmailBox" MaxLength="64" Background="#0FFFFFFF" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" />
                                                 </StackPanel>
                                             </Grid>
 
@@ -2452,11 +2464,11 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" Margin="0,0,6,0">
                                                     <TextBlock x:Name="AiQuotaEditTotalLabel" Text="Toplam Hak" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
-                                                    <TextBox x:Name="AiQuotaEditTotalBox" MaxLength="8" Text="80" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" />
+                                                    <TextBox x:Name="AiQuotaEditTotalBox" MaxLength="8" Text="80" Background="#0FFFFFFF" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Margin="0,0,6,0">
                                                     <TextBlock x:Name="AiQuotaEditRemainingLabel" Text="Kalan" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
-                                                    <TextBox x:Name="AiQuotaEditRemainingBox" MaxLength="8" Text="80" Background="#FF0B0E14" Foreground="{StaticResource AccentGreenBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" />
+                                                    <TextBox x:Name="AiQuotaEditRemainingBox" MaxLength="8" Text="80" Background="#0FFFFFFF" Foreground="{StaticResource AccentGreenBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="2" Margin="0,0,6,0">
                                                     <TextBlock x:Name="AiQuotaEditUnitLabel" Text="Birim" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
@@ -2469,7 +2481,7 @@
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="3">
                                                     <TextBlock x:Name="AiQuotaEditThresholdLabel" Text="Uyarı (%)" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
-                                                    <TextBox x:Name="AiQuotaEditThresholdBox" MaxLength="3" Text="20" Background="#FF0B0E14" Foreground="{StaticResource AccentAmberBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" />
+                                                    <TextBox x:Name="AiQuotaEditThresholdBox" MaxLength="3" Text="20" Background="#0FFFFFFF" Foreground="{StaticResource AccentAmberBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" />
                                                 </StackPanel>
                                             </Grid>
 
@@ -2483,7 +2495,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" Margin="0,0,6,0">
                                                     <TextBlock x:Name="AiQuotaEditWindowLabel" Text="Süre (dk)" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
-                                                    <TextBox x:Name="AiQuotaEditMinutesBox" MaxLength="5" Text="180" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" />
+                                                    <TextBox x:Name="AiQuotaEditMinutesBox" MaxLength="5" Text="180" Background="#0FFFFFFF" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Bottom" Orientation="Horizontal" Margin="0,0,8,1">
                                                     <Button Style="{StaticResource PillTabButtonStyle}" Padding="5,2" FontSize="8.8" Margin="0,0,2.5,0" Content="3s" Click="OnAiEditWindowPresetClick" Tag="180" />
@@ -2493,11 +2505,11 @@
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="2" Margin="0,0,6,0">
                                                     <TextBlock x:Name="AiQuotaEditBillingLabel" Text="Yenilenme Günü" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
-                                                    <TextBox x:Name="AiQuotaEditBillingDayBox" MaxLength="2" Text="" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" ToolTip="Ayın yenilenme günü (1-31)" />
+                                                    <TextBox x:Name="AiQuotaEditBillingDayBox" MaxLength="2" Text="" Background="#0FFFFFFF" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiFont}" FontSize="10.4" ToolTip="Ayın yenilenme günü (1-31)" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="3">
                                                     <TextBlock x:Name="AiQuotaEditPriceLabel" Text="Fiyat / Not" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
-                                                    <TextBox x:Name="AiQuotaEditPriceBox" MaxLength="20" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" />
+                                                    <TextBox x:Name="AiQuotaEditPriceBox" MaxLength="20" Background="#0FFFFFFF" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,3" FontFamily="{StaticResource UiTextFont}" FontSize="10.4" />
                                                 </StackPanel>
                                             </Grid>
 
@@ -2529,7 +2541,7 @@
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock x:Name="AiQuotaEditApiKeyLabel" Grid.Column="0" Text="API Key:" FontFamily="{StaticResource UiTextFont}" FontSize="9" Foreground="{StaticResource AccentCyanBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <PasswordBox x:Name="AiQuotaEditApiKeyBox" Grid.Column="1" MaxLength="180" Background="#FF0B0E14" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,2.5" FontFamily="{StaticResource UiFont}" FontSize="9.8" AutomationProperties.LabeledBy="{Binding ElementName=AiQuotaEditApiKeyLabel}" ToolTip="OpenRouter (sk-or-...) veya DeepSeek API anahtarı (Windows DPAPI ile şifrelenir)" />
+                                                <PasswordBox x:Name="AiQuotaEditApiKeyBox" Grid.Column="1" MaxLength="180" Background="#0FFFFFFF" Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource AccentCyanBrush}" BorderBrush="#36FFFFFF" BorderThickness="0.8" Padding="6,2.5" FontFamily="{StaticResource UiFont}" FontSize="9.8" AutomationProperties.LabeledBy="{Binding ElementName=AiQuotaEditApiKeyLabel}" ToolTip="OpenRouter (sk-or-...) veya DeepSeek API anahtarı (Windows DPAPI ile şifrelenir)" />
                                             </Grid>
                                             </StackPanel>
                                             </ScrollViewer>
@@ -2554,7 +2566,7 @@
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                                     <Button x:Name="BtnAiEditCancel"
                                                             Style="{StaticResource DarkActionButtonStyle}"
-                                                            Background="#FF232836"
+                                                            Background="#10FFFFFF"
                                                             BorderBrush="#38FFFFFF"
                                                             Padding="10,3.5"
                                                             FontSize="10"
