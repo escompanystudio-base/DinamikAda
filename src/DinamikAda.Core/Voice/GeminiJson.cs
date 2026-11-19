@@ -21,8 +21,12 @@ public static class GeminiJson
     /// Body for POST /v1beta/models/{model}:generateContent. With <paramref name="responseSchemaJson"/> the reply is
     /// constrained JSON (responseMimeType application/json).
     /// </summary>
+    /// <param name="thinkingBudget">
+    /// Thinking tokens the model may spend before answering; 0 turns thinking off (fastest, cheapest). Null leaves
+    /// the model default. Only Gemini 2.5 Flash models accept 0; see <see cref="ThinkingBudgetFor"/>.
+    /// </param>
     public static string BuildRequest(string? systemInstruction, IReadOnlyList<GeminiPart> parts,
-        string? responseSchemaJson = null, double temperature = 0.2, int maxOutputTokens = 2048)
+        string? responseSchemaJson = null, double temperature = 0.2, int maxOutputTokens = 2048, int? thinkingBudget = null)
     {
         var partArray = new JsonArray();
         foreach (var p in parts)
@@ -49,6 +53,10 @@ public static class GeminiJson
             ["temperature"] = temperature,
             ["maxOutputTokens"] = maxOutputTokens
         };
+        if (thinkingBudget is { } budget)
+        {
+            generation["thinkingConfig"] = new JsonObject { ["thinkingBudget"] = budget };
+        }
         if (!string.IsNullOrWhiteSpace(responseSchemaJson))
         {
             generation["responseMimeType"] = "application/json";
@@ -123,6 +131,17 @@ public static class GeminiJson
         int firstNl = t.IndexOf('\n');
         int lastFence = t.LastIndexOf("```", StringComparison.Ordinal);
         return firstNl > 0 && lastFence > firstNl ? t[(firstNl + 1)..lastFence].Trim() : t.Trim('`').Trim();
+    }
+
+    /// <summary>
+    /// Thinking budget to send for a model so it answers fast and cheap: 0 (off) for Gemini 2.5 Flash / Flash-Lite,
+    /// null (model default) for everything else, because Pro models cannot turn thinking off and other model
+    /// families use different thinking settings.
+    /// </summary>
+    public static int? ThinkingBudgetFor(string? model)
+    {
+        string m = (model ?? string.Empty).Trim().ToLowerInvariant();
+        return m.Contains("2.5") && m.Contains("flash") ? 0 : null;
     }
 
     /// <summary>Counts words for the speed statistics.</summary>

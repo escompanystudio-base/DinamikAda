@@ -43,8 +43,11 @@ public sealed class GeminiClient
         string key = GetKey(cfg) ?? throw new GeminiException(en
             ? "Add your Gemini API key in Settings → Voice Assistant."
             : "Gemini API anahtarını Ayarlar → Sesli Asistan bölümüne ekle.");
-        string model = Uri.EscapeDataString(string.IsNullOrWhiteSpace(cfg.GeminiModel) ? "gemini-2.5-flash" : cfg.GeminiModel.Trim());
-        string body = GeminiJson.BuildRequest(systemInstruction, parts, responseSchemaJson, temperature, maxOutputTokens);
+        string modelName = string.IsNullOrWhiteSpace(cfg.GeminiModel) ? "gemini-2.5-flash" : cfg.GeminiModel.Trim();
+        string model = Uri.EscapeDataString(modelName);
+        // Thinking off where the model allows it: much faster and cheaper for dictation, commands and short answers.
+        string body = GeminiJson.BuildRequest(systemInstruction, parts, responseSchemaJson, temperature, maxOutputTokens,
+            GeminiJson.ThinkingBudgetFor(modelName));
 
         using var req = new HttpRequestMessage(HttpMethod.Post,
             $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent")

@@ -39,6 +39,25 @@ public sealed class VoiceCoreTests
         Assert.Equal("application/json", root.GetProperty("generationConfig").GetProperty("responseMimeType").GetString());
     }
 
+    [Theory]
+    [InlineData("gemini-2.5-flash", 0)]
+    [InlineData("gemini-2.5-flash-lite", 0)]
+    [InlineData("Gemini-2.5-Flash-Preview", 0)]
+    [InlineData("gemini-2.5-pro", null)]
+    [InlineData("gemini-2.0-flash", null)]
+    [InlineData("", null)]
+    public void Gemini_ThinkingBudget_OffOnlyFor25Flash(string model, int? expected) =>
+        Assert.Equal(expected, GeminiJson.ThinkingBudgetFor(model));
+
+    [Fact]
+    public void Gemini_BuildRequest_WritesThinkingConfigOnlyWhenGiven()
+    {
+        using var on = JsonDocument.Parse(GeminiJson.BuildRequest(null, [GeminiPart.FromText("x")], thinkingBudget: 0));
+        Assert.Equal(0, on.RootElement.GetProperty("generationConfig").GetProperty("thinkingConfig").GetProperty("thinkingBudget").GetInt32());
+        using var off = JsonDocument.Parse(GeminiJson.BuildRequest(null, [GeminiPart.FromText("x")]));
+        Assert.False(off.RootElement.GetProperty("generationConfig").TryGetProperty("thinkingConfig", out _));
+    }
+
     [Fact]
     public void Gemini_ParseText_JoinsPartsAndSkipsThoughts()
     {

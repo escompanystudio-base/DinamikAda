@@ -291,7 +291,7 @@ public sealed class CircleAskOverlay : Window
         }
     }
 
-    /// <summary>Crops the frozen frame to <paramref name="regionPx"/> and encodes PNG in memory (long side ≤ 2048 px).</summary>
+    /// <summary>Crops the frozen frame to <paramref name="regionPx"/> and encodes PNG in memory (long side ≤ 1280 px: enough to read text, fewer image tokens).</summary>
     public Task<byte[]> CropPngAsync(AskRect regionPx)
     {
         var src = _screen;
@@ -303,9 +303,9 @@ public sealed class CircleAskOverlay : Window
             int h = Math.Clamp((int)Math.Ceiling(regionPx.Bottom) - y, 1, src.HeightPx - y);
             BitmapSource bmp = new CroppedBitmap(src.Image, new Int32Rect(x, y, w, h));
             double longSide = Math.Max(w, h);
-            if (longSide > 2048)
+            if (longSide > 1280)
             {
-                double s = 2048 / longSide;
+                double s = 1280 / longSide;
                 bmp = new TransformedBitmap(bmp, new ScaleTransform(s, s));
             }
             bmp.Freeze();
