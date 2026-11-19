@@ -733,7 +733,9 @@ public partial class SettingsWindow
                 catch (Exception ex) { Fail(ex); return; }
                 FillVoiceLists(lists, T);
             };
-            string meta = $"{routine.TimeOfDay} · {DescribeDaysFallback(routine.DaysMask, _currentLang)}";
+            var next = DinamikAda.Core.Voice.ScheduleMath.NextRunLocal(routine, DateTime.Now);
+            string meta = $"{routine.TimeOfDay} · {DinamikAda.Core.Voice.ScheduleMath.DescribeDays(routine.DaysMask, _currentLang)}"
+                + (next is { } n ? (_currentLang == "en" ? $" · next {n:ddd HH:mm}" : $" · sonraki {n.ToString("ddd HH:mm", System.Globalization.CultureInfo.GetCultureInfo("tr-TR"))}") : string.Empty);
             lists.Children.Add(Row(TitleOrAction(routine.Name, routine.Actions, T), meta, !routine.Enabled, toggle, del));
         }
 

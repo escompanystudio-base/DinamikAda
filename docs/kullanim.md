@@ -155,6 +155,23 @@ Bazı widget'lar kendi hesaplarını okur: Stripe, Lemon Squeezy, Gumroad, Polar
 - Bağlı hesapların listesi Ayarlar → Alt Dock → **Bağlı Hesaplar** bölümündedir. Bir hesabı oradan da kaldırabilirsin.
 - Bir widget'ı dock'tan kaldırdığında onun istekleri de durur.
 
+## Sesli Asistan
+
+Bir kısayolu basılı tutup konuş, bırakınca asistan işini yapar. Ayarlar → **Sesli Asistan** sekmesinden açıp kapatabilir, kısayolları değiştirebilirsin.
+
+| Kısayol (basılı tut) | Ne yapar |
+|---|---|
+| **Ctrl + Win** | **Dikte:** Konuştuğunu imlecin olduğu yere yazar. Duraklamaları ve "şey"leri temizler. "Dokuzda… yok, onda" gibi düzeltmelerde yalnızca son hâlini yazar. "Yeni satır" dersen alt satıra geçer. |
+| **Ctrl + Shift** | **Daire çiz ve sor:** Tuşları tutarken fareyle ekranda bir şeyin etrafına daire çiz ve sorunu sesli sor. Cevap, işaretlediğin yerin yanında bir kartta çıkar. **Kopyala** ile alabilirsin, Esc kartı kapatır. |
+| **Alt + Win** | **Komut:** "Spotify'ı aç", "YouTube'da lo-fi ara", "yapılacaklara süt almayı ekle", "25 dakikalık zamanlayıcı kur", "10 Kasım saat 11'de Amazon'u aç", "her sabah 9'da Unity ve Spotify'ı aç" gibi komutları anlar. |
+
+- Tuşları kısa basıp bırakırsan ya da arada başka bir tuşa basarsan asistan devreye girmez, normal kısayollar eskisi gibi çalışır. Tuşları bıraktığında Başlat menüsü açılmaz.
+- Yapay zekâ, kendi **ücretsiz Gemini API anahtarınla** çalışır. Anahtarı Google AI Studio'dan alıp Ayarlar → Sesli Asistan'a yapıştır ve **Test et**'e bas. Anahtar yalnızca bu bilgisayarda şifreli saklanır, istekler doğrudan Google'a gider.
+- Anahtar yoksa dikte, Windows'un çevrimdışı konuşma tanımasıyla çalışır. Bunun için Windows Ayarları → Saat ve dil → Konuşma'dan dil paketinin kurulu olması gerekir. Daire çizip sorma ve komutlar anahtar ister.
+- Zamanlanmış görevler ve rutinler aynı sekmede listelenir; oradan silebilir, rutinleri açıp kapatabilirsin. Bilgisayar uykudaysa, kurulan saatten sonraki 10 dakika içinde uyandığında rutin yine çalışır.
+- **Ada** adlı asistan karakteri dinlerken, düşünürken ve cevap verirken canlanır. Adını, rengini, göz stilini, aksesuarını ve konuşma tarzını aynı sekmeden değiştirebilirsin.
+- **Hız testi** düğmesi, yazma hızını konuşma hızınla karşılaştırır.
+
 ## Genel Kontroller
 
 | İşlem | Nereden Ulaşılır |
