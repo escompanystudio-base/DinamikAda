@@ -91,6 +91,7 @@ public sealed class DockWidgetDataHub : IDisposable
     private string _cryptoKey = string.Empty;
     private string _stocksKey = string.Empty;
     private bool _weatherBusy, _currencyBusy, _cryptoBusy, _stocksBusy;
+    private (double Lat, double Lon, string Name)? _zoneCityGeo;
     private int _historyCount;
     private bool _disposed;
 
@@ -350,6 +351,15 @@ public sealed class DockWidgetDataHub : IDisposable
                     c.WeatherResolvedName = city;
                 });
                 _weatherKey = $"{cfg.WeatherCity}|{cfg.WeatherLatitude}|{cfg.WeatherLongitude}";
+            }
+            if ((lat is null || lon is null) && string.IsNullOrWhiteSpace(cfg.WeatherCity))
+            {
+                // No city chosen yet: fall back to the city of the PC's time zone (kept in memory only, so a
+                // city typed in Settings later always wins).
+                _zoneCityGeo ??= DockWidgetMath.CityFromLocalTimeZone(TimeZoneInfo.Local) is { } zoneCity
+                    ? await GeocodeAsync(zoneCity, cfg.Language)
+                    : null;
+                if (_zoneCityGeo is { } zg) (lat, lon, city) = zg;
             }
             if (lat is null || lon is null)
             {

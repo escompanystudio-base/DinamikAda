@@ -182,6 +182,19 @@ public static class DockWidgetMath
         return null;
     }
 
+    /// <summary>
+    /// City name for a time zone ("Turkey Standard Time" → "Istanbul"), used as the weather default when no
+    /// city is set. Null for zones without a city (UTC, Etc/GMT+3...).
+    /// </summary>
+    public static string? CityFromLocalTimeZone(TimeZoneInfo zone)
+    {
+        string id = zone.Id;
+        if (!id.Contains('/') && TimeZoneInfo.TryConvertWindowsIdToIanaId(id, out var iana)) id = iana;
+        if (!id.Contains('/') || id.StartsWith("Etc/", StringComparison.OrdinalIgnoreCase)) return null;
+        string city = CityFromZoneId(id);
+        return city.Length == 0 ? null : city;
+    }
+
     /// <summary>"Europe/Istanbul" → "Istanbul", "America/New_York" → "New York".</summary>
     public static string CityFromZoneId(string zoneId)
     {

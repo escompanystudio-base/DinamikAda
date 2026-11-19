@@ -133,6 +133,13 @@ public class DockWidgetCoreTests
     }
 
     [Fact]
+    public void CityFromLocalTimeZone_MapsWindowsZonesAndSkipsCitylessOnes()
+    {
+        Assert.Equal("Istanbul", DockWidgetMath.CityFromLocalTimeZone(TimeZoneInfo.FindSystemTimeZoneById("Turkey Standard Time")));
+        Assert.Null(DockWidgetMath.CityFromLocalTimeZone(TimeZoneInfo.Utc));
+    }
+
+    [Fact]
     public void Screen_time_splits_samples_across_hours_and_days()
     {
         var ledger = new ScreenTimeLedger();

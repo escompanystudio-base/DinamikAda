@@ -241,6 +241,14 @@ public sealed class DockWidgetPickerWindow : Window
     {
         DetachPreviews();
         _grid.Children.Clear();
+        // A search looks through every category; showing nothing because a different category happened to be
+        // selected reads as "no such widget".
+        bool searching = !string.IsNullOrWhiteSpace(_search.Text);
+        if (searching && _category is not null)
+        {
+            _category = null;
+            RebuildCategories();
+        }
         var items = DockWidgetCatalog.Search(_search.Text, Lang)
             .Where(d => (_category is null || d.Category == _category) && DockWidgetTileFactory.IsImplemented(d.Id))
             .ToList();

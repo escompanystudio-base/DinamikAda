@@ -57,6 +57,22 @@ public partial class SettingsWindow
         _widgetBaseline = CurrentWidgetValuesFromConfig(_orch.Config);
         BuildDockWidgetSettings(_widgetBaseline);
         _widgetSettingsLoaded = true;
+        Activated += (_, _) => RefreshDockWidgetSettingsIfUntouched();
+    }
+
+    /// <summary>
+    /// The dock menu and picker change style/edge/widgets while Settings is open. When the user has not edited
+    /// this section, show the live values instead of the ones captured when the window opened.
+    /// </summary>
+    private void RefreshDockWidgetSettingsIfUntouched()
+    {
+        if (!_widgetSettingsLoaded || _widgetBaseline is null) return;
+        if (_clearStockKey || (_pwdStockKey?.Password.Length ?? 0) > 0) return; // pending key edit: keep the form
+        var form = ReadWidgetValuesFromForm();
+        var live = CurrentWidgetValuesFromConfig(_orch.Config);
+        if (form is null || form != _widgetBaseline || live == _widgetBaseline) return;
+        _widgetBaseline = live;
+        BuildDockWidgetSettings(live);
     }
 
     private void RebuildDockWidgetSettingsForLanguage()

@@ -245,6 +245,7 @@ public static class DockWidgetCatalog
         return All.Where(d =>
                 d.Name(lang).Contains(q, StringComparison.CurrentCultureIgnoreCase) ||
                 d.Description(lang).Contains(q, StringComparison.CurrentCultureIgnoreCase) ||
+                CategoryName(d.Category, lang).Contains(q, StringComparison.CurrentCultureIgnoreCase) ||
                 d.Id.Contains(q, StringComparison.OrdinalIgnoreCase))
             .ToList();
     }
