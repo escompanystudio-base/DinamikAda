@@ -93,6 +93,7 @@
                 <RadioButton x:Name="NavInteraction" GroupName="SettingsSection" Style="{StaticResource SettingsSectionButton}" Content="Etkileşim" Checked="OnSettingsSectionChanged"/>
                 <RadioButton x:Name="NavModules" GroupName="SettingsSection" Style="{StaticResource SettingsSectionButton}" Content="Modüller" Checked="OnSettingsSectionChanged"/>
                 <RadioButton x:Name="NavIntegrations" GroupName="SettingsSection" Style="{StaticResource SettingsSectionButton}" Content="Entegrasyonlar" Checked="OnSettingsSectionChanged"/>
+                <RadioButton x:Name="NavVoice" GroupName="SettingsSection" Style="{StaticResource SettingsSectionButton}" Content="Sesli Asistan" Checked="OnSettingsSectionChanged"/>
             </WrapPanel>
 
             <!-- Inline Error / Validation Banner -->
@@ -328,6 +329,7 @@
                             </WrapPanel>
                             <TextBlock x:Name="TxtDockPinsHint" Style="{StaticResource NotchSubtitleTextStyle}" FontSize="11" Opacity="0.7" TextWrapping="Wrap" Margin="0,4,0,0"
                                        Text="İpucu: Dock'taki simgeleri sürükleyerek sıralayabilir, Dosya Gezgini'nden dosya, kısayol veya klasör bırakarak sabitleyebilirsin."/>
+                            <StackPanel x:Name="DockWidgetSettingsHost"/>
                         </StackPanel>
                     </Border>
 
@@ -514,6 +516,18 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Voice assistant (content built in SettingsWindow.Voice.cs) -->
+                    <Border x:Name="VoiceSection" Visibility="Collapsed" Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <Border Width="22" Height="22" CornerRadius="7" Background="#2EBF8CFF" Margin="0,0,8,0">
+                                    <TextBlock Text="&#xE720;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{StaticResource AccentPurpleBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock x:Name="HdrVoiceSection" Text="Sesli Asistan" FontFamily="{StaticResource UiFont}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel x:Name="VoiceSettingsHost"/>
+                        </StackPanel>
+                    </Border>
                     <Border x:Name="SourcesSection" Visibility="Collapsed" Style="{StaticResource GlassCardBorderStyle}" Margin="0,0,0,12" Padding="15,13">
                         <StackPanel>
                             <TextBlock x:Name="HdrSourcesSection" Text="Veri kaynakları ve bağlantı" FontFamily="{StaticResource UiFont}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>

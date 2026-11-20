@@ -11,7 +11,7 @@ public enum NotchScalePreset
     Wide = 2
 }
 
-public sealed class AppConfig
+public sealed partial class AppConfig
 {
     public string Language { get; set; } = "tr";
     public DockPlacementMode DockPlacement { get; set; } = DockPlacementMode.NotchFlush;
@@ -94,12 +94,64 @@ public sealed class AppConfig
     public bool DockMagnificationEnabled { get; set; } = true;
     public bool DockIntellihideEnabled { get; set; } = true;
     public bool DockFollowFullscreenHide { get; set; } = true;
+    /// <summary>Meeting, timer and AI-quota toasts that rise from the dock.</summary>
+    public bool DockToastsEnabled { get; set; } = true;
     public bool DockReserveWorkArea { get; set; } = false;
     public int DockIconSizeDip { get; set; } = 32;
     public List<string> PinnedDockApps { get; set; } = new();
     // True once the user has edited dock pins; an empty PinnedDockApps then means "no pins",
     // not "never configured" (which would re-import the Windows taskbar pins on next start).
     public bool DockPinsCustomized { get; set; } = false;
+
+    // Dock widgets (live tiles between the apps and the island slot) and dock appearance.
+    public List<string> DockWidgets { get; set; } = new();
+    // False until the default widget set was seeded once; an empty list afterwards means "no widgets".
+    public bool DockWidgetsSeeded { get; set; } = false;
+    public DockVisualStyle DockStyle { get; set; } = DockVisualStyle.Midnight;
+    public DockScreenEdge DockEdge { get; set; } = DockScreenEdge.Bottom;
+    public bool DockClock24h { get; set; } = true;
+    public string WeatherCity { get; set; } = "";
+    public double? WeatherLatitude { get; set; }
+    public double? WeatherLongitude { get; set; }
+    public string WeatherResolvedName { get; set; } = "";
+    public bool WeatherFahrenheit { get; set; } = false;
+    public List<string> WorldClockZones { get; set; } = new() { "Europe/London", "America/New_York", "Asia/Tokyo" };
+    public string WorldTimeZone { get; set; } = "America/Los_Angeles";
+    public string CurrencyFrom { get; set; } = "USD";
+    public string CurrencyTo { get; set; } = "TRY";
+    public string CryptoSymbol { get; set; } = "BTCUSDT";
+    public List<string> StockSymbols { get; set; } = new() { "AAPL", "MSFT", "NVDA" };
+    // Finnhub key, DPAPI-protected (CurrentUser) and base64 encoded; never stored in plain text.
+    public string StockApiKeyProtected { get; set; } = "";
+    public int DockTimerMinutes { get; set; } = 5;
+    public int PomodoroFocusMinutes { get; set; } = 25;
+    public int PomodoroBreakMinutes { get; set; } = 5;
+    public List<DockTodoItem> DockTodos { get; set; } = new();
+    public bool ScreenTimeEnabled { get; set; } = true;
+    /// <summary>
+    /// Connected accounts for the account widgets. Secret field values are DPAPI-protected by the app layer
+    /// before they are stored here; the config itself never holds a plain key.
+    /// </summary>
+    public List<DockAccount> DockAccounts { get; set; } = new();
+
+    // ---- Voice assistant ----------------------------------------------------------------------
+    public bool VoiceAssistantEnabled { get; set; } = true;
+    public Voice.VoiceEngine VoiceEngine { get; set; } = Voice.VoiceEngine.Auto;
+    /// <summary>DPAPI-protected Gemini API key (the user's own free key from Google AI Studio).</summary>
+    public string GeminiApiKeyProtected { get; set; } = string.Empty;
+    public string GeminiModel { get; set; } = "gemini-2.5-flash";
+    /// <summary>Modifier-only hold chords.</summary>
+    public string DictationChord { get; set; } = "Ctrl+Win";
+    public string AskChord { get; set; } = "Ctrl+Shift";
+    public string CommandChord { get; set; } = "Alt+Win";
+    /// <summary>Let Gemini clean up dictation (fillers, self-corrections, punctuation).</summary>
+    public bool DictationCleanup { get; set; } = true;
+    /// <summary>Speech language as a BCP-47 tag; empty = follow the app language.</summary>
+    public string VoiceLanguage { get; set; } = string.Empty;
+    public List<Voice.ScheduledVoiceTask> ScheduledVoiceTasks { get; set; } = new();
+    public List<Voice.VoiceRoutine> VoiceRoutines { get; set; } = new();
+    public Voice.MascotSettings Mascot { get; set; } = new();
+    public Voice.VoiceStats VoiceStats { get; set; } = new();
 
     // Local Multi-Account AI Subscription Quota & Reset Tracker (no browser cookies or credential bypass)
     public bool AiQuotaSeeded { get; set; } = false;
@@ -175,6 +227,7 @@ public sealed class AppConfig
         FullscreenHideExes = SanitizeExeList(FullscreenHideExes);
         DockIconSizeDip = Math.Clamp(DockIconSizeDip, 26, 48);
         PinnedDockApps = SanitizeExeList(PinnedDockApps);
+        SanitizeDockWidgetSettings();
         AiQuotaSlots = SanitizeAiQuotaSlots(AiQuotaSlots);
 
         PinnedTabs = PinnedTabs is null
@@ -185,6 +238,77 @@ public sealed class AppConfig
         {
             PinnedTabs = CreateDefaultTabs();
         }
+    }
+
+    private void SanitizeDockWidgetSettings()
+    {
+        if (!DockWidgetsSeeded)
+        {
+            DockWidgets = new List<string>(Widgets.DockWidgetCatalog.DefaultWidgets);
+            DockWidgetsSeeded = true;
+        }
+        DockWidgets = Widgets.DockWidgetCatalog.Sanitize(DockWidgets);
+        if (!Enum.IsDefined(DockStyle)) DockStyle = DockVisualStyle.Midnight;
+        if (!Enum.IsDefined(DockEdge)) DockEdge = DockScreenEdge.Bottom;
+        WeatherCity = WeatherCity?.Trim() ?? string.Empty;
+        WeatherResolvedName = WeatherResolvedName?.Trim() ?? string.Empty;
+        if (WeatherLatitude is not { } lat || !double.IsFinite(lat) || lat is < -90 or > 90 ||
+            WeatherLongitude is not { } lon || !double.IsFinite(lon) || lon is < -180 or > 180)
+        {
+            WeatherLatitude = null;
+            WeatherLongitude = null;
+        }
+        WorldClockZones = (WorldClockZones ?? new())
+            .Where(z => !string.IsNullOrWhiteSpace(z))
+            .Select(z => z.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .ToList();
+        WorldTimeZone = string.IsNullOrWhiteSpace(WorldTimeZone) ? "America/Los_Angeles" : WorldTimeZone.Trim();
+        CurrencyFrom = NormalizeCode(CurrencyFrom, "USD", 3);
+        CurrencyTo = NormalizeCode(CurrencyTo, "TRY", 3);
+        CryptoSymbol = NormalizeCode(CryptoSymbol, "BTCUSDT", 16);
+        StockSymbols = (StockSymbols ?? new())
+            .Select(s => NormalizeCode(s, string.Empty, 12))
+            .Where(s => s.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .Take(3)
+            .ToList();
+        StockApiKeyProtected = StockApiKeyProtected?.Trim() ?? string.Empty;
+        DockTimerMinutes = Math.Clamp(DockTimerMinutes, 1, 180);
+        PomodoroFocusMinutes = Math.Clamp(PomodoroFocusMinutes, 5, 120);
+        PomodoroBreakMinutes = Math.Clamp(PomodoroBreakMinutes, 1, 60);
+        DockTodos = (DockTodos ?? new())
+            .Where(t => t is not null && !string.IsNullOrWhiteSpace(t.Text))
+            .Take(50)
+            .Select(t => new DockTodoItem
+            {
+                Id = string.IsNullOrWhiteSpace(t.Id) ? Guid.NewGuid().ToString("N") : t.Id,
+                Text = t.Text.Trim().Length > 200 ? t.Text.Trim()[..200] : t.Text.Trim(),
+                Done = t.Done
+            })
+            .ToList();
+        SanitizeVoiceSettings();
+        DockAccounts = (DockAccounts ?? new())
+            .Where(a => a is not null && Accounts.AccountCatalog.Find(a.Service) is not null)
+            .GroupBy(a => a.Service.Trim().ToLowerInvariant())
+            .Select(g => new DockAccount
+            {
+                Service = g.Key,
+                Values = (g.Last().Values ?? new())
+                    .Where(kv => !string.IsNullOrWhiteSpace(kv.Key) && kv.Value is not null)
+                    .ToDictionary(kv => kv.Key.Trim(), kv => kv.Value.Trim(), StringComparer.Ordinal)
+            })
+            .ToList();
+    }
+
+    private static string NormalizeCode(string? value, string fallback, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return fallback;
+        var chars = value.Trim().ToUpperInvariant().Where(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-').ToArray();
+        string s = new(chars);
+        if (s.Length == 0) return fallback;
+        return s.Length > maxLength ? s[..maxLength] : s;
     }
 
     private static List<string> SanitizeExeList(List<string>? items) =>
@@ -586,4 +710,85 @@ public sealed class AppConfigStore
             File.Move(tempPath, _configPath, overwrite: true);
         }
     }
+}
+
+public enum DockVisualStyle
+{
+    Midnight = 0,
+    Black = 1,
+    White = 2,
+    LiquidGlass = 3,
+    IosGlass = 4
+}
+
+public enum DockScreenEdge
+{
+    Bottom = 0,
+    Top = 1
+}
+
+public sealed partial class AppConfig
+{
+    private void SanitizeVoiceSettings()
+    {
+        if (!Enum.IsDefined(VoiceEngine)) VoiceEngine = Voice.VoiceEngine.Auto;
+        GeminiApiKeyProtected = GeminiApiKeyProtected?.Trim() ?? string.Empty;
+        GeminiModel = string.IsNullOrWhiteSpace(GeminiModel) ? "gemini-2.5-flash" : GeminiModel.Trim();
+        DictationChord = Voice.HoldChordText.Normalize(DictationChord, "Ctrl+Win");
+        AskChord = Voice.HoldChordText.Normalize(AskChord, "Ctrl+Shift");
+        CommandChord = Voice.HoldChordText.Normalize(CommandChord, "Alt+Win");
+        VoiceLanguage = VoiceLanguage?.Trim() ?? string.Empty;
+        ScheduledVoiceTasks = (ScheduledVoiceTasks ?? new())
+            .Where(t => t is not null && (t.Actions?.Count ?? 0) > 0)
+            .Where(t => !t.Done || t.RunAtLocal > DateTime.Now.AddDays(-7))
+            .Take(100)
+            .Select(t => new Voice.ScheduledVoiceTask
+            {
+                Id = string.IsNullOrWhiteSpace(t.Id) ? Guid.NewGuid().ToString("N") : t.Id,
+                Title = (t.Title ?? string.Empty).Trim(),
+                RunAtLocal = t.RunAtLocal,
+                Actions = t.Actions!.Where(a => a is not null).Select(a => a.Clone()).Take(10).ToList(),
+                Done = t.Done
+            })
+            .ToList();
+        VoiceRoutines = (VoiceRoutines ?? new())
+            .Where(r => r is not null)
+            .Take(50)
+            .Select(r => new Voice.VoiceRoutine
+            {
+                Id = string.IsNullOrWhiteSpace(r.Id) ? Guid.NewGuid().ToString("N") : r.Id,
+                Name = (r.Name ?? string.Empty).Trim(),
+                TimeOfDay = TimeSpan.TryParse(r.TimeOfDay, System.Globalization.CultureInfo.InvariantCulture, out var tod) && tod >= TimeSpan.Zero && tod < TimeSpan.FromDays(1)
+                    ? tod.ToString(@"hh\:mm", System.Globalization.CultureInfo.InvariantCulture)
+                    : "09:00",
+                DaysMask = r.DaysMask is <= 0 or > 127 ? 127 : r.DaysMask,
+                Actions = (r.Actions ?? new()).Where(a => a is not null).Select(a => a.Clone()).Take(10).ToList(),
+                Enabled = r.Enabled,
+                LastRunDate = r.LastRunDate ?? string.Empty
+            })
+            .ToList();
+        Mascot = Mascot?.Clone() ?? new Voice.MascotSettings();
+        Mascot.Name = string.IsNullOrWhiteSpace(Mascot.Name) ? "Ada" : Mascot.Name.Trim()[..Math.Min(Mascot.Name.Trim().Length, 24)];
+        if (!System.Text.RegularExpressions.Regex.IsMatch(Mascot.ColorHex ?? string.Empty, "^#[0-9A-Fa-f]{6}$")) Mascot.ColorHex = "#7C5CFF";
+        Mascot.EyeStyle = Math.Clamp(Mascot.EyeStyle, 0, 3);
+        Mascot.Accessory = Math.Clamp(Mascot.Accessory, 0, 4);
+        Mascot.Personality = Math.Clamp(Mascot.Personality, 0, 2);
+        VoiceStats ??= new Voice.VoiceStats();
+        if (VoiceStats.WordsDictated < 0 || !double.IsFinite(VoiceStats.SecondsSpoken) || VoiceStats.SecondsSpoken < 0)
+            VoiceStats = new Voice.VoiceStats();
+    }
+}
+
+public sealed class DockAccount
+{
+    public string Service { get; set; } = string.Empty;
+    /// <summary>Field key → value; values of secret fields are stored protected.</summary>
+    public Dictionary<string, string> Values { get; set; } = new(StringComparer.Ordinal);
+}
+
+public sealed class DockTodoItem
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Text { get; set; } = string.Empty;
+    public bool Done { get; set; }
 }

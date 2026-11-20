@@ -207,12 +207,16 @@ public sealed class IslandCoordinator : ITransientHudBus, IIslandHostContext
         }
     }
 
-    public void DismissTransientHud()
+    public void DismissTransientHud() => DismissTransientHud(null);
+
+    /// <summary>Dismisses the active HUD, but only when it still has <paramref name="coalesceKey"/> (null = any HUD).</summary>
+    public void DismissTransientHud(string? coalesceKey)
     {
         IslandCoordinatorSnapshot? emitted = null;
         lock (_sync)
         {
             if (_activeHud is null) return;
+            if (coalesceKey is not null && !string.Equals(_activeHud.CoalesceKey, coalesceKey, StringComparison.Ordinal)) return;
             _activeHud = null;
             _isHudPromotedInteractive = false;
             _isHudHovered = false;

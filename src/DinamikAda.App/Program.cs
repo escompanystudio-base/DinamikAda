@@ -134,6 +134,19 @@ public static class Program
             window.Show();
             orch.StartMessageLoopHooks();
 
+            // Push-to-talk voice assistant (dictation, circle-to-ask, commands, routines). Hook lives on the UI thread.
+            Services.Voice.VoiceAssistantService? voice = null;
+            try
+            {
+                voice = new Services.Voice.VoiceAssistantService(orch);
+                voice.Start();
+            }
+            catch (Exception ex)
+            {
+                CrashLogger.Log("startup", ex, "Voice assistant could not start.");
+            }
+            app.Exit += (_, _) => voice?.Dispose();
+
             EventHandler onProcessExit = (_, _) => taskbarManager.Restore();
             AppDomain.CurrentDomain.ProcessExit += onProcessExit;
             app.SessionEnding += (_, _) => taskbarManager.Restore();
@@ -518,6 +531,8 @@ public static class Program
                         orch.Coordinator.SetDragShelfActive(false);
 
                         SmokeCheckDockPinEditing(failures);
+                        var widgetDock = new DockWindow(orch, provider.GetRequiredService<WindowsTaskbarManager>());
+                        failures.AddRange(widgetDock.AuditBuildAllWidgets());
 
                         orch.Coordinator.RequestCollapse(forceUnpin: true);
                         orch.Coordinator.PublishLiveActivity(null, "smoke");
@@ -1462,10 +1477,98 @@ public static class Program
         var emptyTrayAudit = new DockWindow(orch, provider.GetRequiredService<WindowsTaskbarManager>());
         SavePng(emptyTrayAudit.RenderTrayPopupForAudit(324, 220, empty: true), Path.Combine(outputDir, "40_dock_tray_empty_narrow.png"));
         savedCount++;
+        SavePng(dockAudit.RenderAiTooltipForAudit(), Path.Combine(outputDir, "42_dock_ai_tooltip.png"));
+        savedCount++;
         SavePng(dockAudit.RenderStartPopupForAudit(), Path.Combine(outputDir, "36_dock_start_popup.png"));
         savedCount++;
         SavePng(dockAudit.RenderStartPopupForAudit(450, 540, "visual"), Path.Combine(outputDir, "38_dock_start_search_narrow.png"));
         savedCount++;
+
+        // Dock widgets: showcase rows in every style, the top edge, cards and the picker.
+        string[] widgetShowcase = ["np-mini", "cpu", "ram", "network", "weather", "flip-clock", "battery-ring", "todos", "crypto", "day-progress"];
+        string[] widgetShowcase2 = ["now-playing", "ai-limits", "pomodoro", "forecast", "segment-clock", "battery-core", "quick-toggles"];
+        string[] widgetShowcase3 = ["analog", "day-number", "world-clocks", "screen-time", "sun", "storage", "year-progress"];
+        var widgetDockAudit = new DockWindow(orch, provider.GetRequiredService<WindowsTaskbarManager>());
+        foreach (var style in Enum.GetValues<DockVisualStyle>())
+        {
+            SavePng(widgetDockAudit.RenderWidgetDockForAudit(widgetShowcase, style), Path.Combine(outputDir, $"50_dock_widgets_{style.ToString().ToLowerInvariant()}.png"));
+            savedCount++;
+        }
+        SavePng(widgetDockAudit.RenderWidgetDockForAudit(widgetShowcase2, DockVisualStyle.Midnight), Path.Combine(outputDir, "51_dock_widgets_row2.png"));
+        savedCount++;
+        SavePng(widgetDockAudit.RenderWidgetDockForAudit(widgetShowcase3, DockVisualStyle.LiquidGlass), Path.Combine(outputDir, "52_dock_widgets_row3.png"));
+        savedCount++;
+        SavePng(widgetDockAudit.RenderWidgetDockForAudit(widgetShowcase, DockVisualStyle.Midnight, edge: DockScreenEdge.Top), Path.Combine(outputDir, "53_dock_widgets_top_edge.png"));
+        savedCount++;
+        foreach (var cardId in new[] { "weather", "screen-time", "todos", "now-playing", "network", "ai-limits" })
+        {
+            SavePng(widgetDockAudit.RenderWidgetCardForAudit(cardId), Path.Combine(outputDir, $"54_widget_card_{cardId}.png"));
+            savedCount++;
+        }
+        SavePng(widgetDockAudit.RenderWidgetPickerForAudit(), Path.Combine(outputDir, "55_widget_picker.png"));
+        savedCount++;
+        SavePng(new DockWindow(orch, provider.GetRequiredService<WindowsTaskbarManager>()).RenderToastsForAudit(), Path.Combine(outputDir, "75_dock_toasts.png"));
+        savedCount++;
+
+        // Account widgets: tiles (sample data), their sample cards and one generated connect form.
+        string[] accountRow1 = ["stripe-revenue", "lemonsqueezy-revenue", "gumroad-sales", "polar-revenue", "paddle-revenue", "deepseek-balance"];
+        string[] accountRow2 = ["github-activity", "github-notifications", "linear-issues", "resend-emails", "plausible-visitors"];
+        string[] accountRow3 = ["youtube-channel", "leetcode-stats", "gmail-unread", "gcal-next", "unsplash-wallpaper"];
+        SavePng(widgetDockAudit.RenderWidgetDockForAudit(accountRow1, DockVisualStyle.Midnight), Path.Combine(outputDir, "60_account_widgets_finance.png"));
+        SavePng(widgetDockAudit.RenderWidgetDockForAudit(accountRow2, DockVisualStyle.LiquidGlass), Path.Combine(outputDir, "61_account_widgets_developer.png"));
+        SavePng(widgetDockAudit.RenderWidgetDockForAudit(accountRow3, DockVisualStyle.White), Path.Combine(outputDir, "62_account_widgets_social.png"));
+        savedCount += 3;
+        foreach (var cardId in accountRow1.Concat(accountRow2).Concat(accountRow3))
+        {
+            SavePng(widgetDockAudit.RenderWidgetCardForAudit(cardId), Path.Combine(outputDir, $"63_account_card_{cardId}.png"));
+            savedCount++;
+        }
+        DinamikAda.App.Views.DockWidgets.Accounts.AccountAudit.ShowConnectForm = true;
+        try
+        {
+            SavePng(widgetDockAudit.RenderWidgetCardForAudit("stripe-revenue"), Path.Combine(outputDir, "64_account_connect_stripe.png"));
+            SavePng(widgetDockAudit.RenderWidgetCardForAudit("gmail-unread"), Path.Combine(outputDir, "64_account_connect_gmail.png"));
+            savedCount += 2;
+        }
+        finally
+        {
+            DinamikAda.App.Views.DockWidgets.Accounts.AccountAudit.ShowConnectForm = false;
+        }
+
+        // Voice assistant: overlay states (content only, no window) and the mascot variants.
+        foreach (var voiceFrame in new[] { "listening", "working", "result", "error" })
+        {
+            SavePng(DinamikAda.App.Views.Voice.VoiceOverlayWindow.RenderForAudit(voiceFrame, orch.Config.Language, new DinamikAda.Core.Voice.MascotSettings { Accessory = voiceFrame == "result" ? 3 : 1, EyeStyle = voiceFrame == "result" ? 3 : 0 }),
+                Path.Combine(outputDir, $"70_voice_overlay_{voiceFrame}.png"));
+            savedCount++;
+        }
+        SavePng(DinamikAda.App.Views.Voice.VoiceOverlayWindow.RenderForAudit("listening", orch.Config.Language, new DinamikAda.Core.Voice.MascotSettings { Enabled = false }, 620, 200),
+            Path.Combine(outputDir, "70_voice_overlay_no_mascot.png"));
+        savedCount++;
+        SavePng(DinamikAda.App.Views.Voice.MascotGallery.RenderVariantsForAudit(), Path.Combine(outputDir, "71_mascot_variants.png"));
+        savedCount++;
+        orch.ConfigStore.Update(orch.Config, c =>
+        {
+            var today = DateTime.Today;
+            c.ScheduledVoiceTasks =
+            [
+                new DinamikAda.Core.Voice.ScheduledVoiceTask { Id = "audit-t1", Title = c.Language == "en" ? "Open Amazon" : "Amazon'u aç", RunAtLocal = today.AddDays(1).AddHours(11), Actions = [new DinamikAda.Core.Voice.VoiceAction { Kind = DinamikAda.Core.Voice.VoiceActionKind.OpenUrl, Target = "https://amazon.com" }] },
+                new DinamikAda.Core.Voice.ScheduledVoiceTask { Id = "audit-t2", Title = "", RunAtLocal = today.AddDays(3).AddHours(18.5), Actions = [new DinamikAda.Core.Voice.VoiceAction { Kind = DinamikAda.Core.Voice.VoiceActionKind.Notify, Query = c.Language == "en" ? "Call mom" : "Annemi ara" }] }
+            ];
+            c.VoiceRoutines =
+            [
+                new DinamikAda.Core.Voice.VoiceRoutine { Id = "audit-r1", Name = c.Language == "en" ? "Morning setup" : "Sabah kurulumu", TimeOfDay = "09:00", DaysMask = 0x1F, Actions = [new DinamikAda.Core.Voice.VoiceAction { Kind = DinamikAda.Core.Voice.VoiceActionKind.OpenApp, Target = "Unity" }] },
+                new DinamikAda.Core.Voice.VoiceRoutine { Id = "audit-r2", Name = c.Language == "en" ? "Weekend playlist" : "Hafta sonu listesi", TimeOfDay = "11:30", DaysMask = 0x60, Enabled = false, Actions = [new DinamikAda.Core.Voice.VoiceAction { Kind = DinamikAda.Core.Voice.VoiceActionKind.OpenApp, Target = "Spotify" }] }
+            ];
+            c.VoiceStats = new DinamikAda.Core.Voice.VoiceStats { WordsDictated = 1840, SecondsSpoken = 812, Sessions = 64 };
+        });
+        settingsWin.ShowVoiceSectionForAudit();
+        SavePng(settingsWin.RenderToBitmap(), Path.Combine(outputDir, "72_settings_voice.png"));
+        settingsWin.ScrollVoiceSectionForAudit(4);
+        SavePng(settingsWin.RenderToBitmap(), Path.Combine(outputDir, "72b_settings_voice_mascot.png"));
+        settingsWin.ScrollVoiceSectionForAudit(5);
+        SavePng(settingsWin.RenderToBitmap(), Path.Combine(outputDir, "72c_settings_voice_lists.png"));
+        savedCount += 3;
 
         Console.WriteLine($"RENDER_AUDIT_PASS: {savedCount} files -> {outputDir}");
         return 0;

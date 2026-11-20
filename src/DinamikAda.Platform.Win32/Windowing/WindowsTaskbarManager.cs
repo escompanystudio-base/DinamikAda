@@ -111,7 +111,8 @@ public sealed unsafe class WindowsTaskbarManager : IDisposable
         bool hideTaskbar,
         MonitorDescriptor? primaryMonitor,
         int reservedBottomPx,
-        bool reserveFullWidthWorkArea = false)
+        bool reserveFullWidthWorkArea = false,
+        bool reserveAtTop = false)
     {
         lock (_sync)
         {
@@ -149,7 +150,8 @@ public sealed unsafe class WindowsTaskbarManager : IDisposable
             WriteRecoveryMarker();
             HideAllTaskbarWindows();
 
-            if (primaryMonitor is not null && reservedBottomPx > 0)
+            // The app-bar work area is only reserved for a bottom dock; a top dock floats over windows.
+            if (primaryMonitor is not null && reservedBottomPx > 0 && !reserveAtTop)
             {
                 var desiredWork = DockLayoutCalculator.ComputeReservedWorkArea(primaryMonitor, reservedBottomPx);
                 EnsureAppBarWorkArea(primaryMonitor, desiredWork.Bottom);

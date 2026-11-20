@@ -30,7 +30,8 @@ public static class DockLayoutCalculator
             || string.Equals(trimmed, "Shell_SecondaryTrayWnd", StringComparison.OrdinalIgnoreCase);
     }
 
-    public static DockHostBounds ComputeHostWindowBounds(MonitorDescriptor monitor, double hostHeightDip = DefaultHostHeightDip)
+    public static DockHostBounds ComputeHostWindowBounds(MonitorDescriptor monitor, double hostHeightDip = DefaultHostHeightDip,
+        bool atTop = false, int topInsetPx = 0)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         double scale = Math.Max(1.0, monitor.DpiScale);
@@ -39,7 +40,9 @@ public static class DockLayoutCalculator
         if ((heightPx & 1) != 0) heightPx += 1;
         int widthPx = Math.Max(2, monitor.WidthPx);
         int leftPx = monitor.LeftPx;
-        int topPx = monitor.TopPx + monitor.HeightPx - heightPx;
+        int topPx = atTop
+            ? monitor.TopPx + Math.Clamp(topInsetPx, 0, Math.Max(0, monitor.HeightPx / 4))
+            : monitor.TopPx + monitor.HeightPx - heightPx;
         return new DockHostBounds(leftPx, topPx, widthPx, heightPx, scale);
     }
 
@@ -51,11 +54,26 @@ public static class DockLayoutCalculator
         return (int)Math.Round(reservedDip * scale, MidpointRounding.AwayFromZero);
     }
 
-    public static NativeMethods.RECT ComputeReservedWorkArea(MonitorDescriptor monitor, int reservedBottomPx)
+    public static NativeMethods.RECT ComputeReservedWorkArea(MonitorDescriptor monitor, int reservedBottomPx, bool atTop = false)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         int maxReserve = Math.Max(0, monitor.HeightPx / 3);
         int clampedReserve = Math.Clamp(reservedBottomPx, 0, maxReserve);
+        if (atTop)
+        {
+            int monBottom = monitor.TopPx + monitor.HeightPx;
+            int workBottom = monitor.WorkHeightPx > 0 && monitor.WorkTopPx + monitor.WorkHeightPx <= monBottom
+                ? monitor.WorkTopPx + monitor.WorkHeightPx
+                : monBottom;
+            int topEdge = Math.Min(workBottom - 100, monitor.TopPx + clampedReserve);
+            return new NativeMethods.RECT
+            {
+                Left = monitor.LeftPx,
+                Top = topEdge,
+                Right = monitor.LeftPx + Math.Max(1, monitor.WidthPx),
+                Bottom = workBottom
+            };
+        }
         int top = monitor.WorkHeightPx > 0 && monitor.WorkTopPx >= monitor.TopPx
             ? monitor.WorkTopPx
             : monitor.TopPx;
@@ -132,6 +150,64 @@ public static class DockLayoutCalculator
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// macOS-strength magnification scales: a gaussian over the distance (in slot pitches) from the cursor,
+    /// truncated smoothly to exactly 1.0 at <paramref name="cutoffPitch"/> so far icons never twitch.
+    /// With the defaults the hovered icon reaches <paramref name="maxScale"/>, its neighbours ~1.49× and ~1.09×.
+    /// </summary>
+    public static double[] ComputeGaussianMagnificationScales(
+        double? cursorLocalX,
+        IReadOnlyList<double> slotCentersX,
+        double baseSlotPitchDip,
+        double maxScale = 1.85,
+        double sigmaPitch = 0.95,
+        double cutoffPitch = 3.2)
+    {
+        int n = slotCentersX?.Count ?? 0;
+        var scales = new double[n];
+        double pitch = Math.Max(24.0, baseSlotPitchDip);
+        double sigma = Math.Max(0.1, sigmaPitch) * pitch;
+        double cutoff = Math.Max(sigma, cutoffPitch * pitch);
+        double floor = Math.Exp(-(cutoff * cutoff) / (2.0 * sigma * sigma));
+        for (int i = 0; i < n; i++)
+        {
+            scales[i] = 1.0;
+            if (cursorLocalX is null || maxScale <= 1.001) continue;
+            double d = Math.Abs(cursorLocalX.Value - slotCentersX![i]);
+            if (d >= cutoff) continue;
+            double g = (Math.Exp(-(d * d) / (2.0 * sigma * sigma)) - floor) / (1.0 - floor);
+            scales[i] = 1.0 + (maxScale - 1.0) * Math.Clamp(g, 0.0, 1.0);
+        }
+        return scales;
+    }
+
+    /// <summary>
+    /// Extra width (DIP) that magnified slots add to the left of <paramref name="x"/>. Each slot occupies
+    /// [center − pitch/2, center + pitch/2] and widens by (scale − 1) × spread. Shifting any element with
+    /// nominal centre c by G(c) − G(cursor) keeps the point under the cursor fixed and the slots touching
+    /// without overlap; G(cursor) and G(∞) − G(cursor) are how far the dock grows on each side.
+    /// </summary>
+    public static double ComputeMagnificationSpreadBefore(
+        double x,
+        IReadOnlyList<double> slotCentersX,
+        IReadOnlyList<double> scales,
+        double baseSlotPitchDip,
+        double spreadFactor = 1.0)
+    {
+        int n = Math.Min(slotCentersX?.Count ?? 0, scales?.Count ?? 0);
+        double pitch = Math.Max(24.0, baseSlotPitchDip);
+        double spread = Math.Clamp(spreadFactor, 0.0, 1.0);
+        double sum = 0.0;
+        for (int i = 0; i < n; i++)
+        {
+            double extra = (Math.Max(1.0, scales![i]) - 1.0) * spread;
+            if (extra <= 0.0) continue;
+            double start = slotCentersX![i] - pitch * 0.5;
+            sum += extra * Math.Clamp(x - start, 0.0, pitch);
+        }
+        return sum;
     }
 
     public static double ComputeExtraRowSpreadDip(IReadOnlyList<double> scales, double baseSlotPitchDip)
@@ -273,7 +349,9 @@ public static class DockLayoutCalculator
         double capsuleWidthDip,
         double capsuleHeightDip,
         double bottomMarginDip = 6.0,
-        int topBufferPx = 4)
+        int topBufferPx = 4,
+        bool atTop = false,
+        int topInsetPx = 0)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         double scale = Math.Max(1.0, monitor.DpiScale);
@@ -285,6 +363,17 @@ public static class DockLayoutCalculator
 
         int left = monitor.LeftPx + (monW - capW) / 2;
         int right = left + capW;
+        if (atTop)
+        {
+            int t = monitor.TopPx + Math.Max(0, topInsetPx);
+            return new NativeMethods.RECT
+            {
+                Left = left,
+                Top = t,
+                Right = right,
+                Bottom = Math.Min(monitor.TopPx + monH, t + marginPx + capH + Math.Max(0, topBufferPx))
+            };
+        }
         int bottom = monitor.TopPx + monH;
         int top = Math.Max(monitor.TopPx, bottom - marginPx - capH - Math.Max(0, topBufferPx));
 
@@ -317,15 +406,40 @@ public static class DockLayoutCalculator
             && cursorY <= bottom;
     }
 
+    public static bool IsPointInTopRevealZone(int cursorX, int cursorY, MonitorDescriptor monitor, int edgeHeightPx = 4)
+    {
+        ArgumentNullException.ThrowIfNull(monitor);
+        int right = monitor.LeftPx + Math.Max(1, monitor.WidthPx);
+        int triggerH = Math.Clamp(edgeHeightPx, 1, 96);
+        return cursorX >= monitor.LeftPx && cursorX < right
+            && cursorY >= monitor.TopPx
+            && cursorY < monitor.TopPx + triggerH;
+    }
+
+    /// <summary>True when the cursor is released in the top half of the monitor (dock snaps to the top edge).</summary>
+    public static bool ShouldSnapDockToTop(int cursorY, MonitorDescriptor monitor)
+    {
+        ArgumentNullException.ThrowIfNull(monitor);
+        return cursorY < monitor.TopPx + Math.Max(1, monitor.HeightPx) / 2;
+    }
+
     public static bool IsPointInDockKeepOpenZone(
         int cursorX,
         int cursorY,
         NativeMethods.RECT dockZone,
         int padHorizontalPx = 24,
-        int padTopPx = 30)
+        int padTopPx = 30,
+        bool atTop = false)
     {
         int padH = Math.Max(0, padHorizontalPx);
         int padT = Math.Max(0, padTopPx);
+        if (atTop)
+        {
+            return cursorX >= dockZone.Left - padH
+                && cursorX <= dockZone.Right + padH
+                && cursorY >= dockZone.Top
+                && cursorY <= dockZone.Bottom + padT;
+        }
         return cursorX >= dockZone.Left - padH
             && cursorX <= dockZone.Right + padH
             && cursorY >= dockZone.Top - padT

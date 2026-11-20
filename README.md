@@ -2,97 +2,152 @@
 
 # DinamikAda
 
-**A desktop island and an optional native taskbar theme for Windows 11.**
+**Native Windows 11 Dynamic Island, `explorer.exe` Floating Taskbar & Multi-Provider AI Quota HUD**
 
-[English quick start](#quick-start) · [Türkçe kullanım kılavuzu](docs/kullanim.md)
+*Built in C# / .NET / WPF, Win32 P/Invoke, and native C++ Windhawk hooks for `explorer.exe` and `StartMenuExperienceHost`.*
 
-<img src="docs/screenshots/explorer-taskbar.png" alt="DinamikAda’s default Explorer taskbar with separate app row and system tray" />
+[Türkçe Kullanım Kılavuzu](docs/kullanim.md) · [Quick Start](#quick-start) · [Build & Verify](#build-and-verify) · [Architecture](#architecture)
+
+<br/>
+
+<img src="docs/screenshots/dinamikada-overview.png" alt="DinamikAda unified desktop overview: Expanded Upper Island with live telemetry above the native Windows 11 explorer.exe App Dock and collapsible System Tray" width="100%"/>
+
+<br/><br/>
+
+<img src="docs/screenshots/explorer-taskbar.png" alt="Native explorer.exe floating island App Dock and collapsed System Tray" width="100%"/>
 
 </div>
 
-## Quick start
+---
+
+## Feature Showcase
+
+> *Note: If you have reduced motion enabled in your OS or GitHub settings, GitHub pauses GIF animations on the first frame — click any **Full-Size GIF** link to open the animation directly.*
+
+### 1. Upper Dynamic Notch & 7-Tab Command Deck
+Smooth morphing from the compact top media/AI telemetry pill into the 7-tab command deck (**Akış / Now**, **Ses / Audio**, **Denetim / Control**, **Raf / QR Shelf**, **Sistem / Telemetry**, **Araçlar / Tools**, **AI Kota**) and keyboard-driven **Command Palette** (`Ctrl+Shift+Space`).
+
+<div align="center">
+  <img src="docs/screenshots/upper-island-motion.gif" alt="DinamikAda Upper Island morphing through Now Playing, Audio, Control, Shelf QR, System Telemetry, AI Quota, and Command Palette" width="800"/>
+  <br/>
+  <sub>Compact top pill expanding into all 7 Island modules and Command Palette — <a href="docs/screenshots/upper-island-motion.gif">Full-Size GIF</a></sub>
+</div>
+
+---
+
+### 2. Multi-Account AI Quota & Subscription Telemetry
+Track remaining usage windows across **ChatGPT / Codex** (`5h` + `Weekly`), **Claude**, **Google Antigravity** (3-pool model telemetry + OAuth sign-in), **Gemini CLI**, **Cursor**, **GitHub Copilot**, and custom API endpoints — persisted locally across restarts and surfaced directly in the top pill.
+
+<div align="center">
+  <img src="docs/screenshots/ai-quota-showcase.gif" alt="AI Quota multi-provider telemetry with ChatGPT 5h and weekly bars, Antigravity model pools, and OAuth account editor" width="800"/>
+  <br/>
+  <sub>ChatGPT 5h + Weekly bars, Antigravity 3-pool breakdown, Claude cards, and Account Editor — <a href="docs/screenshots/ai-quota-showcase.gif">Full-Size GIF</a></sub>
+</div>
+
+---
+
+### 3. Native `explorer.exe` Floating Taskbar & Collapsible System Tray
+Instead of replacing Windows' taskbar shell with fragile overlays, DinamikAda enhances real `explorer.exe` using lightweight native Windhawk hooks (`GetWindowRgn` click-through around the visible islands, releasing the bottom work area for windows while keeping native Start menu, Jump Lists, and previews intact).
+
+<table>
+  <tr>
+    <td width="64%" align="center">
+      <img src="docs/screenshots/explorer-dock-full-cycle.gif" alt="Explorer.exe taskbar island reveal, icon wave hover with tooltips, and auto-conceal" width="100%"/>
+      <br/>
+      <sub><b>Explorer App Dock Cycle</b> — Bottom hover reveal, wave lift &amp; auto-conceal (<a href="docs/screenshots/explorer-dock-full-cycle.gif">Full-Size GIF</a>)</sub>
+    </td>
+    <td width="36%" align="center">
+      <img src="docs/screenshots/explorer-tray.gif" alt="Explorer.exe collapsible system tray chevron toggling extra icons" width="100%"/>
+      <br/>
+      <sub><b>Collapsible Tray</b> — One-click chevron tuck &amp; expand (<a href="docs/screenshots/explorer-tray.gif">Full-Size GIF</a>)</sub>
+    </td>
+  </tr>
+</table>
+
+---
+
+### 4. Continuous Album-Art Color Sync Across Shell Surfaces
+DinamikAda extracts the dominant palette from the playing track's artwork and writes smooth animated frame state to `%LOCALAPPDATA%\DinamikAda\ExplorerHost\animation-state.ini`, tinting the **Upper Island**, **`explorer.exe` App Dock**, **System Tray**, **Hidden Icons**, **Calendar & Notification flyouts**, **Quick Settings (`Win+A`)**, and **Windows 11 Start Menu (`StartMenuExperienceHost`)** together.
+
+<div align="center">
+  <img src="docs/screenshots/music-colors.gif" alt="Unified album-art color gradients animating in sync across Top Island, Explorer App Dock, and System Tray" width="100%"/>
+  <br/>
+  <sub>Synchronized album colors flowing across Top Island, Explorer App Dock, and System Tray — <a href="docs/screenshots/music-colors.gif">Full-Size GIF</a></sub>
+</div>
+
+<br/>
+
+<div align="center">
+  <img src="docs/screenshots/music-start-menu.gif" alt="Windows 11 StartMenuExperienceHost reacting continuously to the active album palette" width="680"/>
+  <br/>
+  <sub>Windows 11 Start Menu (<code>StartMenuExperienceHost</code>) reactive album-art backdrop — <a href="docs/screenshots/music-start-menu.gif">Full-Size GIF</a></sub>
+</div>
+
+---
+
+## Core Capabilities
+
+| Surface | Highlights |
+| :--- | :--- |
+| **Upper Island** | Hardware-aligned top pill with live media artwork, focus timers, notification stream, per-app audio router, clipboard vault, file shelf + QR transfer, OCR, brightness controls, GPU/VRAM/CPU/Disk/Ping telemetry, color picker, and command palette (`Ctrl+Shift+Space`). |
+| **Native `explorer.exe` Taskbar** | Five focused Windhawk modules (`ExplorerDockReveal`, `ExplorerTray`, `MusicGlass`, `StartMusicGlass`, and tray styling) keeping real Win11 pins, Jump Lists, and previews intact with zero bottom reserved band. |
+| **AI Quota Tracker** | Multi-account monitoring for ChatGPT / Codex (`5h` & `Weekly`), Claude, Google Antigravity (`Gemini Models`, `Claude & GPT`, `Gemini 4 Argon` pools via OAuth), Gemini CLI, Cursor, Copilot, and custom JSON/API sources. |
+
+---
+
+## Quick Start
 
 DinamikAda runs on **Windows 11 x64**. Building from source requires the **.NET 8 SDK**.
 
-1. Clone the repository or download and extract the ZIP from the **Code** menu.
-2. Run [DinamikAda-Baslat.bat](DinamikAda-Baslat.bat). The launcher builds the app on the first run and rebuilds it when source files change.
-3. Click the top island to open media, audio, system and **AI Quota** controls. Press **Ctrl+Shift+Space** to open the command palette.
-4. Open **Settings → Bottom Dock** to enable the standalone dock or follow the Explorer setup below.
+1. Clone the repository (or download and extract the ZIP from the **Code** menu) and launch:
+   ```powershell
+   .\DinamikAda-Baslat.bat
+   ```
+2. **Explorer Taskbar Setup:** Install [Windhawk](https://windhawk.net/) with its bundled compiler, exit DinamikAda from its notification-area icon, and run:
+   ```powershell
+   .\DinamikAda-Explorer-Kur.bat
+   ```
+3. Open **Settings → Bottom Dock (`Alt Dock`)** to toggle **Smart Auto-Hide** and icon hover behavior. Move the pointer to the **bottom center** to reveal the App Dock; click the rightmost arrow to collapse/expand the System Tray (**Win+A** opens Quick Settings).
+4. Open the **AI Kota** tab in the Upper Island to connect ChatGPT, Claude, Antigravity (Google OAuth), Gemini CLI, Cursor, or custom providers.
+5. To restore the default Windows taskbar at any time, exit DinamikAda and run:
+   ```powershell
+   .\DinamikAda-Windows-Barina-Don.bat
+   ```
 
-### Explorer taskbar
+See [docs/kullanim.md](docs/kullanim.md) for the full Turkish usage & setup guide.
 
-1. Install [Windhawk](https://windhawk.net/) with its bundled compiler. Exit DinamikAda from its notification-area icon and run [DinamikAda-Explorer-Kur.bat](DinamikAda-Explorer-Kur.bat).
-2. Open **Settings → Bottom Dock** and enable **Smart Auto-Hide** to hide the app row when it overlaps a window. Move the pointer to the **bottom center** to reveal it over a maximized window.
-3. Hover over an app icon for a small lift. The rightmost arrow toggles the system tray between its regular size and a compact button. The theme hides the microphone and volume glyphs. **Win+A** opens Windows Quick Settings.
-4. To restore the standard Windows taskbar, exit DinamikAda and run [DinamikAda-Windows-Barina-Don.bat](DinamikAda-Windows-Barina-Don.bat).
+---
 
-The work area extends to the bottom edge of the screen. Clicks in the gaps pass through to the window underneath. Explorer provides the Start menu, grouped app icons, previews and system flyouts.
+## Build and Verify
 
-### Dock and tray motion
-
-Move the pointer to the bottom center to reveal the app row. Slide across the icons to see them rise in sequence, then move away to hide the dock again.
-
-![The Explorer dock rises from the bottom edge, icons lift in sequence as the pointer sweeps over them, and the dock slides away](docs/screenshots/explorer-dock-full-cycle.gif)
-
-The rightmost arrow collapses the system tray into a compact button. Click it again to expand the tray.
-
-![The right system tray collapses and expands](docs/screenshots/explorer-tray.gif)
-
-[Open the dock GIF](https://raw.githubusercontent.com/escompanystudio-base/DinamikAda/main/docs/screenshots/explorer-dock-full-cycle.gif) · [Full taskbar screenshot](docs/screenshots/explorer-taskbar.png) · [Turkish setup guide](docs/kullanim.md#explorer-modunu-güncelleme)
-
-### Music colors
-
-DinamikAda takes its colors from album artwork shared by the active Windows media session. When a player delivers the next cover late, the island holds the current palette briefly and blends into the new colors when the artwork arrives. The AI capsule and expanded tabs share the island's palette.
-
-![Track colors crossfade while the top island opens and moves through its tabs](docs/screenshots/upper-island-motion.gif)
-
-In Explorer mode, the palette also follows the app dock, system tray, hidden icons, Start menu, calendar and notification panels, and Quick Settings.
-
-![The top island, app dock and system tray transition from violet and blue to warm orange as the track changes](docs/screenshots/music-colors.gif)
-
-![The native Start menu background transitions between the two tracks’ album palettes](docs/screenshots/music-start-menu.gif)
-
-### AI Quota
-
-Open **AI Quota** in the expanded island and use the add button for your provider. Select the intended account during sign-in. If a session expires, matches another card or belongs to another account, use **Reconnect** on the affected card.
-
-| Provider | What the card shows |
-| --- | --- |
-| ChatGPT / Codex | Codex usage and reset times for the connected account, including 5-hour and weekly windows when available. |
-| Claude | Supported Claude Code usage windows and reset times. The usage button opens the account usage page in the browser. |
-| Antigravity | Usage windows for available model pools. Compatible local Antigravity Tools data can provide saved readings. |
-| Gemini, custom and API | Source-dependent details. **Custom / API** supports manual counters and supported API connections. |
-
-Cards indicate when they show a saved reading, are waiting for quota data, or need a new sign-in.
-
-## Other tools
-
-The top island also includes a clipboard vault, file shelf, OCR, LAN file sharing, hardware and software brightness controls, lyrics and per-app audio routing.
-
-## Build and verify
-
-~~~powershell
+```powershell
+# Build x64 Release solution
 dotnet build DinamikAda.sln -c Release -p:Platform=x64
+
+# Run test suite
 dotnet test tests\DinamikAda.Tests\DinamikAda.Tests.csproj -c Release -p:Platform=x64
+
+# Verify end-to-end launcher health (runs tests, publishes build, generates audit screenshots)
 .\DinamikAda-Baslat.bat --verify
-~~~
 
-The verification launcher runs tests, publishes an isolated build, generates sample screenshots under **artifacts/render-audit**, and runs a runtime smoke check. With the Explorer profile active, run the live check:
-
-~~~powershell
+# Verify Explorer.exe Windhawk taskbar hooks and reveal/conceal cycle
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-explorer-taskbar.ps1 -RevealCycle
-~~~
 
-For optional Windows Action Center mirroring, register the sparse MSIX identity with the Windows SDK:
-
-~~~powershell
+# Optional: register sparse MSIX identity for Windows Action Center notification mirroring
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\register-sparse.ps1 -BinDir .\artifacts\app
-~~~
+```
 
-## Source and license
+---
 
-- [src](src) contains the .NET solution, Windows integration and WPF interface.
-- [native](native) contains the Explorer taskbar and Start menu styling extensions.
-- [tests](tests) contains .NET tests and the native dock motion tests.
+## Architecture
 
-The .NET application is licensed under the [MIT License](LICENSE). The native extensions are licensed under [GPL-3.0-or-later](native/COPYING). The [setup script](scripts/setup-explorer-taskbar.ps1) compiles pinned upstream mod sources and retains the original sources, generated source and hash manifest in an isolated Windhawk profile under **%LOCALAPPDATA%\DinamikAda\ExplorerHost**. Windows updates can affect compatibility with Explorer styling.
+- **`src/`** (`App`, `Core`, `Modules.*`, `Platform.Win32`) — Modular .NET WPF + Win32 P/Invoke host handling upper notch spring animation, multi-provider AI quota polling & persistence, media session / audio routing, system telemetry, and Explorer IPC state synchronization.
+- **`native/`** — C++ Windhawk Explorer & `StartMenuExperienceHost` hook modules (`ExplorerDockReveal.hpp`, `ExplorerTray.hpp`, `MusicGlass.hpp`, `StartMusicGlass.hpp`) compiled & managed cleanly via `ExplorerTaskbarService`.
+- **`tests/`** — .NET unit/layout/release-readiness tests and native C++ dock motion tests.
+
+---
+
+## License
+
+- Managed C# / .NET codebase: [MIT License](LICENSE)
+- Native Windhawk / Explorer C++ modules under `native/`: GNU General Public License v3.0 or later ([native/COPYING](native/COPYING))
