@@ -95,7 +95,9 @@ public partial class DockWindow
             if (req is null) return;
             // The same timer or account can legitimately finish again later; only collapse repeats of one event.
             if (!_toastDedupe.TryMark(req.Key + "@hud", DateTimeOffset.UtcNow, TimeSpan.FromSeconds(90))) return;
-            ShowDockToast(req with { Key = req.Key + "@" + DateTime.UtcNow.Ticks });
+            // The dock toast replaces the island HUD for this event, so it is not announced twice.
+            if (ShowDockToast(req with { Key = req.Key + "@" + DateTime.UtcNow.Ticks }))
+                _orch.Coordinator.DismissTransientHud(hud.CoalesceKey);
         });
     }
 

@@ -64,6 +64,19 @@ public sealed class CorePhysicsAndArbitrationTests
     }
 
     [Fact]
+    public void IslandCoordinator_DismissByKey_OnlyClearsTheMatchingHud()
+    {
+        var coord = new IslandCoordinator(new AppConfig(), new FakeTimeProvider());
+        coord.Publish(new TransientHudEvent("timer:1", HudKind.TimerAlert, "Timer", "Done", null, DurationMs: 5000));
+
+        coord.DismissTransientHud("timer:other");
+        Assert.Equal("timer:1", coord.Current.ActiveHud?.CoalesceKey);
+
+        coord.DismissTransientHud("timer:1");
+        Assert.Null(coord.Current.ActiveHud);
+    }
+
+    [Fact]
     public void IslandCoordinator_RespectsQuietIslandAndFullscreenWhitelist()
     {
         var fakeTime = new FakeTimeProvider();

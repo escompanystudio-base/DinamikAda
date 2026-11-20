@@ -451,7 +451,9 @@ internal static class WeatherWidgetTiles
             };
             _cond = W.Text(p, "", Math.Max(8, Math.Round(h * 0.25)), p.Foreground, FontWeights.SemiBold);
             _city = W.Text(p, "", Vivid.LabelSize(h), p.SecondaryForeground, FontWeights.Medium, ui: false);
-            var text = W.Column(_cond, _city);
+            // Long conditions ("Parçalı bulutlu") shrink slightly to fit instead of being cut off.
+            _cond.TextTrimming = TextTrimming.None;
+            var text = W.Column(Fit(_cond, HorizontalAlignment.Left), _city);
             text.Margin = new Thickness(0, 0, Math.Round(h * 0.1), 0);
             _temp = Vivid.Value(p, "", h, p.Foreground, 1.12);
             _temp.TextTrimming = TextTrimming.None;
